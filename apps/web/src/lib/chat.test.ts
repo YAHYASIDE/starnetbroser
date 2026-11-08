@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayLabel,
+  deleteForMe,
+  isReadByOthers,
+  nameHue,
+  readerId,
+  replyOf,
+  visibleMessages,
   addChatMessages,
   chatAtKey,
   chatNotification,
@@ -106,3 +113,54 @@ describe("💬 messages", () => {
     expect(chatAtKey(5) < chatAtKey(40)).toBe(true);
   });
 });
+
+describe("💬 WhatsApp-like: reply, forward, delete, ✓✓", () => {
+  const base = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, conv: TEAM_CONV, from: "owner", by: "YAHYA", member: "phone", text: "نص", at: 10, ...extra });
+
+  it("a reply carries a short quote; forwarded is marked", () => {
+    const original = base("abcdef000010", { text: "الطبق لا يتصل منذ الصباح" });
+    const r = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "م2", member: "m2", text: "سأراه", reply: replyOf(original), forwarded: true }, 20, rid)!;
+    expect(r.reply).toEqual({ id: "abcdef000010", by: "YAHYA", preview: "الطبق لا يتصل منذ الصباح" });
+    expect(r.forwarded).toBe(true);
+    expect(parseChatPayload(JSON.stringify(r), TEAM_CONV)!.reply!.id).toBe("abcdef000010");
+  });
+
+  it("delete for everyone: a hidden control message that only the sender's own counts", () => {
+    const msg = base("abcdef000020", { image: img });
+    const mine = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "YAHYA", member: "phone", text: "", deleteOf: "abcdef000020" }, 30, rid)!;
+    const someoneElse = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "م2", member: "m2", text: "", deleteOf: "abcdef000020" }, 30, rid)!;
+    expect(parseChatPayload(JSON.stringify(mine), TEAM_CONV)!.deleteOf).toBe("abcdef000020");
+    const onlyOther = visibleMessages({ [msg.id]: msg, [someoneElse.id]: someoneElse }, TEAM_CONV);
+    expect(onlyOther).toHaveLength(1);
+    expect(onlyOther[0]!.image).toBe(img);
+    const gone = visibleMessages({ [msg.id]: msg, [mine.id]: mine }, TEAM_CONV);
+    expect(gone).toEqual([expect.objectContaining({ id: "abcdef000020", deleted: true, text: "" })]);
+    expect(gone[0]!.image).toBeUndefined();
+  });
+
+  it("delete for me keeps a contentless mark", () => {
+    const store = deleteForMe({ abcdef000030: base("abcdef000030", { image: img }) }, "abcdef000030");
+    expect(store.abcdef000030).toMatchObject({ deleted: true, text: "" });
+    expect(store.abcdef000030!.image).toBeUndefined();
+    expect(deleteForMe(store, "nothing")).toBe(store);
+  });
+
+  it("✓✓ blue when another reader saw it; readers per side", () => {
+    expect(readerId(TEAM_CONV, { rep: false, memberId: "phone" })).toBe("phone");
+    expect(readerId(repConv("r1"), { rep: false, memberId: "phone" })).toBe("owner");
+    expect(readerId(repConv("r1"), { rep: true, memberId: "" })).toBe("rep");
+    const seen = { team: { phone: 100, m2: 50 } };
+    expect(isReadByOthers({ conv: TEAM_CONV, at: 40 }, seen, "phone")).toBe(true);
+    expect(isReadByOthers({ conv: TEAM_CONV, at: 60 }, seen, "phone")).toBe(false);
+  });
+
+  it("day lines and steady name colors", () => {
+    const now = new Date(2026, 10, 8, 12).getTime();
+    expect(dayLabel(new Date(2026, 10, 8, 1).getTime(), now)).toBe("اليوم");
+    expect(dayLabel(new Date(2026, 10, 7, 23).getTime(), now)).toBe("أمس");
+    expect(dayLabel(new Date(2026, 9, 2).getTime(), now)).toBe("2026/10/02");
+    expect(nameHue("المسؤول 2")).toBe(nameHue("المسؤول 2"));
+    expect(nameHue("a")).not.toBe(nameHue("b"));
+  });
+});
+

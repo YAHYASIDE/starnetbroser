@@ -6,51 +6,65 @@ import { useRouter } from "next/navigation";
 import { PartySheet } from "@/components/AccountsSection";
 import { chatView, CHAT_LIVE_EVENT, loadUnsent, postChat } from "@/components/ChatRunner";
 import { startCall } from "@/components/CallManager";
+import { ChatImageEditor } from "@/components/ChatImageEditor";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { teamMemberName } from "@/components/TeamFlagSheet";
 import {
   CHAT_EVENT,
   chatTime,
-  isChatImage,
+  dayLabel,
+  deleteForMe,
   isMine,
+  isReadByOthers,
   loadChat,
   loadChatRead,
+  loadChatSeen,
   markChatRead,
   MAX_CHAT_TEXT,
   messagePreview,
-  messagesOf,
+  nameHue,
   newChatMessage,
+  readerId,
+  replyOf,
+  saveChat,
   unreadCount,
+  visibleMessages,
+  type ChatMessage,
+  type ChatSeen,
   type ChatStore,
 } from "@/lib/chat";
-import { chatTargets, type ChatTarget } from "@/lib/chatTransport";
+import { chatTargets, sendChatRead, type ChatTarget } from "@/lib/chatTransport";
 import { loadClientStore } from "@/lib/clientStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { homeSearchHref } from "@/lib/homeActions";
-import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace } from "@/lib/repMode";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
-/** A picture small enough to travel (tries smaller until it fits). */
-async function chatPicture(file: File): Promise<string | null> {
-  for (const [size, quality] of [
-    [1000, 0.6],
-    [800, 0.5],
-    [600, 0.45],
-  ] as const) {
-    const url = await resizeImageToDataUrl(file, size, quality).catch(() => null);
-    if (url && isChatImage(url)) return url;
-  }
-  return null;
+type Side = { rep: boolean; memberId: string };
+
+function myName(side: Side): string {
+  if (side.rep) return loadRepCopy()?.repName ?? "المندوب";
+  const n = teamMemberName();
+  return n === "أنا" ? "المسؤول" : n;
+}
+
+/** A message from this phone, in a conversation. */
+function draft(target: ChatTarget, side: Side, fields: Omit<Parameters<typeof newChatMessage>[0], "conv" | "from" | "by" | "member">) {
+  return newChatMessage({ conv: target.conv, from: side.rep ? "rep" : "owner", by: myName(side), member: side.rep ? undefined : side.memberId, ...fields });
+}
+
+/** The round picture: 👥 for the team, the rep's first letter. */
+function avatarOf(target: Pick<ChatTarget, "conv" | "title">): string {
+  if (target.conv === "team") return "👥";
+  return target.title.replace(/^\S+\s/, "").trim().slice(0, 1) || "💬";
 }
 
 /**
- * 💬 الدردشة (his Nov 7 2026 ask; lib/chat.ts): the conversations - 👥 الفريق, 🤝 each rep (on the rep's phone: only
- * his own with the operator) and 👤 الزبائن (no app: their WhatsApp) -, then one conversation: the messages, text,
- * 📷 a picture, 📡 a device (tap → its card).
+ * 💬 الدردشة (his Nov 7 2026 ask; WhatsApp's look and gestures since Nov 8 2026 - lib/chat.ts): the conversations -
+ * 👥 الفريق, 🤝 each rep (on the rep's phone: only his own) and 👤 الزبائن (their WhatsApp) -, then one conversation.
  */
 export default function ChatPage() {
   const router = useRouter();
@@ -58,6 +72,7 @@ export default function ChatPage() {
   const [targets, setTargets] = useState<ChatTarget[]>([]);
   const [store, setStore] = useState<ChatStore>({});
   const [read, setRead] = useState<Record<string, number>>({});
+  const [seen, setSeen] = useState<ChatSeen>({});
   const [unsent, setUnsent] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [customers, setCustomers] = useState(false);
@@ -70,11 +85,11 @@ export default function ChatPage() {
     setMemberId(loadLinkConfig(browserLinkStorage())?.memberId ?? "");
     const list = chatTargets();
     setTargets(list);
-    // the rep has one conversation: open it at once
     if (isRep && list.length === 1) setOpen(list[0]!.conv);
     const reload = () => {
       setStore(loadChat());
       setRead(loadChatRead());
+      setSeen(loadChatSeen());
       setUnsent(loadUnsent());
     };
     reload();
@@ -104,7 +119,9 @@ export default function ChatPage() {
     return (
       <Conversation
         target={target}
+        targets={targets}
         store={store}
+        seen={seen}
         unsent={unsent}
         side={side}
         live={live[target.conv]}
@@ -131,15 +148,36 @@ export default function ChatPage() {
       ) : (
         <ul className="chat-list">
           {targets.map((t) => {
-            const last = messagesOf(store, t.conv).at(-1);
+            const list = visibleMessages(store, t.conv);
+            const last = list.at(-1);
             const count = unreadCount(store, t.conv, read, side);
+            const mine = last ? isMine(last, side) : false;
             return (
               <li key={t.conv}>
                 <button type="button" className="chat-list-item" onClick={() => setOpen(t.conv)}>
-                  <span className="chat-list-title">{t.title}</span>
-                  <span className="chat-list-last">{last ? `${isMine(last, side) ? "أنت: " : `${last.by}: `}${messagePreview(last)}` : "لا رسائل بعد"}</span>
-                  {last && <small className="chat-list-time">{chatTime(last.at, Date.now())}</small>}
-                  {count > 0 && <span className="chat-badge">{count}</span>}
+                  <span className="chat-avatar" aria-hidden="true">
+                    {avatarOf(t)}
+                  </span>
+                  <span className="chat-list-body">
+                    <span className="chat-list-top">
+                      <span className="chat-list-title">{t.title}</span>
+                      {last && <small className={`chat-list-time${count ? " is-unread" : ""}`}>{chatTime(last.at, Date.now())}</small>}
+                    </span>
+                    <span className="chat-list-bottom">
+                      <span className="chat-list-last">
+                        {last ? (
+                          <>
+                            {mine && <span className={`chat-ticks${isReadByOthers(last, seen, readerId(t.conv, side)) ? " is-read" : ""}`}>{unsent.includes(last.id) ? "⏳" : "✓✓"}</span>}
+                            {!mine && t.conv === "team" ? `${last.by}: ` : ""}
+                            {messagePreview(last)}
+                          </>
+                        ) : (
+                          "لا رسائل بعد"
+                        )}
+                      </span>
+                      {count > 0 && <span className="chat-badge">{count}</span>}
+                    </span>
+                  </span>
                 </button>
               </li>
             );
@@ -147,8 +185,17 @@ export default function ChatPage() {
           {!rep && (
             <li>
               <button type="button" className="chat-list-item" onClick={() => setCustomers(true)}>
-                <span className="chat-list-title">👤 الزبائن</span>
-                <span className="chat-list-last">ليس عندهم التطبيق - المحادثة في واتساب</span>
+                <span className="chat-avatar" aria-hidden="true">
+                  👤
+                </span>
+                <span className="chat-list-body">
+                  <span className="chat-list-top">
+                    <span className="chat-list-title">👤 الزبائن</span>
+                  </span>
+                  <span className="chat-list-bottom">
+                    <span className="chat-list-last">ليس عندهم التطبيق - المحادثة في واتساب</span>
+                  </span>
+                </span>
               </button>
             </li>
           )}
@@ -162,9 +209,14 @@ export default function ChatPage() {
   );
 }
 
+const LONG_PRESS_MS = 450;
+const SWIPE_PX = 60;
+
 function Conversation({
   target,
+  targets,
   store,
+  seen,
   unsent,
   side,
   live,
@@ -172,111 +224,277 @@ function Conversation({
   onOpenDevice,
 }: {
   target: ChatTarget;
+  targets: ChatTarget[];
   store: ChatStore;
+  seen: ChatSeen;
   unsent: string[];
-  side: { rep: boolean; memberId: string };
+  side: Side;
   live: boolean | undefined;
   onBack: (() => void) | null;
   onOpenDevice: (name: string) => void;
 }) {
   const [text, setText] = useState("");
-  const [image, setImage] = useState<string | null>(null);
   const [device, setDevice] = useState<{ id: string; name: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [picking, setPicking] = useState(false);
+  const [pictures, setPictures] = useState<File[] | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
+  const [menu, setMenu] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const messages = messagesOf(store, target.conv);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const press = useRef<{ id: string; x: number; y: number; timer: number; moved: boolean } | null>(null);
+  const [swipe, setSwipe] = useState<{ id: string; dx: number } | null>(null);
+  const sentRead = useRef(0);
+  const messages = visibleMessages(store, target.conv);
   const lastAt = messages.at(-1)?.at ?? 0;
+  const me = readerId(target.conv, side);
+
+  // a conversation takes the whole screen (the bottom bar hides, as in WhatsApp)
+  useEffect(() => {
+    document.documentElement.classList.add("chat-open");
+    return () => document.documentElement.classList.remove("chat-open");
+  }, []);
 
   useEffect(() => {
     if (lastAt) markChatRead(target.conv, lastAt);
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [lastAt, target.conv]);
-
-  async function send(voice?: { audio: string; seconds: number }) {
-    const me = side.rep ? loadRepCopy()?.repName ?? "المندوب" : teamMemberName();
-    const message = newChatMessage({
-      conv: target.conv,
-      from: side.rep ? "rep" : "owner",
-      by: me === "أنا" ? "المسؤول" : me,
-      member: side.rep ? undefined : side.memberId,
-      ...(voice ? { text: "", audio: voice.audio, seconds: voice.seconds } : { text, image, device }),
-    });
-    if (!message) return;
-    if (!voice) {
-      setText("");
-      setImage(null);
-      setDevice(null);
+    // ✓✓ tell the others what I read (once per new message, while the page is in front)
+    if (lastAt > sentRead.current && document.visibilityState === "visible") {
+      sentRead.current = lastAt;
+      const t = window.setTimeout(() => void sendChatRead(target, me, lastAt), 1200);
+      return () => window.clearTimeout(t);
     }
-    const ok = await postChat(target, message);
+  }, [lastAt, target, me]);
+
+  async function post(message: ChatMessage | null, to: ChatTarget = target) {
+    if (!message) return;
+    const ok = await postChat(to, message);
     setNote(ok ? null : "⏳ لم تُرسل بعد - تُرسل وحدها حين يتصل الإنترنت");
   }
 
+  async function sendText(voice?: { audio: string; seconds: number }) {
+    const reply = replyTo ? replyOf(replyTo) : null;
+    const message = draft(target, side, voice ? { text: "", audio: voice.audio, seconds: voice.seconds, reply } : { text, device, reply });
+    if (!message) return;
+    if (!voice) {
+      setText("");
+      setDevice(null);
+    }
+    setReplyTo(null);
+    await post(message);
+  }
+
+  async function sendPictures(list: { image: string; caption: string }[]) {
+    setPictures(null);
+    const reply = replyTo ? replyOf(replyTo) : null;
+    setReplyTo(null);
+    for (const [i, p] of list.entries()) await post(draft(target, side, { text: p.caption, image: p.image, ...(i === 0 && reply ? { reply } : {}) }));
+  }
+
+  function jumpTo(id: string) {
+    const el = listRef.current?.querySelector(`[data-msg="${id}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlash(id);
+    window.setTimeout(() => setFlash(null), 1400);
+  }
+
+  // ⏱ hold = the menu; ↔ drag = reply (WhatsApp's swipe)
+  function pressStart(m: ChatMessage, e: React.PointerEvent) {
+    if (m.deleted) return;
+    const timer = window.setTimeout(() => {
+      if (press.current && !press.current.moved) {
+        navigator.vibrate?.(20);
+        setMenu(m);
+      }
+      press.current = null;
+    }, LONG_PRESS_MS);
+    press.current = { id: m.id, x: e.clientX, y: e.clientY, timer, moved: false };
+  }
+
+  function pressMove(m: ChatMessage, e: React.PointerEvent) {
+    const p = press.current;
+    if (!p || p.id !== m.id) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+      p.moved = true;
+      window.clearTimeout(p.timer);
+    }
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) setSwipe({ id: m.id, dx: Math.max(-90, Math.min(90, dx)) });
+  }
+
+  function pressEnd(m: ChatMessage) {
+    const p = press.current;
+    if (p) window.clearTimeout(p.timer);
+    press.current = null;
+    if (swipe && swipe.id === m.id && Math.abs(swipe.dx) >= SWIPE_PX) {
+      setReplyTo(m);
+      inputRef.current?.focus();
+    }
+    setSwipe(null);
+  }
+
+  async function act(action: "reply" | "copy" | "forward" | "deleteMe" | "deleteAll") {
+    const m = menu;
+    setMenu(null);
+    if (!m) return;
+    if (action === "reply") {
+      setReplyTo(m);
+      inputRef.current?.focus();
+    } else if (action === "copy") {
+      await navigator.clipboard?.writeText(m.text || messagePreview(m)).catch(() => undefined);
+      setNote("📋 نُسخ النص");
+      window.setTimeout(() => setNote(null), 1500);
+    } else if (action === "forward") {
+      setForwarding(m);
+    } else if (action === "deleteMe") {
+      saveChat(deleteForMe(loadChat(), m.id));
+    } else if (action === "deleteAll") {
+      await post(draft(target, side, { text: "", deleteOf: m.id }));
+    }
+  }
+
+  async function forwardTo(to: ChatTarget) {
+    const m = forwarding;
+    setForwarding(null);
+    if (!m) return;
+    const sideTo = { rep: side.rep, memberId: side.memberId };
+    await post(
+      newChatMessage({
+        conv: to.conv,
+        from: sideTo.rep ? "rep" : "owner",
+        by: myName(sideTo),
+        member: sideTo.rep ? undefined : sideTo.memberId,
+        text: m.call ? "" : m.text,
+        image: m.image,
+        device: m.device,
+        audio: m.audio,
+        seconds: m.seconds,
+        forwarded: true,
+      }),
+      to,
+    );
+    setNote(`↪️ أُعيد توجيهها إلى ${to.title}`);
+    window.setTimeout(() => setNote(null), 1800);
+  }
+
+  const now = Date.now();
+  let lastDay = "";
   return (
     <main className="home chat-page chat-conversation">
-      <div className="session-header chat-head">
+      <div className="chat-head">
         {onBack ? (
-          <button type="button" className="btn-link" onClick={onBack}>
-            ← المحادثات
+          <button type="button" className="chat-back" onClick={onBack} aria-label="المحادثات">
+            →
           </button>
         ) : (
-          <Link href="/" className="btn-link">
-            ← رجوع
+          <Link href="/" className="chat-back" aria-label="رجوع">
+            →
           </Link>
         )}
-        <h1 className="section-title">{target.title}</h1>
+        <span className="chat-avatar chat-avatar-sm" aria-hidden="true">
+          {avatarOf(target)}
+        </span>
+        <span className="chat-head-text">
+          <strong>{target.title}</strong>
+          <small className={live === false ? "is-off" : ""}>{live === false ? "غير متصل الآن" : "مباشر"}</small>
+        </span>
         <button type="button" className="chat-call" onClick={() => startCall(target.conv)} aria-label="مكالمة صوتية">
           📞
         </button>
-        <span className={`chat-live${live === false ? " is-off" : ""}`} title={live === false ? "غير متصل" : "مباشر"} aria-label={live === false ? "غير متصل" : "مباشر"} />
       </div>
-      <div className="chat-messages" ref={listRef}>
-        {messages.length === 0 && <p className="party-empty">لا رسائل بعد - اكتب أول رسالة.</p>}
+      <div className="chat-messages chat-wallpaper" ref={listRef}>
+        {messages.length === 0 && <p className="chat-day">لا رسائل بعد - اكتب أول رسالة.</p>}
         {messages.map((m) => {
           const mine = isMine(m, side);
+          const day = dayLabel(m.at, now);
+          const showDay = day !== lastDay;
+          lastDay = day;
+          const dx = swipe && swipe.id === m.id ? swipe.dx : 0;
           return (
-            <div key={m.id} className={`chat-bubble${mine ? " is-mine" : ""}`}>
-              {!mine && <strong className="chat-by">{m.by}</strong>}
-              {m.image && (
-                <button type="button" className="chat-image" onClick={() => setViewer(m.image!)} aria-label="عرض الصورة">
-                  <img src={m.image} alt="صورة" />
-                </button>
-              )}
-              {m.device && (
-                <button type="button" className="chat-device" onClick={() => onOpenDevice(m.device!.name)}>
-                  📡 {m.device.name}
-                </button>
-              )}
-              {m.audio && (
-                <span className="chat-voice">
-                  <audio className="chat-audio" controls preload="none" src={m.audio} />
-                  {m.seconds ? <small className="chat-meta">🎤 {m.seconds} ث</small> : null}
-                </span>
-              )}
-              {m.mediaGone && <small className="chat-meta">🗑️ الصورة / التسجيل لم يعد محفوظًا في هذا الهاتف</small>}
-              {m.text && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
-              <small className="chat-meta">
-                {chatTime(m.at, Date.now())}
-                {mine && (unsent.includes(m.id) ? " ⏳" : " ✓")}
-              </small>
+            <div key={m.id} className="chat-row-wrap">
+              {showDay && <p className="chat-day">{day}</p>}
+              <div
+                data-msg={m.id}
+                className={`chat-bubble${mine ? " is-mine" : ""}${m.deleted ? " is-deleted" : ""}${flash === m.id ? " is-flash" : ""}`}
+                style={dx ? { transform: `translateX(${dx}px)` } : undefined}
+                onPointerDown={(e) => pressStart(m, e)}
+                onPointerMove={(e) => pressMove(m, e)}
+                onPointerUp={() => pressEnd(m)}
+                onPointerCancel={() => pressEnd(m)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (!m.deleted) setMenu(m);
+                }}
+              >
+                {!mine && target.conv === "team" && (
+                  <strong className="chat-by" style={{ color: `hsl(${nameHue(m.by)} 70% 55%)` }}>
+                    {m.by}
+                  </strong>
+                )}
+                {m.forwarded && <small className="chat-forwarded">↪️ مُعاد توجيهها</small>}
+                {m.reply && (
+                  <button type="button" className="chat-quote" onClick={() => jumpTo(m.reply!.id)}>
+                    <strong style={{ color: `hsl(${nameHue(m.reply.by)} 70% 55%)` }}>{m.reply.by}</strong>
+                    <span>{m.reply.preview}</span>
+                  </button>
+                )}
+                {m.image && (
+                  <button type="button" className="chat-image" onClick={() => setViewer(m.image!)} aria-label="عرض الصورة">
+                    <img src={m.image} alt="صورة" />
+                  </button>
+                )}
+                {m.device && (
+                  <button type="button" className="chat-device" onClick={() => onOpenDevice(m.device!.name)}>
+                    📡 {m.device.name}
+                  </button>
+                )}
+                {m.audio && (
+                  <span className="chat-voice">
+                    <audio className="chat-audio" controls preload="none" src={m.audio} />
+                  </span>
+                )}
+                {m.mediaGone && <small className="chat-forwarded">🗑️ الصورة / التسجيل لم يعد محفوظًا في هذا الهاتف</small>}
+                {m.deleted ? <p className="chat-text chat-text-deleted">🚫 حُذفت هذه الرسالة</p> : m.text && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
+                <small className="chat-meta">
+                  {m.seconds ? `🎤 ${m.seconds} ث · ` : ""}
+                  <bdi dir="ltr">{chatTime(m.at, now).replace(/^.* /, "")}</bdi>
+                  {mine && !m.deleted && (
+                    <span className={`chat-ticks${!unsent.includes(m.id) && isReadByOthers(m, seen, me) ? " is-read" : ""}`}>
+                      {unsent.includes(m.id) ? " ⏳" : isReadByOthers(m, seen, me) ? " ✓✓" : " ✓"}
+                    </span>
+                  )}
+                </small>
+              </div>
             </div>
           );
         })}
       </div>
-      {note && <p className="settings-hint chat-note">{note}</p>}
-      {(image || device) && (
+      {note && <p className="chat-note">{note}</p>}
+      {(replyTo || device) && (
         <div className="chat-attached">
-          {image && (
-            <span className="chat-attached-item">
-              <img src={image} alt="" /> <button type="button" className="text-action" onClick={() => setImage(null)} aria-label="إزالة الصورة">✕</button>
+          {replyTo && (
+            <span className="chat-reply-bar">
+              <span className="chat-quote chat-quote-static">
+                <strong style={{ color: `hsl(${nameHue(replyTo.by)} 70% 55%)` }}>↩️ {replyTo.by}</strong>
+                <span>{messagePreview(replyTo)}</span>
+              </span>
+              <button type="button" className="text-action" onClick={() => setReplyTo(null)} aria-label="إلغاء الرد">
+                ✕
+              </button>
             </span>
           )}
           {device && (
             <span className="chat-attached-item">
-              📡 {device.name} <button type="button" className="text-action" onClick={() => setDevice(null)} aria-label="إزالة الجهاز">✕</button>
+              📡 {device.name}{" "}
+              <button type="button" className="text-action" onClick={() => setDevice(null)} aria-label="إزالة الجهاز">
+                ✕
+              </button>
             </span>
           )}
         </div>
@@ -285,30 +503,34 @@ function Conversation({
         className="chat-compose"
         onSubmit={(e) => {
           e.preventDefault();
-          void send();
+          void sendText();
         }}
       >
         {!recording && (
-          <>
-            <button type="button" className="chat-tool" onClick={() => fileRef.current?.click()} aria-label="إرفاق صورة">
-              📷
-            </button>
-            <button type="button" className="chat-tool" onClick={() => setPicking(true)} aria-label="إرفاق جهاز">
-              📡
-            </button>
+          <div className="chat-field">
             <textarea
+              ref={inputRef}
               className="chat-input"
               rows={1}
               maxLength={MAX_CHAT_TEXT}
               placeholder="اكتب رسالة…"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(120, e.target.scrollHeight)}px`;
+              }}
             />
-          </>
+            <button type="button" className="chat-field-tool" onClick={() => setPicking(true)} aria-label="إرفاق جهاز">
+              📡
+            </button>
+            <button type="button" className="chat-field-tool" onClick={() => fileRef.current?.click()} aria-label="إرسال صور">
+              📷
+            </button>
+          </div>
         )}
-        {/* 🎤 an empty field: record a voice message; something typed / attached: send it */}
-        {!text.trim() && !image && !device ? (
-          <VoiceRecorder onState={setRecording} onRecorded={(audio, seconds) => void send({ audio, seconds })} onError={setNote} />
+        {!text.trim() && !device ? (
+          <VoiceRecorder onState={setRecording} onRecorded={(audio, seconds) => void sendText({ audio, seconds })} onError={setNote} />
         ) : (
           <button type="submit" className="chat-send" aria-label="إرسال">
             ➤
@@ -318,17 +540,16 @@ function Conversation({
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           hidden
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
+          onChange={(e) => {
+            const list = Array.from(e.target.files ?? []);
             e.target.value = "";
-            if (!file) return;
-            const url = await chatPicture(file);
-            if (url) setImage(url);
-            else setNote("تعذّر تجهيز الصورة - جرّب صورة أخرى");
+            if (list.length) setPictures(list);
           }}
         />
       </form>
+      {pictures && <ChatImageEditor files={pictures} onSend={(list) => void sendPictures(list)} onClose={() => setPictures(null)} />}
       {picking && (
         <DevicePicker
           onPick={(d) => {
@@ -337,6 +558,46 @@ function Conversation({
           }}
           onClose={() => setPicking(false)}
         />
+      )}
+      {menu && (
+        <PartySheet title={messagePreview(menu).slice(0, 40) || "رسالة"} onClose={() => setMenu(null)}>
+          <div className="msg-list">
+            <button type="button" className="msg-item" onClick={() => void act("reply")}>
+              <span className="msg-item-label">↩️ رد</span>
+            </button>
+            {menu.text && (
+              <button type="button" className="msg-item" onClick={() => void act("copy")}>
+                <span className="msg-item-label">📋 نسخ</span>
+              </button>
+            )}
+            {!menu.call && targets.length > 1 && (
+              <button type="button" className="msg-item" onClick={() => void act("forward")}>
+                <span className="msg-item-label">↪️ إعادة توجيه</span>
+              </button>
+            )}
+            <button type="button" className="msg-item" onClick={() => void act("deleteMe")}>
+              <span className="msg-item-label">🗑️ حذف عندي</span>
+            </button>
+            {isMine(menu, side) && (
+              <button type="button" className="msg-item msg-item-bad" onClick={() => void act("deleteAll")}>
+                <span className="msg-item-label">🗑️ حذف عند الجميع</span>
+              </button>
+            )}
+          </div>
+        </PartySheet>
+      )}
+      {forwarding && (
+        <PartySheet title="↪️ إعادة توجيه إلى…" onClose={() => setForwarding(null)}>
+          <div className="msg-list">
+            {targets
+              .filter((t) => t.conv !== target.conv)
+              .map((t) => (
+                <button key={t.conv} type="button" className="msg-item" onClick={() => void forwardTo(t)}>
+                  <span className="msg-item-label">{t.title}</span>
+                </button>
+              ))}
+          </div>
+        </PartySheet>
       )}
       {viewer && (
         <div className="rep-receipt-viewer" role="dialog" aria-label="الصورة" onClick={() => setViewer(null)}>

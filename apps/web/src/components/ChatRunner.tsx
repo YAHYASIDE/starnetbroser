@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { addChatMessages, CHAT_EVENT, chatNotification, isMine, loadChat, messagesOf, saveChat, type ChatMessage } from "@/lib/chat";
-import { chatTargets, listenChat, sendChat, type ChatTarget } from "@/lib/chatTransport";
+import { addChatMessages, CHAT_EVENT, saveChatSeen, chatNotification, isMine, loadChat, messagesOf, saveChat, type ChatMessage } from "@/lib/chat";
+import { chatTargets, listenChat, listenChatReads, sendChat, type ChatTarget } from "@/lib/chatTransport";
 import { notifyPhone } from "@/lib/appEvents";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { isRepWorkspace } from "@/lib/repMode";
@@ -55,7 +55,7 @@ export function ChatRunner() {
     const side = { rep: isRepWorkspace(), memberId: loadLinkConfig(browserLinkStorage())?.memberId ?? "" };
     const start = () => {
       const targets = chatTargets();
-      const wanted = new Set(targets.map((t) => `${t.conv}|${t.spaceId}`));
+      const wanted = new Set(targets.flatMap((t) => [`${t.conv}|${t.spaceId}`, `${t.conv}|${t.spaceId}|reads`]));
       for (const [k, stop] of stops) {
         if (wanted.has(k)) continue;
         stop();
@@ -66,6 +66,11 @@ export function ChatRunner() {
         if (stops.has(k)) continue;
         const last = messagesOf(loadChat(), target.conv).at(-1)?.at;
         const since = last ? last - MARGIN_MS : Date.now() - FIRST_LOOK_MS;
+        const stopReads = listenChatReads(target, (who, at) => saveChatSeen(target.conv, who, at));
+        stops.set(
+          `${k}|reads`,
+          stopReads,
+        );
         stops.set(
           k,
           listenChat(
@@ -76,6 +81,7 @@ export function ChatRunner() {
               if (added.length === 0) return;
               saveChat(store);
               for (const m of added) {
+                if (m.deleteOf) continue; // a «delete for everyone» - never announced
                 // 📞 a call message rings here (CallManager) - a phone notification too, for when the screen is off
                 if (m.call && shouldRing(m, isMine(m, side), Date.now())) {
                   window.dispatchEvent(new CustomEvent(CALL_INCOMING_EVENT, { detail: { conv: m.conv, id: m.call.id, by: m.by } }));

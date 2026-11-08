@@ -3191,3 +3191,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   phone of the team sees «رُدّ عليها من هاتف آخر»). 45 s no answer → «لم يرد»; 25 s to connect after «رد» → «تعذّر
   الاتصال… جرّب واتساب». During: timer, 🎤 كتم, إنهاء. One-to-one only (the team conversation: whoever answers).
 
+## 💬 The chat like WhatsApp · 📷 picture editing (Nov 8 2026)
+
+- His «عدّل الدردشات، ليست جيدة، وإرسال الصورة لا يمكن تعديله - مثل واتساب». His choices: ALL of the look (wallpaper,
+  tails, day lines, colored names), ↩️ reply with a quote, long-press copy / delete / forward, ✓✓ read; and for pictures
+  ALL of: big preview + caption, crop + rotate, draw + write on it, several at once.
+- Model (lib/chat.ts, tested): `reply {id, by, preview}`, `forwarded`, `deleteOf` = a hidden control message («delete for
+  everyone», counted only from the message's own sender - `visibleMessages`), `deleted` (delete for me: a contentless
+  mark that never comes back from the listener), `dayLabel`, `nameHue`. ✓✓: each reader writes
+  `starnet/{space}/chatRead/{who}` {at} when he reads (who = team member id, or «owner» / «rep» with a rep); ChatRunner
+  listens (`starnet.chatSeen`); blue when another reader's `at` ≥ the message. ⏳ unsent, ✓ sent, ✓✓ read.
+- The conversation is one fixed screen (`html.chat-open`: no bottom bar): header (avatar, name, live state, 📞),
+  WhatsApp wallpaper + bubbles (tokens `--wa-*`, light + dark), the field with 📡 / 📷 inside, 🎤 / ➤. Long press (450 ms)
+  → ↩️ رد · 📋 نسخ · ↪️ إعادة توجيه (when there is another conversation) · 🗑️ حذف عندي · 🗑️ حذف عند الجميع (mine only);
+  a sideways swipe of 60 px = reply; tapping a quote jumps to (and flashes) the original. Background notifications
+  skip delete controls.
+- 📷 components/ChatImageEditor.tsx: up to 10 pictures (+ to add), each edited alone - ✂ crop (drag the corners / the
+  frame), ⟳ rotate 90°, ✏️ draw (6 colors), Aa text (type, then tap where), ↶ undo, its own caption; marks are kept as
+  strokes / texts in 0..1 coordinates and baked in on rotate / crop / send; sent as one message each, a JPEG made to
+  fit (1280 → 640 px, quality 0.72 → 0.4) under `MAX_CHAT_IMAGE`.
+

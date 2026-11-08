@@ -125,7 +125,7 @@ final class AlertWatch {
                 if (seen.contains(id)) continue;
                 seen.add(id);
                 JSONObject m = openDoc(doc, chat.optString("key"));
-                if (m == null) continue;
+                if (m == null || m.has("deleteOf")) continue; // a «delete for everyone» - never announced
                 boolean teamChat = "team".equals(chat.optString("conv"));
                 boolean mine = teamChat ? me.equals(m.optString("member")) : chat.optString("mine").equals(m.optString("from", "owner"));
                 if (mine || m.optLong("at", 0) < appSeen - 60_000) continue;

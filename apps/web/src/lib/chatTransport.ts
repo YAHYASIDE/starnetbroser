@@ -132,3 +132,41 @@ export function listenChat(target: ChatTarget, since: number, onMessages: (messa
     unsubscribe?.();
   };
 }
+
+// ---- ✓✓ read ----
+
+/** ✓✓ «I read this conversation up to `at`» - one small document per reader (`starnet/{space}/chatRead/{who}`). */
+export async function sendChatRead(target: ChatTarget, who: string, at: number): Promise<boolean> {
+  try {
+    const r = await writeDocument(target.firebase, `starnet/${target.spaceId}/chatRead/${who}`, { at: chatAtKey(at) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** ✓✓ Listens to what the readers of a conversation saw. Returns the stop function. */
+export function listenChatReads(target: ChatTarget, onRead: (who: string, at: number) => void): () => void {
+  let stopped = false;
+  let unsubscribe: (() => void) | null = null;
+  void (async () => {
+    try {
+      const { db, fs } = await firestoreFor(target.firebase);
+      if (stopped) return;
+      unsubscribe = fs.onSnapshot(fs.collection(db, "starnet", target.spaceId, "chatRead"), (snap) => {
+        for (const c of snap.docChanges()) {
+          if (c.type === "removed") continue;
+          const at = Number((c.doc.data() as { at?: string }).at ?? 0);
+          if (Number.isFinite(at) && at > 0) onRead(c.doc.id, at);
+        }
+      });
+    } catch {
+      // offline: ✓ stays ✓
+    }
+  })();
+  return () => {
+    stopped = true;
+    unsubscribe?.();
+  };
+}
+
