@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FetchFn } from "./firestoreRest";
 import type { LinkConfig, TeamMember } from "./deviceLink";
-import { cleanSent, isSignedInSession, runSessionRound, sessionsNoteText, sessionFingerprint, sessionsToSend, sessionsToTake } from "./teamSessions";
+import { cleanSent, isSignedInSession, runSessionRound, sessionsNoteText, sessionFingerprint, sessionsToSend, sessionsToTake, ticketFingerprint } from "./teamSessions";
 
 // Fake data only - no real cookie.
 const IN = (v: string) => ({ "https://starlink.com": `_ga=x; Starlink.Com.Access.V1=chunks-2; Starlink.Com.Access.V1C1=${v}` });
@@ -57,6 +57,14 @@ describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
     const changed = { d1: IN("2") };
     expect(sessionsToSend(changed, sent, 60_000)).toEqual([]);
     expect(sessionsToSend(changed, sent, 6 * 3_600_000)).toEqual(["d1"]);
+  });
+
+  it("a new sign-in (another ticket) goes at once; other cookies changing still wait 6 hours (his Nov 8 2026 report)", () => {
+    const before = { "https://starlink.com": "_ga=x; Starlink.Com.Access.V1C1=old" };
+    const sent = { d1: { h: sessionFingerprint(before), at: 0, t: ticketFingerprint(before) } };
+    expect(sessionsToSend({ d1: { "https://starlink.com": "_ga=y; Starlink.Com.Access.V1C1=old" } }, sent, 60_000)).toEqual([]);
+    expect(sessionsToSend({ d1: { "https://starlink.com": "_ga=x; Starlink.Com.Access.V1C1=new" } }, sent, 60_000)).toEqual(["d1"]);
+    expect(ticketFingerprint(OUT)).toBe("");
   });
 
   it("takes a newer session only where this phone has none - unless asked", () => {

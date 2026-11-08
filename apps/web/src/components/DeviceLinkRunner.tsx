@@ -4,7 +4,7 @@ import { requestDataReload } from "@/lib/dataReload";
 
 import { useEffect } from "react";
 import { browserLinkStorage, LINK_EXCLUDED_KEYS, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
-import { isLinkedWrite, startLinkPulse } from "@/lib/linkPulse";
+import { isLinkedWrite, startLinkPulse, startSessionPulse } from "@/lib/linkPulse";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
@@ -24,6 +24,8 @@ export const TEAM_SESSIONS_EVENT = "starnet:team-sessions";
 export const TEAM_SESSIONS_PROGRESS_EVENT = "starnet:team-sessions-progress";
 /** A sessions round never holds the button longer than this. */
 const SESSION_ROUND_LIMIT_MS = 4 * 60_000;
+/** Back in the app: the sessions go again, at most this often. */
+const SESSIONS_AGAIN_MS = 20_000;
 
 /** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s) -
  * while the live listener works (lib/linkPulse.ts, his Nov 7 2026 «سريعة جدًا») only every 30 s, as a safety net. */
@@ -92,7 +94,9 @@ export function DeviceLinkRunner() {
     };
     // 🔐 the devices' Starlink sessions in the team (lib/teamSessions.ts): every 30 minutes, or at once when asked
     let sessionsBusy = false;
+    let lastSessions = 0;
     const sessions = async (force = false) => {
+      lastSessions = Date.now();
       const storage = browserLinkStorage();
       const config = loadLinkConfig(storage);
       const skip = (message: string) => force && window.dispatchEvent(new CustomEvent(TEAM_SESSIONS_EVENT, { detail: { ok: false, sent: 0, taken: 0, message } }));
@@ -130,6 +134,22 @@ export function DeviceLinkRunner() {
     const sessionsTimer = window.setInterval(() => void sessions(), SESSION_ROUND_MS);
     const onSessionsNow = () => void sessions(true);
     window.addEventListener(TEAM_SESSIONS_NOW_EVENT, onSessionsNow);
+    // ⚡ his Nov 8 2026 report (a device YOUBE signed into stayed signed out here): a member's new sessions come in at
+    // once (live), and mine go out when he comes back to the app from a device's browser (where he signs in)
+    const sessionsSoon = () => Date.now() - lastSessions > SESSIONS_AGAIN_MS && void sessions();
+    let stopSessionPulse: (() => void) | null = null;
+    let sessionPulseTimer = 0;
+    const startSessionsLive = () => {
+      const config = loadLinkConfig(browserLinkStorage());
+      if (stopSessionPulse || !config?.enabled) return;
+      stopSessionPulse = startSessionPulse(config, () => {
+        window.clearTimeout(sessionPulseTimer);
+        sessionPulseTimer = window.setTimeout(() => void sessions(), 1500);
+      });
+    };
+    startSessionsLive();
+    const onSessionsVisible = () => document.visibilityState === "visible" && sessionsSoon();
+    document.addEventListener("visibilitychange", onSessionsVisible);
     const first = window.setTimeout(() => void tick(), 3000);
     const timer = window.setInterval(() => {
       if (live && Date.now() - lastRound < EVERY_LIVE_MS) return;
@@ -143,7 +163,10 @@ export function DeviceLinkRunner() {
       stopPulse = startLinkPulse(config, () => void tick(), (state) => (live = state));
     };
     startPulse();
-    const onLinkEvent = () => startPulse();
+    const onLinkEvent = () => {
+      startPulse();
+      startSessionsLive();
+    };
     window.addEventListener(DEVICE_LINK_EVENT, onLinkEvent);
     // 💾 a save on this phone goes out within a second
     let sendTimer = 0;
@@ -175,6 +198,9 @@ export function DeviceLinkRunner() {
       window.clearTimeout(firstSessions);
       window.clearInterval(sessionsTimer);
       window.removeEventListener(TEAM_SESSIONS_NOW_EVENT, onSessionsNow);
+      document.removeEventListener("visibilitychange", onSessionsVisible);
+      window.clearTimeout(sessionPulseTimer);
+      stopSessionPulse?.();
     };
   }, []);
   return null;

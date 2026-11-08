@@ -18,8 +18,8 @@ import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
 export const SESSION_ROUND_MS = 30 * 60_000;
 const RESEND_MS = 6 * 60 * 60_000;
 
-/** What I sent: device → its fingerprint and when. */
-export type SentSessions = Record<string, { h: string; at: number }>;
+/** What I sent: device → its fingerprint, when, and its sign-in ticket's fingerprint (`t`, since Nov 8 2026). */
+export type SentSessions = Record<string, { h: string; at: number; t?: string }>;
 /** What I took from the team: device → the sent time I took. */
 export type TakenSessions = Record<string, number>;
 
@@ -45,6 +45,24 @@ const TICKET_CHARS = 1000;
  * session» kept the team's real one from ever coming in, and sent the empty one out as the newest.
  * `cookies`: address → its cookie line («a=1; b=2») - or cookie name → value.
  */
+/** 🔑 A fingerprint of the sign-in ticket alone (the other cookies change at every visit): a new one = a new sign-in. */
+export function ticketFingerprint(cookies: Record<string, string> | undefined): string {
+  if (!cookies) return "";
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(cookies)) {
+    if (!value || !value.trim()) continue;
+    if (SIGN_IN_COOKIE.test(key.trim())) parts.push(`${key}=${value}`);
+    for (const part of value.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq <= 0) continue;
+      const name = part.slice(0, eq).trim();
+      const v = part.slice(eq + 1).trim();
+      if (v && (SIGN_IN_COOKIE.test(name) || v.length >= TICKET_CHARS)) parts.push(`${name}=${v}`);
+    }
+  }
+  return parts.length ? sessionFingerprint(Object.fromEntries(parts.sort().map((p, i) => [String(i), p]))) : "";
+}
+
 export function isSignedInSession(cookies: Record<string, string> | undefined): boolean {
   if (!cookies) return false;
   for (const [key, value] of Object.entries(cookies)) {
@@ -60,13 +78,16 @@ export function isSignedInSession(cookies: Record<string, string> | undefined): 
   return false;
 }
 
-/** The devices whose session goes out now - only a signed-in one. */
+/** The devices whose session goes out now - only a signed-in one: a new device, a new sign-in (another ticket - his
+ * Nov 8 2026 report: a device YOUBE signed into again stayed signed out on YAHYA's phone for hours), else a changed
+ * session once 6 h passed (the other cookies change at every visit). */
 export function sessionsToSend(local: SessionsByAccount, sent: SentSessions, now: number): string[] {
   return Object.keys(local).filter((id) => {
     const cookies = local[id];
     if (!isSignedInSession(cookies)) return false;
     const before = sent[id];
     if (!before) return true;
+    if (before.t && before.t !== ticketFingerprint(cookies)) return true;
     return before.h !== sessionFingerprint(cookies!) && now - before.at >= RESEND_MS;
   });
 }
@@ -192,7 +213,7 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
         const sealed = await sealText(JSON.stringify(local[id]), config.key);
         const w = await writeDocument(config, sessionPath(config, config.memberId, id), { iv: sealed.iv, data: sealed.data }, fetchFn);
         if (!w.ok) return { ok: false, sent: 0, taken: 0, message: w.message };
-        sent[id] = { h: sessionFingerprint(local[id]!), at: now };
+        sent[id] = { h: sessionFingerprint(local[id]!), at: now, t: ticketFingerprint(local[id]) };
       }
       const index = Object.fromEntries(Object.entries(sent).map(([id, s]) => [id, s.at]));
       const sealedIndex = await sealText(JSON.stringify(index), config.key);
@@ -256,7 +277,7 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
       if (r.ok) {
         d.setSetting(TAKEN, JSON.stringify(taken));
         // what came in is not sent back as mine (until it changes here and 6 hours pass)
-        for (const [id, cookies] of Object.entries(incoming)) sent[id] = { h: sessionFingerprint(cookies), at: taken[id]! };
+        for (const [id, cookies] of Object.entries(incoming)) sent[id] = { h: sessionFingerprint(cookies), at: taken[id]!, t: ticketFingerprint(cookies) };
         d.setSetting(SENT, JSON.stringify(sent));
       }
     }

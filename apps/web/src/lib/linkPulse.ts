@@ -21,6 +21,17 @@ export function otherHeadsChanged(changes: { id: string; type: "added" | "modifi
  * listener is live (false = it failed - the regular checks carry on alone).
  */
 export function startLinkPulse(config: LinkConfig, onOther: () => void, onState: (live: boolean) => void): () => void {
+  return pulse(config, "link", onOther, onState);
+}
+
+/** 🔐 Another member sent Starlink sessions (his Nov 8 2026 report: a device YOUBE signed into stayed signed out on
+ * YAHYA's phone - the sessions went only every 30 min): its index document changed → `onOther`. */
+export function startSessionPulse(config: LinkConfig, onOther: () => void): () => void {
+  return pulse(config, "sessionIndex", onOther, () => undefined);
+}
+
+/** A member's own document per member in `starnet/{space}/{collectionName}`: another one changed → `onOther`. */
+function pulse(config: LinkConfig, collectionName: string, onOther: () => void, onState: (live: boolean) => void): () => void {
   let stopped = false;
   let unsubscribe: (() => void) | null = null;
   void (async () => {
@@ -37,7 +48,7 @@ export function startLinkPulse(config: LinkConfig, onOther: () => void, onState:
       if (stopped) return;
       let first = true;
       unsubscribe = onSnapshot(
-        collection(getFirestore(app), "starnet", config.spaceId, "link"),
+        collection(getFirestore(app), "starnet", config.spaceId, collectionName),
         (snap) => {
           onState(true);
           const changes = snap.docChanges().map((c) => ({ id: c.doc.id, type: c.type }));

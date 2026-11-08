@@ -3216,6 +3216,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 🔐 Team sessions arrive at once (Nov 8 2026)
+
+- His screenshot (a device on the Starlink sign-in page): «جهاز سجّله المسؤول YOUBE الآن، وهو عنده مسجّل، ولكن أنا ليس
+  مسجّلًا عندي». Why: sessions went only every 30 min (send on one phone, take on the other: up to an hour), and a device
+  signed into AGAIN (it was sent before) waited 6 h (`RESEND_MS`, meant for the cookies that change at every visit).
+- Now: `ticketFingerprint` (the sign-in ticket alone) is kept with what was sent (`sent[id].t`) - another ticket = a new
+  sign-in → sent in the next round at once; other cookie changes still wait 6 h. Rounds also run when he comes back to
+  the app (from the device's browser, where he signs in; at most every 20 s), and every phone listens live to the
+  members' `sessionIndex` documents (`startSessionPulse`) → a round 1.5 s after another member sent sessions. A device
+  signed out here takes it (as before); a browser already open on the sign-in page needs «تحديث». Both phones need the
+  update.
+
 ## 💬 Chat: rep statement · camera · rep-scoped device search · save to gallery · keep everything (Nov 8 2026)
 
 - His «لكل مندوب أجهزته، يمكنه البحث عن زبونه باسمه أو إيميله أو كيته · إرسال صورة بالكاميرا · إرسال كشوف حسابات
