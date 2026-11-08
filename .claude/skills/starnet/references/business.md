@@ -3222,7 +3222,8 @@ is never pressed while a field is empty - it refills and saves on the next try (
   الآخر», on mixed networks. His choice: **a free private relay (metered.ca)** + automatic reconnection.
 - lib/callIce.ts (+test) / callIceLoad.ts: Settings ← النسخ الاحتياطي ← «📞 خادم المكالمات» (CallServerSection): he
   pastes metered's API link (`https://<app>.metered.live/api/v1/turn/credentials?apiKey=…` - the relay passwords are
-  fetched from it before a call, kept 20 min) or the `iceServers` list. Stored as `starnet.callTurn` (a phone setting -
+  fetched from it before a call, kept 20 min) or the `iceServers` list - also exactly as «Show ICE Servers Array» shows
+  it (JavaScript: `var myPeerConnection = new RTCPeerConnection({ iceServers: [ { urls: …, }, ] })`, `looseJson`). Stored as `starnet.callTurn` (a phone setting -
   never in the code), shared with the team (LINK_SHARED_SETTINGS) and sent to each rep in his copy (`RepCopy.callTurn`).
   Without it: Google STUN + the public Open Relay as before; with it, the public one stays behind his (metered's free
   plan is 500 MB a month - about 10 h of relayed voice; I first told him «20 GB», wrong, corrected the same day). «🧪 اختبار» = a relay-only connection must get a relay

@@ -7,6 +7,28 @@ describe("📞 the call's relay (his Nov 8 2026 «الاتصال غير مستق
     const list = '[{"urls":"stun:stun.relay.metered.ca:80"},{"urls":"turn:global.relay.metered.ca:80","username":"u","credential":"p"}]';
     expect(parseTurnSetting(`const iceServers = ${list};`)).toEqual({ kind: "servers", servers: cleanIceServers(JSON.parse(list)) });
     expect(parseTurnSetting('[{"urls":"stun:x:1"}]')).toBeNull(); // no relay in it
+    // pasted from metered's «Show ICE Servers Array» exactly: JavaScript, unquoted keys, trailing commas
+    const js = `var myPeerConnection = new RTCPeerConnection({
+  iceServers: [
+      {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80",
+        username: "demo-user",
+        credential: "demo/pass",
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        username: "demo-user",
+        credential: "demo/pass",
+      },
+  ],
+});`;
+    const fromJs = parseTurnSetting(js);
+    expect(fromJs?.kind).toBe("servers");
+    expect(fromJs?.kind === "servers" && fromJs.servers[1]).toEqual({ urls: ["turn:global.relay.metered.ca:80"], username: "demo-user", credential: "demo/pass" });
+    expect(fromJs?.kind === "servers" && fromJs.servers).toHaveLength(3);
     expect(parseTurnSetting("https://evil.example.com/x")).toBeNull();
     expect(cleanIceServers([{ urls: ["http://x", "turn:a:3478"] }, { urls: "javascript:x" }])).toEqual([{ urls: ["turn:a:3478"] }]);
   });

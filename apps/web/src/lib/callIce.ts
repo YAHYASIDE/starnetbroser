@@ -40,11 +40,27 @@ export function parseTurnSetting(text: string | null | undefined): TurnSetting |
   if (!t) return null;
   if (/^https:\/\/[a-z0-9-]+\.metered\.live\/api\/v1\/turn\/credentials\?apiKey=[A-Za-z0-9_-]+$/i.test(t)) return { kind: "url", url: t };
   try {
-    const servers = cleanIceServers(JSON.parse(t.replace(/^[^[]*/, "").replace(/;?\s*$/, "")));
+    const servers = cleanIceServers(JSON.parse(looseJson(t)));
     return servers.some((s) => [s.urls].flat().some((u) => /^turns?:/i.test(u))) ? { kind: "servers", servers } : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The list as metered's dashboard shows it - JavaScript, not JSON (`var pc = new RTCPeerConnection({ iceServers: [ {
+ * urls: "…", username: "…", }, ] });`): the `[ … ]` cut out, its keys quoted, single quotes made double, the trailing
+ * commas dropped.
+ */
+export function looseJson(text: string): string {
+  const from = text.indexOf("[");
+  const to = text.lastIndexOf("]");
+  if (from < 0 || to < from) return text;
+  return text
+    .slice(from, to + 1)
+    .replace(/'([^'\\]*)'/g, '"$1"')
+    .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+    .replace(/,\s*([}\]])/g, "$1");
 }
 
 /** The relays for a call: Google's STUN + the private relay first, the public one behind it (when the private one's free
