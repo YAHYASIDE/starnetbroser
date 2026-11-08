@@ -3191,6 +3191,31 @@ is never pressed while a field is empty - it refills and saves on the next try (
   phone of the team sees «رُدّ عليها من هاتف آخر»). 45 s no answer → «لم يرد»; 25 s to connect after «رد» → «تعذّر
   الاتصال… جرّب واتساب». During: timer, 🎤 كتم, إنهاء. One-to-one only (the team conversation: whoever answers).
 
+## 📞 Calls fixed: ringing · top card · speaker · recording · every rep in the list (Nov 8 2026)
+
+- His «لا يوجد فيه كل الفريق · الاتصال لا يوجد له رنّات ويظهر كإشعار · اجعل الاتصال مثل واتساب فوق بدون ملء الشاشة،
+  يختفي بزر · الاتصال لا يعمل، يظهر يتصل فقط ولا أصوات · أضف مكبّر الصوت وتسجيل المكالمة».
+- 👥 The chat list shows EVERY rep: one without a channel yet (his copy predates the chat) shows «تبدأ الدردشة بعد أن
+  تصله نسخته الجديدة» + «📋 أرسل نسخته» (sendRepCopy). «👥 الفريق» shows the team members' names next to it.
+- 🔔 Ringing (CallRinger.java, plugin ringCall / stopCallRing): the phone's own ringtone looping + vibration + a call
+  notification (channel «المكالمات», category CALL, full-screen intent → opens /chat over the lock screen; permissions
+  VIBRATE + USE_FULL_SCREEN_INTENT), 45 s at most. Off Android: a soft beep (WebAudio). The old «📞 X يتصل بك - افتح
+  التطبيق للرد» plain notification is gone. Before ringing, the call document is checked: only a call still «ringing»
+  rings (no ringing for a call already over). Back in the app (resume / opened from the notification) a fresh call
+  that came meanwhile rings (ChatRunner `ringMissed`). While the app is fully closed the background service still only
+  announces the call (it checks once a minute) - told him.
+- 📱 The call is a card at the TOP (avatar, name, state, a small network line), not the full screen; ⌃ folds it to a
+  thin green bar (name + time + ⏺, ✕ ends); tap the bar = the card again. An incoming call never folds.
+- 🔊 Speaker: during the call the voice goes to the earpiece (MODE_IN_COMMUNICATION); «🔊 مكبّر» switches to the
+  loudspeaker (plugin callAudio); after the call the phone's audio goes back to normal.
+- 🩺 «لا أصوات»: a line under the state says where it stops («يرنّ عنده…», «رد - يوصل الصوت…», «الشبكة: …» from
+  the ICE state). If calls still fail on mobile data the free public TURN relay is the suspect - a private TURN
+  account (e.g. metered.ca's free tier) would be the next step (asked him before adding any account).
+- ⏺ Recording (lib/callRecordings.ts): «⏺ تسجيل» mixes both voices (MediaRecorder 16 kbit/s) and keeps it ON THIS PHONE
+  ONLY (proofs store `callrec:<call id>`, list `starnet.callRecordings` - phone-only, not backed up, not sent); the
+  newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
+  recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
+
 ## 💬 The chat like WhatsApp · 📷 picture editing (Nov 8 2026)
 
 - His «عدّل الدردشات، ليست جيدة، وإرسال الصورة لا يمكن تعديله - مثل واتساب». His choices: ALL of the look (wallpaper,

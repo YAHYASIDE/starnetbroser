@@ -521,6 +521,26 @@ public class LocalBrowserPlugin extends Plugin {
     }
 
     /** ⏰ «تم»: the reminder is over (its alarm cancelled if it hasn't rung). */
+    /** 📞 An incoming call rings (ringtone + vibration + call notification) until stopCallRing or 45 s. */
+    @PluginMethod
+    public void ringCall(PluginCall call) {
+        CallRinger.ring(getContext(), call.getString("title", "📞 مكالمة صوتية"), call.getString("body", "اضغط للرد"));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopCallRing(PluginCall call) {
+        CallRinger.stop(getContext());
+        call.resolve();
+    }
+
+    /** 📞 During a call: the voice to the loudspeaker or the earpiece; `active` false = back to normal. */
+    @PluginMethod
+    public void callAudio(PluginCall call) {
+        CallRinger.audio(getContext(), Boolean.TRUE.equals(call.getBoolean("active", false)), Boolean.TRUE.equals(call.getBoolean("speaker", false)));
+        call.resolve();
+    }
+
     /** 🔴🟡 What the background service watches while the app is closed (AlertWatch): the Firebase, the reps'
      * channels and the team's alerts - `config` empty = nothing. */
     @PluginMethod

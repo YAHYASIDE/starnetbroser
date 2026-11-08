@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { PartySheet } from "@/components/AccountsSection";
 import { chatView, CHAT_LIVE_EVENT, loadUnsent, postChat } from "@/components/ChatRunner";
 import { startCall } from "@/components/CallManager";
+import { CALL_RECORDINGS_EVENT, loadRecordings, MAX_RECORDINGS, recordingKey, recordingsOf, saveRecordings, type CallRecording } from "@/lib/callRecordings";
+import { callClock } from "@/lib/callSignal";
+import { deleteProof, getProof } from "@/lib/paymentProofStore";
 import { ChatImageEditor } from "@/components/ChatImageEditor";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { teamMemberName } from "@/components/TeamFlagSheet";
@@ -37,7 +40,9 @@ import { chatTargets, sendChatRead, type ChatTarget } from "@/lib/chatTransport"
 import { loadClientStore } from "@/lib/clientStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
-import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
+import { browserLinkStorage, loadLinkConfig, loadTeam } from "@/lib/deviceLink";
+import { listRepresentatives, loadRepresentativeStore, type Representative } from "@/lib/repStore";
+import { sendRepCopy } from "@/lib/repCopySend";
 import { homeSearchHref } from "@/lib/homeActions";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace } from "@/lib/repMode";
@@ -78,9 +83,18 @@ export default function ChatPage() {
   const [customers, setCustomers] = useState(false);
   const [memberId, setMemberId] = useState("");
   const [live, setLive] = useState<Record<string, boolean>>({});
+  // 👥 every rep (his Nov 8 2026 «لا يوجد فيه كل الفريق»): the ones without a channel yet wait for their new copy
+  const [repsWaiting, setRepsWaiting] = useState<Representative[]>([]);
+  const [members, setMembers] = useState<string[]>([]);
+  const [copyNote, setCopyNote] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const isRep = isRepWorkspace();
+    if (!isRep) {
+      const withChannel = new Set(chatTargets().map((t) => t.conv));
+      setRepsWaiting(listRepresentatives(loadRepresentativeStore()).filter((r) => !withChannel.has(`rep:${r.id}`)));
+      setMembers(loadTeam(browserLinkStorage()).map((m) => m.name).filter(Boolean));
+    }
     setRep(isRep);
     setMemberId(loadLinkConfig(browserLinkStorage())?.memberId ?? "");
     const list = chatTargets();
@@ -160,7 +174,10 @@ export default function ChatPage() {
                   </span>
                   <span className="chat-list-body">
                     <span className="chat-list-top">
-                      <span className="chat-list-title">{t.title}</span>
+                      <span className="chat-list-title">
+                        {t.title}
+                        {t.conv === "team" && members.length > 0 && <small className="chat-list-members"> · {members.join("، ")}</small>}
+                      </span>
                       {last && <small className={`chat-list-time${count ? " is-unread" : ""}`}>{chatTime(last.at, Date.now())}</small>}
                     </span>
                     <span className="chat-list-bottom">
@@ -182,6 +199,35 @@ export default function ChatPage() {
               </li>
             );
           })}
+          {repsWaiting.map((r) => (
+            <li key={r.id}>
+              <div className="chat-list-item chat-list-waiting">
+                <span className="chat-avatar" aria-hidden="true">
+                  {r.name.trim().slice(0, 1)}
+                </span>
+                <span className="chat-list-body">
+                  <span className="chat-list-top">
+                    <span className="chat-list-title">🤝 {r.name}</span>
+                  </span>
+                  <span className="chat-list-bottom">
+                    <span className="chat-list-last">{copyNote[r.id] ?? "تبدأ الدردشة بعد أن تصله نسخته الجديدة"}</span>
+                    <button
+                      type="button"
+                      className="text-action"
+                      onClick={async () => {
+                        setCopyNote((c) => ({ ...c, [r.id]: "⏳ تُرسل نسخته…" }));
+                        const res = await sendRepCopy(r, loadDemoAccounts(demoAccounts));
+                        setCopyNote((c) => ({ ...c, [r.id]: res.ok ? "✓ وصلته نسخته - يفتحها فتظهر الدردشة هنا" : `لم تُرسل: ${res.message}` }));
+                        if (res.ok) setTargets(chatTargets());
+                      }}
+                    >
+                      📋 أرسل نسخته
+                    </button>
+                  </span>
+                </span>
+              </div>
+            </li>
+          ))}
           {!rep && (
             <li>
               <button type="button" className="chat-list-item" onClick={() => setCustomers(true)}>
@@ -201,9 +247,7 @@ export default function ChatPage() {
           )}
         </ul>
       )}
-      {!rep && targets.length > 0 && targets.length < 2 && (
-        <p className="settings-hint">المندوبون يظهرون هنا بعد أن ترسل لكل واحد نسخته من جديد (فيها قناته).</p>
-      )}
+
       {customers && <CustomersSheet onClose={() => setCustomers(false)} />}
     </main>
   );
@@ -244,6 +288,14 @@ function Conversation({
   const [note, setNote] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [recordings, setRecordings] = useState(false);
+  const [recCount, setRecCount] = useState(0);
+  useEffect(() => {
+    const count = () => setRecCount(recordingsOf(loadRecordings(), target.conv).length);
+    count();
+    window.addEventListener(CALL_RECORDINGS_EVENT, count);
+    return () => window.removeEventListener(CALL_RECORDINGS_EVENT, count);
+  }, [target.conv]);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -404,10 +456,16 @@ function Conversation({
           <strong>{target.title}</strong>
           <small className={live === false ? "is-off" : ""}>{live === false ? "غير متصل الآن" : "مباشر"}</small>
         </span>
+        {recCount > 0 && (
+          <button type="button" className="chat-call" onClick={() => setRecordings(true)} aria-label="تسجيلات المكالمات">
+            🎙️
+          </button>
+        )}
         <button type="button" className="chat-call" onClick={() => startCall(target.conv)} aria-label="مكالمة صوتية">
           📞
         </button>
       </div>
+      {recordings && <RecordingsSheet conv={target.conv} onClose={() => setRecordings(false)} />}
       <div className="chat-messages chat-wallpaper" ref={listRef}>
         {messages.length === 0 && <p className="chat-day">لا رسائل بعد - اكتب أول رسالة.</p>}
         {messages.map((m) => {
@@ -663,6 +721,51 @@ function CustomersSheet({ onClose }: { onClose: () => void }) {
         ))}
         {found.length === 0 && <p className="party-empty">لا زبون برقم بهذا البحث.</p>}
       </div>
+    </PartySheet>
+  );
+}
+
+/** 🎙️ This conversation's call recordings - kept on this phone only. */
+function RecordingsSheet({ conv, onClose }: { conv: string; onClose: () => void }) {
+  const [list, setList] = useState<CallRecording[]>(() => recordingsOf(loadRecordings(), conv));
+  const [sound, setSound] = useState<Record<string, string | null>>({});
+  const play = async (id: string) => {
+    const url = await getProof(recordingKey(id));
+    setSound((s) => ({ ...s, [id]: url ?? null }));
+  };
+  const remove = async (id: string) => {
+    await deleteProof(recordingKey(id));
+    saveRecordings(loadRecordings().filter((r) => r.id !== id));
+    setList((l) => l.filter((r) => r.id !== id));
+  };
+  return (
+    <PartySheet title="🎙️ تسجيلات المكالمات" onClose={onClose}>
+      <p className="settings-hint">محفوظة على هذا الهاتف فقط (آخر {MAX_RECORDINGS} تسجيلًا).</p>
+      {list.length === 0 && <p className="settings-hint">لا تسجيلات.</p>}
+      <ul className="call-rec-list">
+        {list.map((r) => (
+          <li key={r.id} className="call-rec-item">
+            <span className="call-rec-head">
+              <strong>{r.peer}</strong>
+              <small>
+                {chatTime(r.at, Date.now())} · <bdi dir="ltr">{callClock(r.seconds * 1000)}</bdi>
+              </small>
+            </span>
+            {sound[r.id] === undefined ? (
+              <button type="button" className="text-action" onClick={() => void play(r.id)}>
+                ▶ استمع
+              </button>
+            ) : sound[r.id] === null ? (
+              <small className="settings-hint">الصوت لم يعد موجودًا</small>
+            ) : (
+              <audio className="chat-audio" controls autoPlay src={sound[r.id]!} />
+            )}
+            <button type="button" className="text-action" onClick={() => void remove(r.id)}>
+              🗑️ حذف
+            </button>
+          </li>
+        ))}
+      </ul>
     </PartySheet>
   );
 }

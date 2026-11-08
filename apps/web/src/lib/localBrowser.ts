@@ -490,6 +490,25 @@ export async function listDeviceReminders(): Promise<DeviceReminder[]> {
   }
 }
 
+/** 📞 The phone's own ringing for an incoming call, and where the voice goes - nothing off the Android app (false). */
+export async function ringCall(title: string, body: string): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    await LocalBrowser.ringCall({ title, body });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function stopCallRing(): Promise<void> {
+  if (isRunningInAndroidApp()) await LocalBrowser.stopCallRing().catch(() => undefined);
+}
+
+export async function callAudio(active: boolean, speaker: boolean): Promise<void> {
+  if (isRunningInAndroidApp()) await LocalBrowser.callAudio({ active, speaker }).catch(() => undefined);
+}
+
 /** 🔴🟡 What the background service watches while the app is closed (lib/alertWatch.ts) - null off the Android app;
  * `running` = the service «رد البوت والتطبيق مغلق» runs. */
 export async function setAlertWatch(config: string): Promise<{ running: boolean } | null> {

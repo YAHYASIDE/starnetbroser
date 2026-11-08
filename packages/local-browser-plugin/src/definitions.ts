@@ -774,6 +774,12 @@ export interface LocalBrowserPlugin {
   /** ⏰ «تم»: the reminder is over. */
   doneDeviceReminder(options: { id: string }): Promise<void>;
 
+  /** 📞 An incoming call rings (the phone's ringtone + vibration + a call notification) until stopCallRing / 45 s. */
+  ringCall(options: { title: string; body: string }): Promise<void>;
+  stopCallRing(): Promise<void>;
+  /** 📞 During a call: the voice to the loudspeaker (`speaker`) or the earpiece; `active` false = back to normal. */
+  callAudio(options: { active: boolean; speaker: boolean }): Promise<void>;
+
   /** 🔴🟡 What the background service («رد البوت والتطبيق مغلق») watches while the app is closed: JSON from apps/web
    * lib/alertWatch.ts (Firebase, the reps' channels, the team's alerts); empty = nothing. `running`: the service runs. */
   setAlertWatch(options: { config: string }): Promise<{ running: boolean }>;

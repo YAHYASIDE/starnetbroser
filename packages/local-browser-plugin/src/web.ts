@@ -317,6 +317,18 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async ringCall(_options: { title: string; body: string }): Promise<void> {
+    return;
+  }
+
+  async stopCallRing(): Promise<void> {
+    return;
+  }
+
+  async callAudio(_options: { active: boolean; speaker: boolean }): Promise<void> {
+    return;
+  }
+
   async setAlertWatch(_options: { config: string }): Promise<{ running: boolean }> {
     return { running: false };
   }

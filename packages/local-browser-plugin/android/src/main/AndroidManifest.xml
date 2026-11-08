@@ -24,6 +24,9 @@
     <!-- 🎤📞 the in-app chat's voice messages and voice calls (asked the first time; never for a device's Starlink page) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- 📞 an incoming call rings and can open the app over the lock screen (CallRinger) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- 🔄 Background sync: each device's page is drawn in an invisible, untouchable window
          (BackgroundSyncService) - the operator grants «الظهور فوق التطبيقات» once. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

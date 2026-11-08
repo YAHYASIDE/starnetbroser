@@ -20449,19 +20449,32 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
 .chat-recording { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 4px; }
 .chat-recording-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: team-line-pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
 .chat-recording-time { flex: 1 1 auto; min-width: 0; font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.call-screen { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.call-card { width: min(100%, 340px); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 18px 22px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); box-shadow: 0 20px 50px rgb(0 0 0 / 0.35); }
-.call-avatar { width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--green-bg); color: var(--green); font-size: 2.2rem; font-weight: 800; }
+/* 📞 the call (his Nov 8 2026 «مثل واتساب الفوق، بدون ملء الشاشة»): a card at the top that folds to a thin bar */
+.call-card { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 10px; right: 10px; max-width: 440px; margin: 0 auto; z-index: 400; display: flex; flex-direction: column; gap: 12px; padding: 14px 14px 12px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: 0 14px 36px rgb(0 0 0 / 0.3); animation: call-drop 0.22s ease-out; }
+.call-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.call-avatar { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--green-bg); color: var(--green); font-size: 1.4rem; font-weight: 800; }
 .call-incoming .call-avatar, .call-outgoing .call-avatar { animation: call-ring 1.4s ease-in-out infinite; }
-.call-peer { font-size: 1.2rem; text-align: center; overflow-wrap: anywhere; }
-.call-status { color: var(--text-muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; text-align: center; }
-.call-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 10px; }
-.call-btn { min-width: 96px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-alt); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.call-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.call-peer { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call-status { color: var(--text-muted); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.call-diag { color: var(--text-muted); font-size: 0.75rem; line-height: 1.35; overflow-wrap: anywhere; }
+.call-fold { flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-alt); color: var(--text); font: inherit; font-size: 1.1rem; cursor: pointer; }
+.call-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.call-btn { flex: 1 1 0; min-width: 0; padding: 10px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-alt); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.call-btn:disabled { opacity: 0.45; cursor: default; }
+.call-btn.is-on { border-color: var(--green); background: var(--green-bg); color: var(--green); }
 .call-btn-accept { border-color: var(--green); background: var(--green); color: #fff; }
 .call-btn-decline { border-color: var(--red); background: var(--red); color: #fff; }
-.call-btn-mute.is-on { border-color: var(--yellow); color: var(--yellow); }
-@keyframes call-ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 45%, transparent); } 50% { box-shadow: 0 0 0 16px color-mix(in srgb, var(--green) 0%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .call-incoming .call-avatar, .call-outgoing .call-avatar, .chat-recording-dot { animation: none; } }
+.call-rec-dot { color: var(--red); font-weight: 800; }
+.call-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; display: flex; align-items: stretch; padding-top: env(safe-area-inset-top, 0px); background: var(--green); color: #fff; box-shadow: 0 2px 10px rgb(0 0 0 / 0.25); }
+.call-bar-main { flex: 1 1 auto; min-width: 0; padding: 9px 14px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 0.9rem; font-weight: 800; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; cursor: pointer; }
+.call-bar-end { flex-shrink: 0; width: 46px; border: 0; background: var(--red); color: #fff; font: inherit; font-size: 1rem; font-weight: 800; cursor: pointer; }
+@keyframes call-ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 45%, transparent); } 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--green) 0%, transparent); } }
+@keyframes call-drop { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .call-card, .call-incoming .call-avatar, .call-outgoing .call-avatar, .chat-recording-dot { animation: none; } }
+.chat-list-members { color: var(--text-muted); font-weight: 400; font-size: 0.8rem; }
+.chat-list-waiting { opacity: 0.92; }
+.chat-list-waiting .chat-list-bottom { flex-wrap: wrap; gap: 6px; }
 
 /* 💬 WhatsApp's look (his Nov 8 2026 ask «مثل واتساب») - overrides the first chat styles above */
 .chat-list { gap: 0; }
@@ -20563,3 +20576,9 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .rep-row-photo { margin: 8px 0; }
 .rep-row-photo-btn { display: block; width: 100%; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-alt); overflow: hidden; cursor: zoom-in; }
 .rep-row-photo-btn img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
+.chat-list-members { color: var(--text-muted); font-size: 0.72rem; font-weight: 400; }
+.chat-list-waiting { opacity: 0.85; cursor: default; }
+.call-rec-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.call-rec-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.call-rec-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 140px; }
+.call-rec-head small { color: var(--text-muted); font-variant-numeric: tabular-nums; }

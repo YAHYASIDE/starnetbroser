@@ -82,10 +82,9 @@ export function ChatRunner() {
               saveChat(store);
               for (const m of added) {
                 if (m.deleteOf) continue; // a «delete for everyone» - never announced
-                // 📞 a call message rings here (CallManager) - a phone notification too, for when the screen is off
+                // 📞 a call message rings here (CallManager: the phone's ringtone + a full-screen call notification)
                 if (m.call && shouldRing(m, isMine(m, side), Date.now())) {
                   window.dispatchEvent(new CustomEvent(CALL_INCOMING_EVENT, { detail: { conv: m.conv, id: m.call.id, by: m.by } }));
-                  void notifyPhone(`📞 ${m.by} يتصل بك - افتح التطبيق للرد`, "/chat");
                   continue;
                 }
                 if (isMine(m, side) || chatView.conv === m.conv || Date.now() - m.at > MARGIN_MS) continue;
@@ -112,17 +111,29 @@ export function ChatRunner() {
       saveUnsent(left);
       if (left.length !== unsent.length) window.dispatchEvent(new Event(CHAT_EVENT));
     };
+    // 📞 back in the app: a call that came while it slept still rings if it's still ringing (CallManager checks)
+    const ringMissed = () => {
+      const now = Date.now();
+      for (const m of Object.values(loadChat())) {
+        if (m.call && !m.deleteOf && shouldRing(m, isMine(m, side), now)) {
+          window.dispatchEvent(new CustomEvent(CALL_INCOMING_EVENT, { detail: { conv: m.conv, id: m.call.id, by: m.by } }));
+        }
+      }
+    };
     start();
     void retry();
+    const firstLook = window.setTimeout(ringMissed, 1500); // opened from the call notification: CallManager is listening by then
     const timer = window.setInterval(() => void retry(), 15_000);
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       start();
       void retry();
+      ringMissed();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(timer);
+      window.clearTimeout(firstLook);
       document.removeEventListener("visibilitychange", onVisible);
       for (const stop of stops.values()) stop();
     };
