@@ -11,10 +11,10 @@ describe("📞 the call's relay (his Nov 8 2026 «الاتصال غير مستق
     expect(cleanIceServers([{ urls: ["http://x", "turn:a:3478"] }, { urls: "javascript:x" }])).toEqual([{ urls: ["turn:a:3478"] }]);
   });
 
-  it("the private relay replaces the public one; quality in words", () => {
+  it("the private relay comes first, the public one behind it; quality in words", () => {
     expect(JSON.stringify(iceServersFor(null))).toContain("openrelay");
     const mine = iceServersFor([{ urls: ["turn:global.relay.metered.ca:80"], username: "u", credential: "p" }]);
-    expect(JSON.stringify(mine)).not.toContain("openrelay");
+    expect(JSON.stringify(mine[1])).toContain("global.relay.metered.ca"); // mine first, the public one behind it
     expect(callQualityText({ rttMs: 120, lossPct: 0, relayed: false })).toBe("📶 جيد · مباشر · 120ms");
     expect(callQualityText({ rttMs: 700, lossPct: 1, relayed: true })).toContain("📶 ضعيف · عبر خادم الوصل");
   });

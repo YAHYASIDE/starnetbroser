@@ -3224,7 +3224,8 @@ is never pressed while a field is empty - it refills and saves on the next try (
   pastes metered's API link (`https://<app>.metered.live/api/v1/turn/credentials?apiKey=…` - the relay passwords are
   fetched from it before a call, kept 20 min) or the `iceServers` list. Stored as `starnet.callTurn` (a phone setting -
   never in the code), shared with the team (LINK_SHARED_SETTINGS) and sent to each rep in his copy (`RepCopy.callTurn`).
-  Without it: Google STUN + the public Open Relay as before. «🧪 اختبار» = a relay-only connection must get a relay
+  Without it: Google STUN + the public Open Relay as before; with it, the public one stays behind his (metered's free
+  plan is 500 MB a month - about 10 h of relayed voice; I first told him «20 GB», wrong, corrected the same day). «🧪 اختبار» = a relay-only connection must get a relay
   address within 8 s.
 - CallManager: gathering ends at «complete» or 0.7 s after the first relay address (6 s at most, was a fixed 4 s);
   the other side's voice plays from the stream it sent (`e.streams[0]` - one-way voice); a drop (disconnected 2.5 s /

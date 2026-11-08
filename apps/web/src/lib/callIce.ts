@@ -47,10 +47,11 @@ export function parseTurnSetting(text: string | null | undefined): TurnSetting |
   }
 }
 
-/** The relays for a call: Google's STUN + the private relay (or, without one, the public one). */
+/** The relays for a call: Google's STUN + the private relay first, the public one behind it (when the private one's free
+ * 500 MB of the month run out, a call still has a way). */
 export function iceServersFor(privateServers: RTCIceServer[] | null): RTCIceServer[] {
   const turn = (privateServers ?? []).filter((s) => [s.urls].flat().some((u) => /^turns?:/i.test(u)));
-  return turn.length ? [GOOGLE_STUN, ...privateServers!] : [GOOGLE_STUN, OPEN_RELAY];
+  return turn.length ? [GOOGLE_STUN, ...privateServers!, OPEN_RELAY] : [GOOGLE_STUN, OPEN_RELAY];
 }
 
 /** «📶 جيد · مباشر» - the line under the call while it talks (round trip in ms, lost packets in %, relayed or not). */

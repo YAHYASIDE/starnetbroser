@@ -30,7 +30,7 @@ export function CallServerSection() {
       </p>
       <ol className="settings-hint call-server-steps">
         <li>
-          افتح <bdi dir="ltr">metered.ca/stun-turn</bdi> ← <b>Sign Up</b> (مجاني، حوالي 20 جيجا في الشهر - تكفي ساعات كثيرة من المكالمات الصوتية).
+          افتح <bdi dir="ltr">metered.ca/stun-turn</bdi> ← <b>Sign Up</b> ← اختر الخطة المجانية «Free Trial» (500 ميجا في الشهر بلا بطاقة: نحو 10 ساعات من المكالمات التي تمر عبر الخادم - المكالمات المباشرة لا تُحسب).
         </li>
         <li>
           في لوحة الحساب: <b>TURN Server</b> ← <b>Add Credential</b>، ثم انسخ رابط <b>API</b> (ينتهي بـ <bdi dir="ltr">apiKey=…</bdi>).

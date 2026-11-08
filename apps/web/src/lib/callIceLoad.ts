@@ -58,7 +58,8 @@ export async function testRelay(): Promise<{ ok: boolean; text: string }> {
   const own = await privateIceServers();
   const setting = parseTurnSetting(loadCallTurnText());
   if (setting && !own) return { ok: false, text: "✗ الرابط لا يعمل - تأكد أنك نسخته كاملًا من metered.ca" };
-  const servers = iceServersFor(own);
+  // the test asks the private relay alone when there is one (the public one behind it would hide a dead key)
+  const servers = own ? own : iceServersFor(null);
   const pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: "relay" });
   try {
     pc.createDataChannel("t");
