@@ -5416,13 +5416,13 @@ button.today-tile {
   stroke-linejoin: round;
 }
 
-/* Notifications - one compact message at a time, just above the bottom bar */
+/* Notifications - one small see-through message at a time, at the top, fading in and out (his Nov 8 2026 ask) */
 .snackbar-host {
   position: fixed;
   z-index: 300;
-  left: 12px;
-  right: 12px;
-  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 8px);
+  left: 16px;
+  right: 16px;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -5430,78 +5430,91 @@ button.today-tile {
 
 .snackbar {
   pointer-events: auto;
-  width: 100%;
-  max-width: 440px;
+  max-width: min(100%, 340px);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface-alt);
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-alt) 55%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   color: var(--text);
   font: inherit;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.76rem;
+  font-weight: 600;
   text-align: start;
-  box-shadow: 0 14px 36px rgb(0 0 0 / 0.4);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
   cursor: pointer;
-  animation: snackbar-in 0.22s ease-out;
+  animation: snackbar-life 3.2s ease forwards;
 }
 
 .snackbar-icon {
   flex: none;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  width: 18px;
+  height: 18px;
   color: var(--brand);
 }
 
+.snackbar-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .snackbar-success .snackbar-icon {
-  background: color-mix(in srgb, var(--green) 20%, transparent);
   color: var(--green);
 }
 
 .snackbar-error {
-  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
 }
 
 .snackbar-error .snackbar-icon {
-  background: color-mix(in srgb, var(--red) 20%, transparent);
   color: var(--red);
 }
 
 .snackbar-text {
   flex: 1;
   min-width: 0;
-  line-height: 1.4;
+  line-height: 1.35;
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .snackbar-more {
   flex: none;
-  padding: 2px 8px;
+  padding: 0 6px;
   border-radius: 999px;
-  background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
-@keyframes snackbar-in {
-  from {
+@keyframes snackbar-life {
+  0% {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(-8px);
   }
-  to {
-    opacity: 1;
+  8%,
+  85% {
+    opacity: 0.92;
     transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snackbar {
+    animation: none;
+    opacity: 0.92;
   }
 }
 

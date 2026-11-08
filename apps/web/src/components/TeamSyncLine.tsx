@@ -17,6 +17,7 @@ function when(iso?: string): string {
 /**
  * 🟥 A red line on the right edge, on every page (his Nov 7 2026 ask), while a device of the link team has stayed out
  * of step with YAHYA for 2 minutes - tapped: which device, what it lacks against YAHYA, its last sync, and what to do.
+ * Only the line (his Nov 8 2026 ask «أزل زر "2 أجهزة غير مكتملة"، اجعل الخط فقط» - the label covered the chat's field).
  * Below the green sync line, never over it.
  */
 export function TeamSyncLine() {
@@ -54,7 +55,6 @@ export function TeamSyncLine() {
     <>
       <button type="button" className="team-line" onClick={() => setOpen(true)} aria-label={`${teamLineCaption(late.map((r) => r.name))} - اضغط للتفاصيل`}>
         <span className="team-line-track" aria-hidden="true" />
-        <span className="team-line-tag">{teamLineCaption(late.map((r) => r.name))}</span>
       </button>
       {open && (
         <PartySheet title="🔗 أجهزة الفريق غير المكتملة" onClose={() => setOpen(false)}>

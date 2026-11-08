@@ -13,10 +13,12 @@ interface Props {
   onDismiss: (id: string) => void;
 }
 
-const AUTO_DISMISS_MS = 4000;
+/** Matches the CSS `snackbar-life` (fade in, stay, fade out). */
+const AUTO_DISMISS_MS = 3200;
 
 /**
- * One compact notification at a time, just above the bottom bar - never a pile of bubbles.
+ * One compact notification at a time, at the TOP, small and see-through, fading in and out by itself (his Nov 8 2026
+ * ask «الإشعارات التي تأتي في الأسفل… اجعلها تأتي كإشعار الفوق، شفافًا جدًا وصغيرًا، يأتي ويختفي») - never a pile.
  * Later messages wait their turn (a small "+N" shows how many), each disappears on its own or on
  * tap, and nothing here ever blocks the rest of the page.
  */

@@ -3164,3 +3164,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - A device attached opens the home search for its name. The rep's «💬 الدردشة مع المسؤول» is always allowed (not a
   permission). Menu: owner «المزيد» (bottom) + the laptop's sidebar «أدوات».
 
+## 🔔 Small see-through notifications at the top · the red team line alone (Nov 8 2026)
+
+- His screenshots: «زر "2 أجهزة غير مكتملة" أزله، اجعل الخط فقط» (the label covered the chat's field) → TeamSyncLine shows
+  the red line only (tap → the same details sheet). «الإشعارات التي تأتي في الأسفل… اجعلها تأتي كإشعار الفوق، شفافًا جدًا
+  وصغيرًا، يأتي ويختفي» → ToastStack sits at the top (safe-area + 8px), a small pill (0.76rem, 55% surface + blur), fades
+  in, stays, fades out by itself in 3.2 s (`snackbar-life`; tap = gone). One at a time as before.
+
