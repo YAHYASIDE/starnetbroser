@@ -20,6 +20,24 @@ const img = "data:image/jpeg;base64,AAAA";
 let n = 0;
 const rid = () => `abcdef${String(++n).padStart(6, "0")}`;
 
+describe("🎤📞 voice messages and calls", () => {
+  const voice = "data:audio/webm;codecs=opus;base64,GkXfo0AAAA==";
+  it("a voice message alone is a message; its length is kept within 90 s; a bad audio is dropped", () => {
+    const m = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "YAHYA", text: "", audio: voice, seconds: 12.4 }, 1, rid)!;
+    expect(m).toMatchObject({ audio: voice, seconds: 12, text: "" });
+    expect(chatNotification(m)).toBe("💬 YAHYA: 🎤 رسالة صوتية");
+    expect(newChatMessage({ conv: TEAM_CONV, from: "owner", by: "x", text: "", audio: "data:text/html;base64,AAAA" }, 1, rid)).toBeNull();
+    const back = parseChatPayload(JSON.stringify({ ...m, seconds: 500 }), TEAM_CONV)!;
+    expect(back.seconds).toBe(90);
+  });
+  it("a call says so in words (the background notification shows it) and keeps its id", () => {
+    const m = newChatMessage({ conv: repConv("r1"), from: "owner", by: "YAHYA", text: "ignored", call: { id: "abcdef123456" } }, 1, rid)!;
+    expect(m).toMatchObject({ text: "📞 مكالمة صوتية", call: { id: "abcdef123456" } });
+    expect(parseChatPayload(JSON.stringify(m), repConv("r1"))!.call).toEqual({ id: "abcdef123456" });
+    expect(parseChatPayload(JSON.stringify({ ...m, call: { id: "../x" } }), repConv("r1"))!.call).toBeUndefined();
+  });
+});
+
 describe("💬 messages", () => {
   it("nothing to send = no message; text trimmed and capped; a bad picture dropped", () => {
     expect(newChatMessage({ conv: TEAM_CONV, from: "owner", by: "YAHYA", text: "  " }, 1, rid)).toBeNull();
@@ -52,6 +70,11 @@ describe("💬 messages", () => {
     const many: ChatMessage[] = Array.from({ length: 6 }, (_, i) => ({ id: `abcdef0000${i}0`, conv: TEAM_CONV, from: "owner", by: "x", text: String(i), at: i }));
     const pruned = pruneChat(Object.fromEntries(many.map((m) => [m.id, m])), 4);
     expect(messagesOf(pruned, TEAM_CONV).map((m) => m.text)).toEqual(["2", "3", "4", "5"]);
+    // 🗑️ only the newest pictures / voices keep their file
+    const withMedia: ChatMessage[] = Array.from({ length: 3 }, (_, i) => ({ id: `abcdef1111${i}0`, conv: TEAM_CONV, from: "owner", by: "x", text: "", image: img, at: 100 + i }));
+    const light = messagesOf(pruneChat(Object.fromEntries(withMedia.map((m) => [m.id, m])), 500, 2), TEAM_CONV);
+    expect(light.map((m) => Boolean(m.image))).toEqual([false, true, true]);
+    expect(light[0]!.mediaGone).toBe(true);
   });
 
   it("mine and unread: by member on the team, by side with a rep", () => {

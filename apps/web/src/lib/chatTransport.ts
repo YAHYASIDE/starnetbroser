@@ -79,6 +79,16 @@ export async function openChatDoc(target: Pick<ChatTarget, "conv" | "key">, seal
   }
 }
 
+/** 📞 Firestore (Firebase's SDK, signed in anonymously) for a conversation's project - the call's live document. */
+export async function firestoreFor(firebase: ChatTarget["firebase"]) {
+  const [{ initializeApp, getApps }, { getAuth, signInAnonymously }, fs] = await Promise.all([import("firebase/app"), import("firebase/auth"), import("firebase/firestore")]);
+  const name = `starnet-link-${firebase.projectId}`;
+  const app = getApps().find((a) => a.name === name) ?? initializeApp({ apiKey: firebase.apiKey, projectId: firebase.projectId, authDomain: `${firebase.projectId}.firebaseapp.com` }, name);
+  const auth = getAuth(app);
+  if (!auth.currentUser) await signInAnonymously(auth);
+  return { db: fs.getFirestore(app), fs };
+}
+
 /**
  * Listens to a conversation: every message from `since` on (the sender's clock - a margin is taken by the caller).
  * Returns the stop function; `onState` false = it failed (the page says so).

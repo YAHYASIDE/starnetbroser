@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PartySheet } from "@/components/AccountsSection";
 import { chatView, CHAT_LIVE_EVENT, loadUnsent, postChat } from "@/components/ChatRunner";
+import { startCall } from "@/components/CallManager";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { teamMemberName } from "@/components/TeamFlagSheet";
 import {
   CHAT_EVENT,
@@ -183,6 +185,7 @@ function Conversation({
   const [picking, setPicking] = useState(false);
   const [viewer, setViewer] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const messages = messagesOf(store, target.conv);
@@ -193,13 +196,21 @@ function Conversation({
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [lastAt, target.conv]);
 
-  async function send() {
+  async function send(voice?: { audio: string; seconds: number }) {
     const me = side.rep ? loadRepCopy()?.repName ?? "المندوب" : teamMemberName();
-    const message = newChatMessage({ conv: target.conv, from: side.rep ? "rep" : "owner", by: me === "أنا" ? "المسؤول" : me, member: side.rep ? undefined : side.memberId, text, image, device });
+    const message = newChatMessage({
+      conv: target.conv,
+      from: side.rep ? "rep" : "owner",
+      by: me === "أنا" ? "المسؤول" : me,
+      member: side.rep ? undefined : side.memberId,
+      ...(voice ? { text: "", audio: voice.audio, seconds: voice.seconds } : { text, image, device }),
+    });
     if (!message) return;
-    setText("");
-    setImage(null);
-    setDevice(null);
+    if (!voice) {
+      setText("");
+      setImage(null);
+      setDevice(null);
+    }
     const ok = await postChat(target, message);
     setNote(ok ? null : "⏳ لم تُرسل بعد - تُرسل وحدها حين يتصل الإنترنت");
   }
@@ -217,6 +228,9 @@ function Conversation({
           </Link>
         )}
         <h1 className="section-title">{target.title}</h1>
+        <button type="button" className="chat-call" onClick={() => startCall(target.conv)} aria-label="مكالمة صوتية">
+          📞
+        </button>
         <span className={`chat-live${live === false ? " is-off" : ""}`} title={live === false ? "غير متصل" : "مباشر"} aria-label={live === false ? "غير متصل" : "مباشر"} />
       </div>
       <div className="chat-messages" ref={listRef}>
@@ -236,7 +250,14 @@ function Conversation({
                   📡 {m.device.name}
                 </button>
               )}
-              {m.text && <p className="chat-text">{m.text}</p>}
+              {m.audio && (
+                <span className="chat-voice">
+                  <audio className="chat-audio" controls preload="none" src={m.audio} />
+                  {m.seconds ? <small className="chat-meta">🎤 {m.seconds} ث</small> : null}
+                </span>
+              )}
+              {m.mediaGone && <small className="chat-meta">🗑️ الصورة / التسجيل لم يعد محفوظًا في هذا الهاتف</small>}
+              {m.text && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
               <small className="chat-meta">
                 {chatTime(m.at, Date.now())}
                 {mine && (unsent.includes(m.id) ? " ⏳" : " ✓")}
@@ -267,23 +288,32 @@ function Conversation({
           void send();
         }}
       >
-        <button type="button" className="chat-tool" onClick={() => fileRef.current?.click()} aria-label="إرفاق صورة">
-          📷
-        </button>
-        <button type="button" className="chat-tool" onClick={() => setPicking(true)} aria-label="إرفاق جهاز">
-          📡
-        </button>
-        <textarea
-          className="chat-input"
-          rows={1}
-          maxLength={MAX_CHAT_TEXT}
-          placeholder="اكتب رسالة…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" className="chat-send" disabled={!text.trim() && !image && !device} aria-label="إرسال">
-          ➤
-        </button>
+        {!recording && (
+          <>
+            <button type="button" className="chat-tool" onClick={() => fileRef.current?.click()} aria-label="إرفاق صورة">
+              📷
+            </button>
+            <button type="button" className="chat-tool" onClick={() => setPicking(true)} aria-label="إرفاق جهاز">
+              📡
+            </button>
+            <textarea
+              className="chat-input"
+              rows={1}
+              maxLength={MAX_CHAT_TEXT}
+              placeholder="اكتب رسالة…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </>
+        )}
+        {/* 🎤 an empty field: record a voice message; something typed / attached: send it */}
+        {!text.trim() && !image && !device ? (
+          <VoiceRecorder onState={setRecording} onRecorded={(audio, seconds) => void send({ audio, seconds })} onError={setNote} />
+        ) : (
+          <button type="submit" className="chat-send" aria-label="إرسال">
+            ➤
+          </button>
+        )}
         <input
           ref={fileRef}
           type="file"

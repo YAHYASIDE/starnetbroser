@@ -6,6 +6,7 @@ import { chatTargets, listenChat, sendChat, type ChatTarget } from "@/lib/chatTr
 import { notifyPhone } from "@/lib/appEvents";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { isRepWorkspace } from "@/lib/repMode";
+import { CALL_INCOMING_EVENT, shouldRing } from "@/lib/callSignal";
 
 /** The conversation open on the screen now (the chat page sets it) - no notification for it. */
 export const chatView: { conv: string | null } = { conv: null };
@@ -75,6 +76,12 @@ export function ChatRunner() {
               if (added.length === 0) return;
               saveChat(store);
               for (const m of added) {
+                // 📞 a call message rings here (CallManager) - a phone notification too, for when the screen is off
+                if (m.call && shouldRing(m, isMine(m, side), Date.now())) {
+                  window.dispatchEvent(new CustomEvent(CALL_INCOMING_EVENT, { detail: { conv: m.conv, id: m.call.id, by: m.by } }));
+                  void notifyPhone(`📞 ${m.by} يتصل بك - افتح التطبيق للرد`, "/chat");
+                  continue;
+                }
                 if (isMine(m, side) || chatView.conv === m.conv || Date.now() - m.at > MARGIN_MS) continue;
                 void notifyPhone(chatNotification(m), "/chat");
               }

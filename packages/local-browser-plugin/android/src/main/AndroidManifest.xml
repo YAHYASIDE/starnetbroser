@@ -21,6 +21,9 @@
     <!-- 📷 Starlink's identity check in a device's browser («التقاط صورة» / a proof photo). Asked
          only the first time a Starlink page needs it (AccountBrowserActivity, CameraAccess). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 🎤📞 the in-app chat's voice messages and voice calls (asked the first time; never for a device's Starlink page) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- 🔄 Background sync: each device's page is drawn in an invisible, untouchable window
          (BackgroundSyncService) - the operator grants «الظهور فوق التطبيقات» once. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

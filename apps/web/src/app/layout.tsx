@@ -16,6 +16,7 @@ import { DataReloadBoundary } from "@/components/DataReloadBoundary";
 import { RouteRepair } from "@/components/RouteRepair";
 import { BrowserActionsRunner } from "@/components/BrowserActionsRunner";
 import { ChatRunner } from "@/components/ChatRunner";
+import { CallManager } from "@/components/CallManager";
 import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
@@ -86,6 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ReceiptReaderRunner />
         <BrowserActionsRunner />
         <ChatRunner />
+        <CallManager />
         <PhoneShortcutLayer />
         <StorageFullBanner />
         <DeleteCodeHost />

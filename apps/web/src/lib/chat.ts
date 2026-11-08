@@ -13,6 +13,14 @@ export const MAX_CHAT_TEXT = 1000;
 /** A picture's data URL at most (it travels inside the sealed document). */
 export const MAX_CHAT_IMAGE = 200_000;
 export const MAX_PER_CONV = 500;
+/** 🗑️ Pictures and voice messages kept on the phone (all conversations): the newest 40 - the rest keep their place in
+ * the conversation without the file, so the chat can never fill the phone's storage the business data needs. */
+export const MAX_MEDIA_KEPT = 40;
+/** 🎤 A voice message's data URL at most (~90 s of speech at 16 kbit/s) - it travels inside the sealed document. */
+export const MAX_CHAT_AUDIO = 400_000;
+/** 🎤 The longest voice message. */
+export const MAX_VOICE_SECONDS = 90;
+export const CALL_TEXT = "📞 مكالمة صوتية";
 
 export interface ChatMessage {
   /** Random hex - the same message read twice is one message. */
@@ -30,6 +38,13 @@ export interface ChatMessage {
   image?: string;
   /** 📡 a device attached - tap opens its card. */
   device?: { id: string; name: string };
+  /** 🎤 a voice message: an audio data URL (webm/ogg/mp4) and its length in seconds. */
+  audio?: string;
+  seconds?: number;
+  /** 🗑️ Its picture / voice is no longer kept on this phone (only the newest 40 are - the phone's storage). */
+  mediaGone?: boolean;
+  /** 📞 a voice call started (its signalling document: lib/callSignal.ts) - the other side rings. */
+  call?: { id: string };
   /** ms epoch, the sender's phone. */
   at: number;
 }
@@ -49,20 +64,47 @@ function randomId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export function isChatAudio(audio: unknown): audio is string {
+  return typeof audio === "string" && /^data:audio\/(webm|ogg|mp4|mpeg|aac)(;[^,]*)?;base64,[A-Za-z0-9+/=]+$/.test(audio) && audio.length <= MAX_CHAT_AUDIO;
+}
+
+function cleanSeconds(seconds: unknown): number | undefined {
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? Math.min(MAX_VOICE_SECONDS, Math.round(seconds)) : undefined;
+}
+
+function cleanCall(call: unknown): { id: string } | undefined {
+  const id = (call as { id?: unknown } | null | undefined)?.id;
+  return typeof id === "string" && /^[0-9a-f]{8,40}$/.test(id) ? { id } : undefined;
+}
+
 export function isChatImage(image: unknown): image is string {
   return typeof image === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length <= MAX_CHAT_IMAGE;
 }
 
 /** A message to send; null when there is nothing (no text, no picture, no device). */
 export function newChatMessage(
-  input: { conv: string; from: "owner" | "rep"; by: string; member?: string; text: string; image?: string | null; device?: { id: string; name: string } | null },
+  input: {
+    conv: string;
+    from: "owner" | "rep";
+    by: string;
+    member?: string;
+    text: string;
+    image?: string | null;
+    device?: { id: string; name: string } | null;
+    audio?: string | null;
+    seconds?: number;
+    call?: { id: string } | null;
+  },
   now = Date.now(),
   random: () => string = randomId,
 ): ChatMessage | null {
-  const text = input.text.replace(/\r/g, "").trim().slice(0, MAX_CHAT_TEXT);
+  const call = cleanCall(input.call);
+  const text = call ? CALL_TEXT : input.text.replace(/\r/g, "").trim().slice(0, MAX_CHAT_TEXT);
   const image = isChatImage(input.image) ? input.image : undefined;
   const device = input.device && input.device.id ? { id: input.device.id.slice(0, 120), name: (input.device.name || "جهاز").slice(0, 120) } : undefined;
-  if (!text && !image && !device) return null;
+  const audio = isChatAudio(input.audio) ? input.audio : undefined;
+  const seconds = audio ? cleanSeconds(input.seconds) : undefined;
+  if (!text && !image && !device && !audio) return null;
   return {
     id: random(),
     conv: input.conv,
@@ -72,6 +114,9 @@ export function newChatMessage(
     text,
     ...(image ? { image } : {}),
     ...(device ? { device } : {}),
+    ...(audio ? { audio } : {}),
+    ...(seconds ? { seconds } : {}),
+    ...(call ? { call } : {}),
     at: now,
   };
 }
@@ -86,7 +131,10 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
     const text = typeof p.text === "string" ? p.text.trim().slice(0, MAX_CHAT_TEXT) : "";
     const image = isChatImage(p.image) ? p.image : undefined;
     const device = p.device && typeof p.device.id === "string" && p.device.id ? { id: p.device.id.slice(0, 120), name: typeof p.device.name === "string" ? p.device.name.slice(0, 120) : "جهاز" } : undefined;
-    if (!text && !image && !device) return null;
+    const audio = isChatAudio(p.audio) ? p.audio : undefined;
+    const seconds = audio ? cleanSeconds(p.seconds) : undefined;
+    const call = cleanCall(p.call);
+    if (!text && !image && !device && !audio) return null;
     return {
       id: p.id,
       conv, // whichever channel it came on - never what the document claims
@@ -96,6 +144,9 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
       text,
       ...(image ? { image } : {}),
       ...(device ? { device } : {}),
+      ...(audio ? { audio } : {}),
+      ...(seconds ? { seconds } : {}),
+      ...(call ? { call } : {}),
       at: typeof p.at === "number" && Number.isFinite(p.at) ? p.at : Date.now(),
     };
   } catch {
@@ -112,18 +163,26 @@ export function addChatMessages(store: ChatStore, messages: ChatMessage[]): { st
   return { store: pruneChat(next), added };
 }
 
-/** The last 500 of each conversation. */
-export function pruneChat(store: ChatStore, max = MAX_PER_CONV): ChatStore {
+/** The last 500 of each conversation, and the files of the newest 40 pictures / voice messages only. */
+export function pruneChat(store: ChatStore, max = MAX_PER_CONV, maxMedia = MAX_MEDIA_KEPT): ChatStore {
   const byConv = new Map<string, ChatMessage[]>();
   for (const m of Object.values(store)) byConv.set(m.conv, [...(byConv.get(m.conv) ?? []), m]);
-  let dropped = false;
+  let changed = false;
   const next: ChatStore = {};
   for (const list of byConv.values()) {
     const kept = list.sort((a, b) => a.at - b.at).slice(-max);
-    if (kept.length < list.length) dropped = true;
+    if (kept.length < list.length) changed = true;
     for (const m of kept) next[m.id] = m;
   }
-  return dropped ? next : store;
+  const media = Object.values(next)
+    .filter((m) => m.image || m.audio)
+    .sort((a, b) => b.at - a.at);
+  for (const m of media.slice(maxMedia)) {
+    const { image: _image, audio: _audio, ...rest } = m;
+    next[m.id] = { ...rest, mediaGone: true };
+    changed = true;
+  }
+  return changed ? next : store;
 }
 
 /** One conversation, oldest first. */
@@ -149,15 +208,16 @@ export function unreadCount(store: ChatStore, conv: string, read: ChatRead, side
 }
 
 /** The line under a conversation / in a notification: «📷 صورة», «📡 DEMO 1», or the text. */
-export function messagePreview(m: Pick<ChatMessage, "text" | "image" | "device">): string {
+export function messagePreview(m: Pick<ChatMessage, "text" | "image" | "device" | "audio">): string {
   if (m.text) return m.text.length > 80 ? `${m.text.slice(0, 80)}…` : m.text;
+  if (m.audio) return "🎤 رسالة صوتية";
   if (m.image) return "📷 صورة";
   if (m.device) return `📡 ${m.device.name}`;
   return "";
 }
 
 /** «💬 المسؤول 2: الطبق لا يتصل» - the phone notification. */
-export function chatNotification(m: Pick<ChatMessage, "by" | "text" | "image" | "device">): string {
+export function chatNotification(m: Pick<ChatMessage, "by" | "text" | "image" | "device" | "audio">): string {
   return `💬 ${m.by}: ${messagePreview(m)}`;
 }
 

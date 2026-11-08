@@ -41,10 +41,10 @@ final class AlertCrypto {
     }
 
     /** «💬 المسؤول 2: الطبق لا يتصل» - or «📷 صورة» / «📡 DEMO 1» when there is no text (as the app's own). */
-    static String chatText(String by, String text, boolean image, String deviceName) {
+    static String chatText(String by, String text, boolean image, boolean audio, String deviceName) {
         String who = by == null || by.trim().isEmpty() ? "رسالة" : by.trim();
         String t = text == null ? "" : text.trim();
-        String what = !t.isEmpty() ? (t.length() > 80 ? t.substring(0, 80) + "…" : t) : image ? "📷 صورة" : deviceName != null && !deviceName.trim().isEmpty() ? "📡 " + deviceName.trim() : "";
+        String what = !t.isEmpty() ? (t.length() > 80 ? t.substring(0, 80) + "…" : t) : audio ? "🎤 رسالة صوتية" : image ? "📷 صورة" : deviceName != null && !deviceName.trim().isEmpty() ? "📡 " + deviceName.trim() : "";
         return "💬 " + who + ": " + what;
     }
 

@@ -3171,3 +3171,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   وصغيرًا، يأتي ويختفي» → ToastStack sits at the top (safe-area + 8px), a small pill (0.76rem, 55% surface + blur), fades
   in, stays, fades out by itself in 3.2 s (`snackbar-life`; tap = gone). One at a time as before.
 
+## 🎤 Voice messages · 📞 in-app voice call (Nov 8 2026)
+
+- His «ابدأ بالاتصال الصوتي داخل التطبيق وتسجيل صوتية» (stage 2 of the chat).
+- 🎤 (components/VoiceRecorder.tsx): with the field empty the send button is 🎤 - tap = record (MediaRecorder, opus,
+  16 kbit/s), ➤ sends / ✕ drops, 90 s at most; the audio data URL travels in the sealed message (`audio`, `seconds`;
+  `isChatAudio` ≤ 400k). Permissions RECORD_AUDIO + MODIFY_AUDIO_SETTINGS in the plugin manifest (Capacitor asks on
+  first use; the device's Starlink browser still never gets the microphone).
+- 🗑️ Storage guard: only the newest 40 pictures / voice messages keep their file on a phone (`MAX_MEDIA_KEPT`,
+  `pruneChat`); older ones stay in the conversation marked «لم يعد محفوظًا» - the chat must never fill the storage the
+  business data needs.
+- 📞 (lib/callSignal.ts, components/CallManager.tsx - on every page): WebRTC phone to phone (voice encrypted end to end);
+  signalling = `starnet/{space}/calls/{id}` (the conversation's space; offer / answer sealed with its key; `state`
+  ringing / answered / declined / missed / ended), non-trickle ICE (4 s gather). ICE: Google STUN + the Open Relay
+  Project's published free TURN (`openrelayproject` - public demo credentials, not a secret; the relay can't hear the
+  encrypted voice). The caller posts a chat message `call: {id}` «📞 مكالمة صوتية»: it rings the other side
+  (`shouldRing`, 45 s + clock slack; a phone notification too), shows in the history, and is what the background
+  service announces when the app is closed (no ringing then - told him). First phone to answer takes it (another
+  phone of the team sees «رُدّ عليها من هاتف آخر»). 45 s no answer → «لم يرد»; 25 s to connect after «رد» → «تعذّر
+  الاتصال… جرّب واتساب». During: timer, 🎤 كتم, إنهاء. One-to-one only (the team conversation: whoever answers).
+

@@ -36,9 +36,11 @@ public class AlertCryptoTest {
 
     @Test
     public void chatNotificationsAsTheAppSaysThem() {
-        assertEquals("💬 الحسين: السلام", AlertCrypto.chatText(" الحسين ", " السلام ", false, null));
-        assertEquals("💬 المسؤول 2: 📷 صورة", AlertCrypto.chatText("المسؤول 2", "", true, null));
-        assertEquals("💬 رسالة: 📡 DEMO 1", AlertCrypto.chatText(null, null, false, "DEMO 1"));
+        assertEquals("💬 الحسين: السلام", AlertCrypto.chatText(" الحسين ", " السلام ", false, false, null));
+        assertEquals("💬 المسؤول 2: 📷 صورة", AlertCrypto.chatText("المسؤول 2", "", true, false, null));
+        assertEquals("💬 المسؤول 2: 🎤 رسالة صوتية", AlertCrypto.chatText("المسؤول 2", "", false, true, null));
+        assertEquals("💬 رسالة: 📡 DEMO 1", AlertCrypto.chatText(null, null, false, false, "DEMO 1"));
+        assertEquals("💬 YAHYA: 📞 مكالمة صوتية", AlertCrypto.chatText("YAHYA", "📞 مكالمة صوتية", false, false, null));
         assertEquals("001700000000000", AlertCrypto.atKey(1700000000000L));
     }
 

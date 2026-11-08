@@ -197,3 +197,23 @@ export async function queryIdsBefore(
   return { ok: true, value: rows.flatMap((row) => (row.document ? [row.document.name.split("/").pop() ?? ""] : [])).filter(Boolean) };
 }
 
+/** Updates only these text fields of a document (the others stay) - e.g. a call's answer and state. */
+export async function updateDocumentFields(
+  config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
+  path: string,
+  fields: Record<string, string>,
+  fetchFn: FetchFn = fetch,
+): Promise<Result<true>> {
+  const token = await idToken(config, fetchFn);
+  if (!token.ok) return token;
+  const mask = Object.keys(fields).map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, { stringValue: v }])) };
+  const r = await call(fetchFn, `${documentUrl(config, path)}?${mask}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token.value}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
+  return { ok: true, value: true };
+}
+

@@ -130,7 +130,7 @@ final class AlertWatch {
                 boolean mine = teamChat ? me.equals(m.optString("member")) : chat.optString("mine").equals(m.optString("from", "owner"));
                 if (mine || m.optLong("at", 0) < appSeen - 60_000) continue;
                 JSONObject device = m.optJSONObject("device");
-                String text = AlertCrypto.chatText(m.optString("by"), m.optString("text"), m.has("image"), device == null ? null : device.optString("name"));
+                String text = AlertCrypto.chatText(m.optString("by"), m.optString("text"), m.has("image"), m.has("audio"), device == null ? null : device.optString("name"));
                 if (AppEventNotifier.post(context, text, "/chat")) shown++;
             }
         }
