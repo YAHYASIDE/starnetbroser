@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { newChatMessage } from "@/lib/chat";
 import { chatTargets, firestoreFor, type ChatTarget } from "@/lib/chatTransport";
-import { CALL_INCOMING_EVENT, callClock, callDocPath, CONNECT_MS, endWords, ICE_GATHER_MS, ICE_SERVERS, isCallState, RING_MS, type CallState } from "@/lib/callSignal";
+import { CALL_INCOMING_EVENT, callClock, callDocPath, CONNECT_MS, endWords, ICE_GATHER_MS, isCallState, RING_MS, type CallState } from "@/lib/callSignal";
+import { callQualityText } from "@/lib/callIce";
+import { iceServersNow } from "@/lib/callIceLoad";
 import { addRecording, loadRecordings, recordingKey, RECORDING_STARTED_TEXT, saveRecordings } from "@/lib/callRecordings";
 import { openText, sealText, type Sealed } from "@/lib/deviceSyncCrypto";
 import { updateDocumentFields, writeDocument } from "@/lib/firestoreRest";
@@ -16,6 +18,9 @@ import { postChat } from "./ChatRunner";
 import { teamMemberName } from "./TeamFlagSheet";
 
 export const CALL_START_EVENT = "starnet:call-start";
+/** A drop ends the call only after this long without the voice coming back. */
+const DROP_MS = 25_000;
+const MAX_RESTARTS = 5;
 
 /** 📞 Calls the conversation (from its 📞 button). */
 export function startCall(conv: string): void {
@@ -38,16 +43,25 @@ function myMessage(target: ChatTarget, fields: { text: string; call?: { id: stri
   return newChatMessage({ conv: target.conv, from: isRepWorkspace() ? "rep" : "owner", by: myName(), member: isRepWorkspace() ? undefined : loadLinkConfig(browserLinkStorage())?.memberId, ...fields });
 }
 
-/** Waits for the phone's addresses (non-trickle: the whole description goes at once). */
+/** Waits for the phone's addresses (non-trickle: the whole description goes at once) - all of them, or a relay address
+ * plus a moment (a slow relay over TCP no longer stops at a fixed 4 s with none). */
 function gathered(pc: RTCPeerConnection): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
+    let over = false;
     const done = () => {
+      if (over) return;
+      over = true;
       pc.removeEventListener("icegatheringstatechange", check);
+      pc.removeEventListener("icecandidate", onCandidate);
       resolve();
     };
     const check = () => pc.iceGatheringState === "complete" && done();
+    const onCandidate = (e: RTCPeerConnectionIceEvent) => {
+      if (e.candidate && / relay /.test(e.candidate.candidate)) window.setTimeout(done, 700);
+    };
     pc.addEventListener("icegatheringstatechange", check);
+    pc.addEventListener("icecandidate", onCandidate);
     window.setTimeout(done, ICE_GATHER_MS);
   });
 }
@@ -113,6 +127,14 @@ export function CallManager() {
   const stopBeep = useRef<(() => void) | null>(null);
   const recorder = useRef<{ rec: MediaRecorder; chunks: Blob[]; ctx: AudioContext; at: number } | null>(null);
   const handled = useRef<Set<string>>(new Set());
+  // 🔄 ICE restarts (his Nov 8 2026 «يتصل ثم ينقطع»): the caller renegotiates; the callee answers / asks for one
+  const restarts = useRef(0);
+  const restarting = useRef(false);
+  const lastRev = useRef("");
+  const lastAsk = useRef("");
+  const dropTimer = useRef<number | null>(null);
+  const statsTimer = useRef<number | null>(null);
+  const lastLoss = useRef<{ lost: number; got: number } | null>(null);
   const phaseRef = useRef<Phase>("idle");
   phaseRef.current = phase;
 
@@ -130,6 +152,15 @@ export function CallManager() {
   function cleanup() {
     for (const t of timers.current) window.clearTimeout(t);
     timers.current = [];
+    if (dropTimer.current) window.clearTimeout(dropTimer.current);
+    dropTimer.current = null;
+    if (statsTimer.current) window.clearInterval(statsTimer.current);
+    statsTimer.current = null;
+    restarts.current = 0;
+    restarting.current = false;
+    lastRev.current = "";
+    lastAsk.current = "";
+    lastLoss.current = null;
     silence();
     stopRecording();
     unsub.current?.();
@@ -180,29 +211,111 @@ export function CallManager() {
       finish("nomic", call.current?.mine ? "missed" : "declined");
       return null;
     }
-    const p = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    // 📞 the private relay when he set one (lib/callIce.ts), else the free public one
+    const p = new RTCPeerConnection({ iceServers: await iceServersNow(), iceCandidatePoolSize: 2 });
     for (const t of local.current.getTracks()) p.addTrack(t, local.current);
     p.ontrack = (e) => {
-      if (e.track) stream.addTrack(e.track);
+      // the stream the other phone sent, as it is (one-way voice came from feeding a stream of our own)
+      const theirs = e.streams[0];
+      if (theirs && audio.current) {
+        remote.current = theirs;
+        audio.current.srcObject = theirs;
+      } else if (e.track) stream.addTrack(e.track);
       void audio.current?.play().catch(() => undefined);
     };
-    p.oniceconnectionstatechange = () => setDiag(`الشبكة: ${p.iceConnectionState}`);
+    p.oniceconnectionstatechange = () => {
+      if (phaseRef.current !== "active") setDiag(`الشبكة: ${p.iceConnectionState}`);
+    };
     p.onconnectionstatechange = () => {
-      if (p.connectionState === "connected") {
-        setSince(Date.now());
+      const state = p.connectionState;
+      if (state === "connected") {
+        restarting.current = false;
+        if (dropTimer.current) window.clearTimeout(dropTimer.current);
+        dropTimer.current = null;
+        if (phaseRef.current !== "active") {
+          setSince(Date.now());
+          setPhase("active");
+          watchQuality(p);
+        }
         setDiag("");
-        setPhase("active");
         void callAudio(true, speaker);
-      } else if (p.connectionState === "failed") {
-        finish("failed", "ended");
-      } else if (p.connectionState === "disconnected" && phaseRef.current === "active") {
-        setDiag("⚠️ الاتصال ضعيف…");
-        later(() => p.connectionState === "disconnected" && finish("ended", "ended"), 8000);
+        void audio.current?.play().catch(() => undefined);
+      } else if ((state === "disconnected" || state === "failed") && (phaseRef.current === "active" || phaseRef.current === "connecting")) {
+        // 🔄 a drop is not the end: the connection is renegotiated (another path, the relay) - only 25 s without one ends it
+        setDiag("🔄 يعيد الاتصال…");
+        later(() => (p.connectionState === "disconnected" || p.connectionState === "failed") && void restartIce(), state === "failed" ? 0 : 2500);
+        if (!dropTimer.current) {
+          dropTimer.current = window.setTimeout(() => {
+            dropTimer.current = null;
+            if (pc.current === p && p.connectionState !== "connected") finish("failed", "ended");
+          }, DROP_MS);
+        }
       }
     };
     pc.current = p;
     void callAudio(true, speaker);
     return p;
+  }
+
+  /** 🔄 A new path for the voice (ICE restart): the caller makes a new offer; the callee asks the caller for one. */
+  async function restartIce() {
+    const c = call.current;
+    const p = pc.current;
+    if (!c || !p || restarting.current || restarts.current >= MAX_RESTARTS) return;
+    restarting.current = true;
+    restarts.current += 1;
+    const path = callDocPath(c.target.spaceId, c.id);
+    try {
+      if (!c.mine) {
+        await updateDocumentFields(c.target.firebase, path, { ask: String(Date.now()) });
+        later(() => (restarting.current = false), 8000);
+        return;
+      }
+      await p.setLocalDescription(await p.createOffer({ iceRestart: true }));
+      await gathered(p);
+      const sealed = await sealText(JSON.stringify(p.localDescription), c.target.key);
+      await updateDocumentFields(c.target.firebase, path, { reoffer: JSON.stringify(sealed), rev: String(restarts.current) });
+      later(() => (restarting.current = false), 10_000);
+    } catch {
+      restarting.current = false;
+    }
+  }
+
+  /** 📶 Every 3 s while talking: the round trip, lost voice packets, through the relay or direct (callQualityText). */
+  function watchQuality(p: RTCPeerConnection) {
+    if (statsTimer.current) window.clearInterval(statsTimer.current);
+    statsTimer.current = window.setInterval(async () => {
+      if (pc.current !== p || restarting.current || p.connectionState !== "connected") return;
+      try {
+        const stats = await p.getStats();
+        let rttMs: number | null = null;
+        let relayed = false;
+        let lost = 0;
+        let got = 0;
+        const byId = new Map<string, Record<string, unknown>>();
+        stats.forEach((r: Record<string, unknown>) => byId.set(String(r.id), r));
+        stats.forEach((r: Record<string, unknown>) => {
+          if (r.type === "candidate-pair" && r.state === "succeeded" && (r.nominated || r.selected)) {
+            if (typeof r.currentRoundTripTime === "number") rttMs = r.currentRoundTripTime * 1000;
+            const localCandidate = byId.get(String(r.localCandidateId));
+            const remoteCandidate = byId.get(String(r.remoteCandidateId));
+            relayed = localCandidate?.candidateType === "relay" || remoteCandidate?.candidateType === "relay";
+          }
+          if (r.type === "inbound-rtp" && r.kind === "audio") {
+            lost = Number(r.packetsLost ?? 0);
+            got = Number(r.packetsReceived ?? 0);
+          }
+        });
+        const before = lastLoss.current;
+        lastLoss.current = { lost, got };
+        const dl = before ? lost - before.lost : 0;
+        const dg = before ? got - before.got : 0;
+        const lossPct = dl + dg > 0 ? (100 * dl) / (dl + dg) : null;
+        setDiag(callQualityText({ rttMs, lossPct, relayed }));
+      } catch {
+        // no stats on this phone
+      }
+    }, 3000);
   }
 
   /** Follows the call's document: the answer (caller), or the call ending / answered elsewhere (callee). */
@@ -212,8 +325,39 @@ export function CallManager() {
     try {
       const { db, fs } = await firestoreFor(c.target.firebase);
       unsub.current = fs.onSnapshot(fs.doc(db, "starnet", c.target.spaceId, "calls", c.id), (snap) => {
-        const d = snap.data() as { state?: string; answer?: string } | undefined;
+        const d = snap.data() as { state?: string; answer?: string; reoffer?: string; rev?: string; reanswer?: string; rerev?: string; ask?: string } | undefined;
         if (!d || !isCallState(d.state) || call.current?.id !== c.id) return;
+        // 🔄 a new path for the voice after a drop (restartIce)
+        const talking = phaseRef.current === "active" || phaseRef.current === "connecting";
+        if (c.mine && talking) {
+          if (d.reanswer && d.rerev === String(restarts.current) && pc.current?.signalingState === "have-local-offer") {
+            const p = pc.current;
+            void openText(JSON.parse(d.reanswer) as Sealed, c.target.key)
+              .then((sdp) => p.setRemoteDescription(JSON.parse(sdp) as RTCSessionDescriptionInit))
+              .catch(() => undefined);
+          }
+          if (d.ask && d.ask !== lastAsk.current) {
+            lastAsk.current = d.ask;
+            void restartIce();
+          }
+        }
+        if (!c.mine && talking && d.reoffer && d.rev && d.rev !== lastRev.current && pc.current) {
+          lastRev.current = d.rev;
+          const p = pc.current;
+          const rev = d.rev;
+          void (async () => {
+            try {
+              setDiag("🔄 يعيد الاتصال…");
+              await p.setRemoteDescription(JSON.parse(await openText(JSON.parse(d.reoffer!) as Sealed, c.target.key)) as RTCSessionDescriptionInit);
+              await p.setLocalDescription(await p.createAnswer());
+              await gathered(p);
+              const sealed = await sealText(JSON.stringify(p.localDescription), c.target.key);
+              await updateDocumentFields(c.target.firebase, callDocPath(c.target.spaceId, c.id), { reanswer: JSON.stringify(sealed), rerev: rev });
+            } catch {
+              // the next drop asks again
+            }
+          })();
+        }
         if (c.mine) {
           if (d.state === "answered" && d.answer && phaseRef.current === "outgoing") {
             setPhase("connecting");

@@ -20592,3 +20592,8 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .chat-file-text small { color: var(--wa-meta); font-size: 0.72rem; }
 .chat-image-wait { display: flex; align-items: center; justify-content: center; width: 180px; max-width: 100%; aspect-ratio: 4 / 3; font-size: 1.6rem; opacity: 0.5; }
 .chat-viewer-save { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); left: 50%; transform: translateX(-50%); padding: 10px 18px; border: 0; border-radius: 999px; background: var(--green); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+/* 📞 the call relay setting */
+.call-server-steps { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; }
+.call-server-input { width: 100%; font-family: ui-monospace, monospace; font-size: 0.78rem; overflow-wrap: anywhere; }
+.call-server-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.call-server-bad { color: var(--red); }

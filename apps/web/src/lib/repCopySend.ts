@@ -17,6 +17,7 @@ import { ensureFlagChannel, markFlagLinkSent, ownerFirebase } from "./repFlags";
 import { browserLinkStorage, loadLinkConfig } from "./deviceLink";
 import { loadLiveSyncConfig, newSpaceId } from "./liveSyncConfig";
 import { newLinkKey } from "./deviceSyncCrypto";
+import { loadCallTurnText } from "./callIceLoad";
 
 /** 🚩 The operator's Firebase for the warnings (the team link, else the older live link). */
 export function flagFirebase() {
@@ -65,7 +66,8 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   // 🔑 What his phone may open (chosen before sending - RepPermissionsSheet).
   const permissions = [...permissionsOf(rep)].sort();
   const flagLink = flagLinkFor(rep.id);
-  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, permissions, ...(flagLink ? { flagLink } : {}) }, ensureRepDeviceCode(rep.id), phoneKey);
+  const callTurn = loadCallTurnText();
+  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, permissions, ...(flagLink ? { flagLink } : {}), ...(callTurn ? { callTurn } : {}) }, ensureRepDeviceCode(rep.id), phoneKey);
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 

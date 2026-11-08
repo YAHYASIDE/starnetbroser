@@ -664,7 +664,7 @@ export function startAsPhone(s: LinkStorage, config: LinkConfig): void {
  * (💬 every phone of the team talks with the reps - lib/chatTransport.ts). They travel only inside the link, sealed
  * with the team's key - never in a backup.
  */
-export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys", "starnet.repFlagChannels"] as const;
+export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys", "starnet.repFlagChannels", "starnet.callTurn"] as const;
 
 /** 💬 Stores that travel on their own channel, never in the link (the chat: lib/chatTransport.ts - in the link every
  * message would also remount the others' open page). */

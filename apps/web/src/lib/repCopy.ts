@@ -52,6 +52,8 @@ export interface RepCopy {
   permissions?: string[];
   /** 🚩 His warnings' channel on the operator's Firebase (repFlags.ts) - absent until the operator has one. */
   flagLink?: FlagLink;
+  /** 📞 The operator's call relay (lib/callIce.ts) - so his calls get through too. */
+  callTurn?: string;
 }
 
 export interface RepCopyPayload extends RepCopy {

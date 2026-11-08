@@ -15,16 +15,11 @@ export type CallState = "ringing" | "answered" | "declined" | "missed" | "ended"
 /** How long it rings before «لم يرد». */
 export const RING_MS = 45_000;
 /** After «رد», how long the phones may take to reach each other. */
-export const CONNECT_MS = 25_000;
+export const CONNECT_MS = 30_000;
 /** Non-trickle ICE: how long the addresses are gathered before the offer / answer goes. */
-export const ICE_GATHER_MS = 4_000;
+export const ICE_GATHER_MS = 6_000;
 
-/** Public STUN (finds each phone's address) and the Open Relay Project's published free relay (when the networks don't
- * let the phones reach each other directly; the voice stays encrypted - the relay can't hear it). */
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-  { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"], username: "openrelayproject", credential: "openrelayproject" },
-];
+/** The relays (STUN / TURN): lib/callIce.ts - his private one when set (Nov 8 2026), else the free public one. */
 
 export function callDocPath(spaceId: string, callId: string): string {
   return `starnet/${spaceId}/calls/${callId}`;

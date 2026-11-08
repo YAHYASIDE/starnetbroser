@@ -3216,6 +3216,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 📞 Stable calls: a private relay · reconnecting · quality (Nov 8 2026)
+
+- His «الاتصال غير مستقر أبدًا وغير جيد»: all of «لا تتصل أبدًا / تتصل ثم تنقطع / الصوت متقطع أو متأخر / طرف لا يسمع
+  الآخر», on mixed networks. His choice: **a free private relay (metered.ca)** + automatic reconnection.
+- lib/callIce.ts (+test) / callIceLoad.ts: Settings ← النسخ الاحتياطي ← «📞 خادم المكالمات» (CallServerSection): he
+  pastes metered's API link (`https://<app>.metered.live/api/v1/turn/credentials?apiKey=…` - the relay passwords are
+  fetched from it before a call, kept 20 min) or the `iceServers` list. Stored as `starnet.callTurn` (a phone setting -
+  never in the code), shared with the team (LINK_SHARED_SETTINGS) and sent to each rep in his copy (`RepCopy.callTurn`).
+  Without it: Google STUN + the public Open Relay as before. «🧪 اختبار» = a relay-only connection must get a relay
+  address within 8 s.
+- CallManager: gathering ends at «complete» or 0.7 s after the first relay address (6 s at most, was a fixed 4 s);
+  the other side's voice plays from the stream it sent (`e.streams[0]` - one-way voice); a drop (disconnected 2.5 s /
+  failed) → ICE restart: the caller writes `reoffer` + `rev` on the call document, the callee answers `reanswer` +
+  `rerev` (a callee that sees the drop writes `ask` → the caller restarts); up to 5 times; the call ends only after 25 s
+  without voice (`DROP_MS`). «📶 جيد / متوسط / ضعيف · مباشر / عبر خادم الوصل · ms» every 3 s from getStats (RTT > 300 ms or
+  loss > 3% = متوسط, > 600 ms / 8% = ضعيف). CONNECT_MS 30 s.
+
 ## 🔐 Team sessions arrive at once (Nov 8 2026)
 
 - His screenshot (a device on the Starlink sign-in page): «جهاز سجّله المسؤول YOUBE الآن، وهو عنده مسجّل، ولكن أنا ليس

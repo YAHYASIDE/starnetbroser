@@ -122,6 +122,7 @@ import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, run
 import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { CustomerMessagesSection } from "@/components/CustomerMessagesSection";
+import { CallServerSection } from "@/components/CallServerSection";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -485,6 +486,7 @@ export default function SettingsPage() {
         {group === "backup" && (
           <>
             <SettingsFold id="device-link"><DeviceLinkSection /></SettingsFold>
+            <SettingsFold id="call-server"><CallServerSection /></SettingsFold>
             <SettingsFold id="backup-full"><BackupSection /></SettingsFold>
             <SettingsFold id="backup-daily"><AutoBackupSection /></SettingsFold>
             <SettingsFold id="drive"><DriveSection /></SettingsFold>
