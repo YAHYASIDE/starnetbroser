@@ -15,6 +15,10 @@ import {
   addIncomingFlags,
   canReviewFlag,
   flagsBarText,
+  flagsToAnnounce,
+  loadAnnouncedFlags,
+  saveAnnouncedFlags,
+  withAnnounced,
   loadFlagChannels,
   loadOutbox,
   loadOwnerFlags,
@@ -90,15 +94,19 @@ export function RepFlagRunner() {
         if (Object.keys(channels).length === 0) return;
         const firebase = ownerFirebase({ link: () => loadLinkConfig(browserLinkStorage()), live: loadLiveSyncConfig });
         if (!firebase) return;
-        const { flags } = await pullFlags(firebase, channels);
+        const { flags, sentAt } = await pullFlags(firebase, channels);
         if (flags.length === 0) return;
-        const { store, added } = addIncomingFlags(loadOwnerFlags(), flags);
-        if (added.length === 0) return;
-        saveOwnerFlags(store);
+        // 🔔 this phone rings for what it hasn't announced yet - even when another phone of the team read it first
+        const before = loadOwnerFlags();
+        const announce = flagsToAnnounce(flags, sentAt, loadAnnouncedFlags(), before);
+        const { store, added } = addIncomingFlags(before, flags);
+        if (added.length) saveOwnerFlags(store);
+        if (announce.length) saveAnnouncedFlags(withAnnounced(loadAnnouncedFlags(), announce.map((f) => f.id)));
         const reps = loadRepresentativeStore();
-        for (const f of added) {
+        const firstHere = new Set(added.map((f) => f.id));
+        for (const f of announce) {
           const text = ownerFlagMessage(f, reps[f.repId]?.name ?? "");
-          void sendTelegramText(text);
+          if (firstHere.has(f.id)) void sendTelegramText(text); // the bot once (the phone that stored it first)
           void notifyPhone(text);
         }
       } finally {
@@ -147,6 +155,20 @@ export function RepFlagRunner() {
 export function RepFlagsBanner() {
   const [flags, setFlags] = useState<OwnerFlag[]>([]);
   const [open, setOpen] = useState(false);
+  // ⚠️ the rep's phone without his channel (an old copy): his warnings and the chat can't leave it - he must know
+  const [repStuck, setRepStuck] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isRepWorkspace()) return;
+    const check = () => setRepStuck(loadRepCopy()?.flagLink ? null : unsentFlags(loadOutbox()).length);
+    check();
+    window.addEventListener(REP_FLAGS_CHANGED, check);
+    window.addEventListener("starnet:rep-workspace", check);
+    return () => {
+      window.removeEventListener(REP_FLAGS_CHANGED, check);
+      window.removeEventListener("starnet:rep-workspace", check);
+    };
+  }, []);
 
   useEffect(() => {
     if (isRepWorkspace()) return;
@@ -169,6 +191,13 @@ export function RepFlagsBanner() {
     return () => document.documentElement.classList.remove("has-rep-flags");
   }, [flags.length]);
 
+  if (repStuck !== null) {
+    return (
+      <p className="rep-stuck-note" role="alert">
+        ⚠️ تنبيهاتك والدردشة لا تصل للمسؤول{repStuck > 0 ? ` (${repStuck} تنتظر)` : ""} - افتح آخر ملف نسخة أرسله لك في تيليغرام ← «فتح بـ STAR NET»، أو اطلب منه «📋 أرسل نسخته».
+      </p>
+    );
+  }
   if (!flags.length) return null;
   const reps = loadRepresentativeStore();
   // 👥 a team alert is closed on YAHYA (his Nov 7 2026 choice)

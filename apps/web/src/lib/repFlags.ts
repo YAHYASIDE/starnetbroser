@@ -124,6 +124,28 @@ export function addIncomingFlags(store: OwnerFlagStore, flags: RepFlag[], now = 
   return { store: added.length ? next : store, added };
 }
 
+/** A rep's warning stays on the server this long - every phone of the team reads it (none deletes it on read). */
+export const FLAG_KEEP_MS = 3 * 24 * 60 * 60 * 1000;
+/** A warning is announced on a phone only if it reached the server this recently (an old one just sits in the bar). */
+export const FLAG_ANNOUNCE_MS = 2 * 60 * 60 * 1000;
+const MAX_ANNOUNCED = 300;
+
+/**
+ * 🔔 Which pulled warnings THIS phone still has to announce (his Nov 8 2026 «تنبيهات المندوبين لا تأتي»): not announced
+ * here before, not already reviewed (✓ راجعته, in the shared store), and fresh. Each phone keeps its own list - the
+ * shared store may already hold the warning (another phone read it first and the link brought it), that's no reason
+ * to stay silent.
+ */
+export function flagsToAnnounce(flags: RepFlag[], sentAt: Record<string, number>, announced: readonly string[], store: OwnerFlagStore, now = Date.now()): RepFlag[] {
+  const done = new Set(announced);
+  return flags.filter((f) => !done.has(f.id) && !store[f.id]?.reviewedAt && now - (sentAt[f.id] ?? f.at) < FLAG_ANNOUNCE_MS);
+}
+
+/** The announced list with these ids added (the newest MAX_ANNOUNCED kept). */
+export function withAnnounced(announced: readonly string[], ids: readonly string[]): string[] {
+  return [...announced.filter((id) => !ids.includes(id)), ...ids].slice(-MAX_ANNOUNCED);
+}
+
 /** Not reviewed yet - 🔴 urgent first, then newest first - the red bar's list. */
 export function openOwnerFlags(store: OwnerFlagStore): OwnerFlag[] {
   return Object.values(store)
@@ -346,6 +368,22 @@ export function ensureFlagChannel(repId: string, make: () => FlagChannel): FlagC
 export function ownerFirebase(load: { link: () => { apiKey: string; projectId: string } | null; live: () => { apiKey: string; projectId: string } | null }): { apiKey: string; projectId: string } | null {
   const c = load.link() ?? load.live();
   return c && c.apiKey && c.projectId ? { apiKey: c.apiKey, projectId: c.projectId } : null;
+}
+
+const ANNOUNCED_KEY = "starnet.repFlagsAnnounced";
+
+/** 🔔 The warnings this phone already announced (phone-only - each phone rings for itself). */
+export function loadAnnouncedFlags(): string[] {
+  const s = read<string[]>(ANNOUNCED_KEY, []);
+  return Array.isArray(s) ? s.filter((x) => typeof x === "string") : [];
+}
+
+export function saveAnnouncedFlags(ids: string[]): void {
+  try {
+    window.localStorage.setItem(ANNOUNCED_KEY, JSON.stringify(ids));
+  } catch {
+    // announced again next time at worst
+  }
 }
 
 // ---- operator: which rep's phone already has his channel ----

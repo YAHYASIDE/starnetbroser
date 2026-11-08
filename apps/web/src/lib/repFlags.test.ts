@@ -20,7 +20,11 @@ import {
   repNeedsFlagLink,
   repReviewedMessage,
   unsentFlags,
-  type RepFlag, repFlagsFromBrowser
+  type RepFlag, repFlagsFromBrowser,
+  FLAG_ANNOUNCE_MS,
+  FLAG_KEEP_MS,
+  flagsToAnnounce,
+  withAnnounced,
 } from "./repFlags";
 import { pullFlags, pushFlags } from "./repFlagLink";
 import type { FetchFn } from "./firestoreRest";
@@ -113,11 +117,11 @@ describe("🚩 the rep's phone has his channel?", () => {
 describe("🚩 over the operator's Firebase", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("the rep's warning arrives sealed, opens only with its channel, and is deleted once read", async () => {
+  it("the rep's warning arrives sealed, opens only with its channel, and stays for every phone of the team (3 days)", async () => {
     const fs = fakeFirestore();
     const channel = { spaceId: "0123456789abcdef01234567", key: newLinkKey() };
     const link = { apiKey: "AIzaFAKE_key_for_tests_0000000000000", projectId: "demo-project", ...channel };
-    const pushed = await pushFlags(link, [flag()], fs.fn);
+    const pushed = await pushFlags(link, [flag({ at: Date.now() })], fs.fn);
     expect(pushed.sent).toEqual(["0a1b2c3d4e5f"]);
     const stored = [...fs.docs.values()][0]!;
     expect(stored.sealed!.stringValue).not.toContain("الطبق"); // never in clear text
@@ -127,7 +131,26 @@ describe("🚩 over the operator's Firebase", () => {
     expect(fs.docs.size).toBe(1);
     const pulled = await pullFlags(link, { r1: channel }, fs.fn);
     expect(pulled.flags.map((f) => [f.id, f.repId, f.note])).toEqual([["0a1b2c3d4e5f", "r1", "الطبق لا يتصل"]]);
-    expect(fs.docs.size).toBe(0);
+    expect(fs.docs.size).toBe(1); // another phone of the team reads it too
+    const again = await pullFlags(link, { r1: channel }, fs.fn);
+    expect(again.flags).toHaveLength(1);
+    const later = await pullFlags(link, { r1: channel }, fs.fn, Date.now() + FLAG_KEEP_MS + 60_000);
+    expect(later.flags).toEqual([]);
+    expect(fs.docs.size).toBe(0); // gone after 3 days
+  });
+});
+
+describe("🔔 each phone announces a rep's warning for itself (his Nov 8 2026 report)", () => {
+  it("not announced here before, not reviewed, fresh - even when the shared store already has it", () => {
+    const now = 10 * 60 * 60 * 1000;
+    const f1 = { ...flag(), id: "aaaaaaaaaaaa", at: now - 60_000 };
+    const f2 = { ...flag(), id: "bbbbbbbbbbbb", at: now - 60_000 };
+    const f3 = { ...flag(), id: "cccccccccccc", at: now - 60_000 };
+    const old = { ...flag(), id: "dddddddddddd", at: 0 };
+    const store = { [f1.id]: { ...f1, receivedAt: now }, [f2.id]: { ...f2, receivedAt: now, reviewedAt: now } };
+    const sentAt = { [old.id]: now - FLAG_ANNOUNCE_MS - 1 };
+    expect(flagsToAnnounce([f1, f2, f3, old], sentAt, [f3.id], store, now).map((f) => f.id)).toEqual([f1.id]);
+    expect(withAnnounced(["x", "y"], ["y", "z"])).toEqual(["x", "y", "z"]);
   });
 });
 

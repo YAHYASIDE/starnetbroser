@@ -20582,3 +20582,5 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .call-rec-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .call-rec-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 140px; }
 .call-rec-head small { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* ⚠️ the rep's phone without his channel: his warnings wait - told plainly at the top */
+.rep-stuck-note { margin: calc(var(--safe-top) + 8px) 12px 0; padding: 10px 12px; border: 1px solid var(--red); border-radius: 12px; background: var(--red-bg); color: var(--red); font-size: 0.85rem; font-weight: 700; line-height: 1.5; }

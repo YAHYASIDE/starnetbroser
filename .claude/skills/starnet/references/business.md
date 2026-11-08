@@ -3216,6 +3216,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 🚩 Reps' warnings reach every phone of the team (Nov 8 2026)
+
+- His «المسؤول 2 عندما يضيف مستعجل أو أي تنبيه يأتي، ولكن تنبيهات المندوبين لا تأتي». Cause: `pullFlags` deleted a
+  rep's warning document once read, so the first phone of the team to read it (the laptop, another member - every
+  member has the channels, `starnet.repFlagChannels` is shared) ate it; the others (and their background service)
+  never saw it. Team alerts were never deleted, which is why they arrived.
+- Now (lib/repFlagLink.ts, repFlags.ts): a warning stays on the server `FLAG_KEEP_MS` = 3 days (by its server
+  createTime), any phone deletes the older ones. Each phone announces for itself (`flagsToAnnounce`: not yet announced
+  on this phone - `starnet.repFlagsAnnounced`, phone-only -, not reviewed «✓ راجعته», reached the server < 2 h ago),
+  even when the shared store already has it from the link. The owner bot gets it once (from the phone that stored it
+  first).
+- His second screenshot (the rep الحافظ's phone: «الدردشة مع المسؤول تحتاج نسخة جديدة»): that rep's phone never opened a
+  copy carrying his channel (`RepCopy.flagLink`), so his warnings wait in his outbox and never leave. A copy only lands
+  when the rep opens the file from Telegram («فتح بـ STAR NET»). Now the rep's phone says it plainly at the top of
+  every page («⚠️ تنبيهاتك والدردشة لا تصل للمسؤول (N تنتظر) - افتح آخر ملف نسخة…»); what waited goes by itself
+  once he opens the copy.
+
 ## 💬 The chat like WhatsApp · 📷 picture editing (Nov 8 2026)
 
 - His «عدّل الدردشات، ليست جيدة، وإرسال الصورة لا يمكن تعديله - مثل واتساب». His choices: ALL of the look (wallpaper,
