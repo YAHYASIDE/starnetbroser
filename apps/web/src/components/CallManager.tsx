@@ -9,7 +9,7 @@ import { openText, sealText, type Sealed } from "@/lib/deviceSyncCrypto";
 import { updateDocumentFields, writeDocument } from "@/lib/firestoreRest";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { callAudio, ringCall, stopCallRing } from "@/lib/localBrowser";
-import { deleteProof, putProof } from "@/lib/paymentProofStore";
+import { deleteChatMedia, putChatMedia } from "@/lib/chatMediaStore";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace } from "@/lib/repMode";
 import { postChat } from "./ChatRunner";
@@ -341,10 +341,10 @@ export function CallManager() {
         if (chunks.length === 0) return;
         const reader = new FileReader();
         reader.onload = async () => {
-          if (!(await putProof(recordingKey(id), String(reader.result)))) return;
+          if (!(await putChatMedia(recordingKey(id), String(reader.result)))) return;
           const { list, dropped } = addRecording(loadRecordings(), { id, conv, peer: who, at, seconds: Math.max(1, Math.round((Date.now() - at) / 1000)) });
           saveRecordings(list);
-          for (const old of dropped) void deleteProof(recordingKey(old));
+          for (const old of dropped) void deleteChatMedia(recordingKey(old));
         };
         reader.readAsDataURL(new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" }));
       };

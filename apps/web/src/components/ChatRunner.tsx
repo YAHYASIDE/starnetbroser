@@ -6,6 +6,7 @@ import { chatTargets, listenChat, listenChatReads, sendChat, type ChatTarget } f
 import { notifyPhone } from "@/lib/appEvents";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { isRepWorkspace } from "@/lib/repMode";
+import { fullChatMessage, stashChatMedia } from "@/lib/chatMediaKeep";
 import { CALL_INCOMING_EVENT, shouldRing } from "@/lib/callSignal";
 
 /** The conversation open on the screen now (the chat page sets it) - no notification for it. */
@@ -106,7 +107,7 @@ export function ChatRunner() {
         const m = store[id];
         const target = m && targets.find((t) => t.conv === m.conv);
         if (!m || !target) continue;
-        if (!(await sendChat(target, m))) left.push(id);
+        if (!(await sendChat(target, await fullChatMessage(m)))) left.push(id);
       }
       saveUnsent(left);
       if (left.length !== unsent.length) window.dispatchEvent(new Event(CHAT_EVENT));
@@ -131,9 +132,19 @@ export function ChatRunner() {
       ringMissed();
     };
     document.addEventListener("visibilitychange", onVisible);
+    // 💾 pictures / voices / files move to their own store a moment after they're saved (nothing is ever dropped)
+    let stashTimer = 0;
+    const onChat = () => {
+      window.clearTimeout(stashTimer);
+      stashTimer = window.setTimeout(() => void stashChatMedia(), 1500);
+    };
+    window.addEventListener(CHAT_EVENT, onChat);
+    onChat();
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(firstLook);
+      window.clearTimeout(stashTimer);
+      window.removeEventListener(CHAT_EVENT, onChat);
       document.removeEventListener("visibilitychange", onVisible);
       for (const stop of stops.values()) stop();
     };

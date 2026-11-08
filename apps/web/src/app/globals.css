@@ -20584,3 +20584,11 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .call-rec-head small { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 /* ⚠️ the rep's phone without his channel: his warnings wait - told plainly at the top */
 .rep-stuck-note { margin: calc(var(--safe-top) + 8px) 12px 0; padding: 10px 12px; border: 1px solid var(--red); border-radius: 12px; background: var(--red-bg); color: var(--red); font-size: 0.85rem; font-weight: 700; line-height: 1.5; }
+/* 📄 a file in the chat (the rep's statement PDF) · ⬇️ save from the picture viewer */
+.chat-file { display: flex; align-items: center; gap: 10px; width: min(260px, 66vw); max-width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--surface) 70%, transparent); color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.chat-file-icon { flex-shrink: 0; font-size: 1.8rem; }
+.chat-file-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.chat-file-text strong { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-file-text small { color: var(--wa-meta); font-size: 0.72rem; }
+.chat-image-wait { display: flex; align-items: center; justify-content: center; width: 180px; max-width: 100%; aspect-ratio: 4 / 3; font-size: 1.6rem; opacity: 0.5; }
+.chat-viewer-save { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); left: 50%; transform: translateX(-50%); padding: 10px 18px; border: 0; border-radius: 999px; background: var(--green); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }

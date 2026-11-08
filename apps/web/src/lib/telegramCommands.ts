@@ -633,7 +633,7 @@ export function recordRepOpRating(data: string | undefined): void {
 }
 
 /** His accounts with their operations right now, as «كشفي» shows them. */
-async function repBotAccountsNow(repId: string): Promise<{ rep: Representative; since?: string; accounts: BotAccount[] } | null> {
+export async function repBotAccountsNow(repId: string): Promise<{ rep: Representative; since?: string; accounts: BotAccount[] } | null> {
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return null;
   const all = await loadAccounts();

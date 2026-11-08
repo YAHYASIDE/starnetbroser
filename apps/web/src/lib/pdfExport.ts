@@ -20,7 +20,8 @@ export interface RenderedPdf {
   blob: Blob;
 }
 
-export async function renderPrintablePdf(doc: PrintableDocument): Promise<RenderedPdf> {
+/** `pixelRatio` / `quality` lower = a smaller file (the chat's statement must fit in one message). */
+export async function renderPrintablePdf(doc: PrintableDocument, options: { pixelRatio?: number; quality?: number } = {}): Promise<RenderedPdf> {
   const [{ toCanvas }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
   const now = new Date();
   const generatedAt = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}`;
@@ -33,7 +34,7 @@ export async function renderPrintablePdf(doc: PrintableDocument): Promise<Render
   document.body.appendChild(host);
   try {
     const page = host.firstElementChild as HTMLElement;
-    const canvas = await toCanvas(page, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    const canvas = await toCanvas(page, { pixelRatio: options.pixelRatio ?? 2, backgroundColor: "#ffffff" });
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
     const pxPerMm = canvas.width / A4_WIDTH_MM;
     const pageHeightPx = Math.floor(A4_HEIGHT_MM * pxPerMm);
@@ -44,7 +45,7 @@ export async function renderPrintablePdf(doc: PrintableDocument): Promise<Render
       slice.height = sliceHeight;
       slice.getContext("2d")!.drawImage(canvas, 0, offset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
       if (index > 0) pdf.addPage();
-      pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_WIDTH_MM, sliceHeight / pxPerMm);
+      pdf.addImage(slice.toDataURL("image/jpeg", options.quality ?? 0.92), "JPEG", 0, 0, A4_WIDTH_MM, sliceHeight / pxPerMm);
     }
     const fileName = pdfFileName(doc.title, `${now.toISOString().slice(0, 10)}-${now.toTimeString().slice(0, 5).replace(":", "")}`);
     return { fileName, base64: pdf.output("datauristring").split(",")[1] ?? "", blob: pdf.output("blob") };

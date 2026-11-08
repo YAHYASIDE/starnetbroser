@@ -325,6 +325,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async saveMedia(_options: { fileName: string; base64: string; mimeType: string; open?: boolean }): Promise<{ saved: boolean; where: string }> {
+    return { saved: false, where: "" };
+  }
+
   async callAudio(_options: { active: boolean; speaker: boolean }): Promise<void> {
     return;
   }

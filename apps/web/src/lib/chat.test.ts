@@ -8,6 +8,12 @@ import {
   replyOf,
   visibleMessages,
   addChatMessages,
+  chatMediaKey,
+  hasAudio,
+  hasImage,
+  STATEMENT_ASK_TEXT,
+  stripChatMedia,
+  withChatMedia,
   chatAtKey,
   chatNotification,
   chatTime,
@@ -15,7 +21,6 @@ import {
   messagesOf,
   newChatMessage,
   parseChatPayload,
-  pruneChat,
   repConv,
   repIdOfConv,
   TEAM_CONV,
@@ -48,8 +53,8 @@ describe("🎤📞 voice messages and calls", () => {
 describe("💬 messages", () => {
   it("nothing to send = no message; text trimmed and capped; a bad picture dropped", () => {
     expect(newChatMessage({ conv: TEAM_CONV, from: "owner", by: "YAHYA", text: "  " }, 1, rid)).toBeNull();
-    const m = newChatMessage({ conv: TEAM_CONV, from: "owner", by: " YAHYA ", member: "phone", text: ` ${"x".repeat(1200)} `, image: "javascript:x" }, 5, rid)!;
-    expect(m.text).toHaveLength(1000);
+    const m = newChatMessage({ conv: TEAM_CONV, from: "owner", by: " YAHYA ", member: "phone", text: ` ${"x".repeat(2400)} `, image: "javascript:x" }, 5, rid)!;
+    expect(m.text).toHaveLength(2000);
     expect(m.by).toBe("YAHYA");
     expect(m.image).toBeUndefined();
     const withDevice = newChatMessage({ conv: repConv("r1"), from: "rep", by: "", text: "", device: { id: "d1", name: "DEMO 1" } }, 5, rid)!;
@@ -66,7 +71,7 @@ describe("💬 messages", () => {
     expect(parseChatPayload(JSON.stringify({ id: "abcdef123456", text: "" }), TEAM_CONV)).toBeNull();
   });
 
-  it("added once, oldest first, the last 500 of a conversation kept", () => {
+  it("added once, oldest first, nothing dropped", () => {
     const a = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "a", text: "1" }, 20, rid)!;
     const b = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "b", text: "2" }, 10, rid)!;
     let r = addChatMessages({}, [a, b]);
@@ -74,14 +79,6 @@ describe("💬 messages", () => {
     r = addChatMessages(r.store, [a]);
     expect(r.added).toHaveLength(0);
     expect(messagesOf(r.store, TEAM_CONV).map((m) => m.text)).toEqual(["2", "1"]);
-    const many: ChatMessage[] = Array.from({ length: 6 }, (_, i) => ({ id: `abcdef0000${i}0`, conv: TEAM_CONV, from: "owner", by: "x", text: String(i), at: i }));
-    const pruned = pruneChat(Object.fromEntries(many.map((m) => [m.id, m])), 4);
-    expect(messagesOf(pruned, TEAM_CONV).map((m) => m.text)).toEqual(["2", "3", "4", "5"]);
-    // 🗑️ only the newest pictures / voices keep their file
-    const withMedia: ChatMessage[] = Array.from({ length: 3 }, (_, i) => ({ id: `abcdef1111${i}0`, conv: TEAM_CONV, from: "owner", by: "x", text: "", image: img, at: 100 + i }));
-    const light = messagesOf(pruneChat(Object.fromEntries(withMedia.map((m) => [m.id, m])), 500, 2), TEAM_CONV);
-    expect(light.map((m) => Boolean(m.image))).toEqual([false, true, true]);
-    expect(light[0]!.mediaGone).toBe(true);
   });
 
   it("mine and unread: by member on the team, by side with a rep", () => {
@@ -164,3 +161,33 @@ describe("💬 WhatsApp-like: reply, forward, delete, ✓✓", () => {
   });
 });
 
+
+describe("🧾📄💾 statements, files, media kept apart (his Nov 8 2026 asks)", () => {
+  const pdf = "data:application/pdf;base64,JVBERi0xLjQK";
+  it("a PDF travels with its name and size; anything else is refused; only a rep asks for a statement", () => {
+    const m = newChatMessage({ conv: repConv("r1"), from: "owner", by: "YAHYA", text: "🧾 كشف", file: { name: "كشف/المندوب.pdf", data: pdf } }, 1, rid)!;
+    expect(m.file).toMatchObject({ name: "كشف المندوب.pdf", data: pdf });
+    expect(parseChatPayload(JSON.stringify(m), repConv("r1"))!.file!.data).toBe(pdf);
+    expect(parseChatPayload(JSON.stringify({ ...m, file: { name: "x", data: "data:text/html;base64,AAAA" } }), repConv("r1"))!.file).toBeUndefined();
+    const ask = newChatMessage({ conv: repConv("r1"), from: "rep", by: "الحسين", text: "", statementAsk: true }, 1, rid)!;
+    expect(ask).toMatchObject({ text: STATEMENT_ASK_TEXT, statementAsk: true });
+    expect(newChatMessage({ conv: repConv("r1"), from: "owner", by: "x", text: "hi", statementAsk: true }, 1, rid)!.statementAsk).toBeUndefined();
+  });
+
+  it("nothing is dropped any more, whatever the number", () => {
+    const many: ChatMessage[] = Array.from({ length: 700 }, (_, i) => ({ id: `abcdef${String(i).padStart(6, "0")}`, conv: TEAM_CONV, from: "owner", by: "x", text: String(i), at: i }));
+    expect(messagesOf(addChatMessages({}, many).store, TEAM_CONV)).toHaveLength(700);
+  });
+
+  it("the picture / voice / file go to the media store and come back whole", () => {
+    const m = newChatMessage({ conv: TEAM_CONV, from: "owner", by: "x", text: "", image: img, file: { name: "a.pdf", data: pdf } }, 1, rid)!;
+    const split = stripChatMedia(m)!;
+    expect(split.message.image).toBeUndefined();
+    expect(split.message.file).toEqual({ name: "a.pdf", size: m.file!.size });
+    expect(split.message.stored).toEqual(["image", "file"]);
+    expect(hasImage(split.message) && !hasAudio(split.message)).toBe(true);
+    expect(stripChatMedia(split.message)).toBeNull();
+    expect(withChatMedia(split.message, split.payload)).toMatchObject({ image: img, file: { name: "a.pdf", data: pdf } });
+    expect(chatMediaKey("abc")).toBe("chatmedia:abc");
+  });
+});

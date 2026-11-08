@@ -44,5 +44,6 @@ export function orphanProofIds(proofIds: string[], ledgerStore: LedgerByAccount,
   for (const entries of Object.values(ledgerStore)) for (const entry of entries) ownerIds.add(entry.id);
   if (ownerIds.size === 0) return [];
   // 📜 «سجل العمليات» keeps its photos for good (repOpLog.ts `opProofKey`)
-  return proofIds.filter((id) => !ownerIds.has(id) && !id.startsWith("oplog:"));
+  // ⏺ a call recording saved here by the first app of Nov 8 2026 is never a payment's orphan
+  return proofIds.filter((id) => !ownerIds.has(id) && !id.startsWith("oplog:") && !id.startsWith("callrec:"));
 }

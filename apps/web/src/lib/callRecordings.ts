@@ -1,7 +1,7 @@
 /**
  * ⏺ Call recordings (his Nov 8 2026 ask «أضف تسجيل المكالمة»): the voice of both sides, kept on THIS phone only - the
- * sound in the proofs store (`callrec:<call id>`, like the payment photos) and a small list here (`starnet.callRecordings`,
- * phone-only, never sent). The newest 30 are kept. When a recording starts, the other side is told in the conversation
+ * sound in the chat media store (`callrec:<call id>`, lib/chatMediaStore.ts) and a small list here (`starnet.callRecordings`,
+ * phone-only, never sent). None is dropped (his Nov 8 2026 «لا تحذف شيئًا») - only «🗑️ حذف». When a recording starts, the other side is told in the conversation
  * («⏺ بدأ تسجيل المكالمة») - nobody is recorded without knowing. Pure + a small store.
  */
 
@@ -15,7 +15,8 @@ export interface CallRecording {
   seconds: number;
 }
 
-export const MAX_RECORDINGS = 30;
+/** No limit in practice (his Nov 8 2026 «لا تحذف شيئًا من الهاتف أبدًا») - only the user deletes one. */
+export const MAX_RECORDINGS = 100_000;
 export const RECORDING_STARTED_TEXT = "⏺ بدأ تسجيل المكالمة";
 const KEY = "starnet.callRecordings";
 export const CALL_RECORDINGS_EVENT = "starnet:call-recordings";

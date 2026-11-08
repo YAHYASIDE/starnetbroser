@@ -6,17 +6,21 @@ import { useRouter } from "next/navigation";
 import { PartySheet } from "@/components/AccountsSection";
 import { chatView, CHAT_LIVE_EVENT, loadUnsent, postChat } from "@/components/ChatRunner";
 import { startCall } from "@/components/CallManager";
-import { CALL_RECORDINGS_EVENT, loadRecordings, MAX_RECORDINGS, recordingKey, recordingsOf, saveRecordings, type CallRecording } from "@/lib/callRecordings";
+import { CALL_RECORDINGS_EVENT, loadRecordings, recordingKey, recordingsOf, saveRecordings, type CallRecording } from "@/lib/callRecordings";
 import { callClock } from "@/lib/callSignal";
+import { deleteChatMedia, getChatMedia } from "@/lib/chatMediaStore";
 import { deleteProof, getProof } from "@/lib/paymentProofStore";
 import { ChatImageEditor } from "@/components/ChatImageEditor";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { teamMemberName } from "@/components/TeamFlagSheet";
 import {
   CHAT_EVENT,
+  chatMediaKey,
   chatTime,
   dayLabel,
   deleteForMe,
+  hasAudio,
+  hasImage,
   isMine,
   isReadByOthers,
   loadChat,
@@ -29,6 +33,7 @@ import {
   newChatMessage,
   readerId,
   replyOf,
+  repIdOfConv,
   saveChat,
   unreadCount,
   visibleMessages,
@@ -47,6 +52,10 @@ import { homeSearchHref } from "@/lib/homeActions";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace } from "@/lib/repMode";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { chatMediaOf, fullChatMessage } from "@/lib/chatMediaKeep";
+import { buildRepChatStatement } from "@/lib/chatStatement";
+import { chatDeviceChoices } from "@/lib/chatDevices";
+import { saveChatMedia } from "@/lib/localBrowser";
 
 type Side = { rep: boolean; memberId: string };
 
@@ -282,7 +291,7 @@ function Conversation({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [picking, setPicking] = useState(false);
   const [pictures, setPictures] = useState<File[] | null>(null);
-  const [viewer, setViewer] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ src: string; m: ChatMessage } | null>(null);
   const [menu, setMenu] = useState<ChatMessage | null>(null);
   const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -290,6 +299,9 @@ function Conversation({
   const [flash, setFlash] = useState<string | null>(null);
   const [recordings, setRecordings] = useState(false);
   const [recCount, setRecCount] = useState(0);
+  const [statementSheet, setStatementSheet] = useState(false);
+  const [statementBusy, setStatementBusy] = useState(false);
+  const repOfConv = repIdOfConv(target.conv);
   useEffect(() => {
     const count = () => setRecCount(recordingsOf(loadRecordings(), target.conv).length);
     count();
@@ -298,6 +310,7 @@ function Conversation({
   }, [target.conv]);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const press = useRef<{ id: string; x: number; y: number; timer: number; moved: boolean } | null>(null);
   const [swipe, setSwipe] = useState<{ id: string; dx: number } | null>(null);
@@ -327,6 +340,44 @@ function Conversation({
     if (!message) return;
     const ok = await postChat(to, message);
     setNote(ok ? null : "⏳ لم تُرسل بعد - تُرسل وحدها حين يتصل الإنترنت");
+  }
+
+  function flashNote(text: string) {
+    setNote(text);
+    window.setTimeout(() => setNote(null), 2500);
+  }
+
+  /** 🧾 The operator sends the rep his statement (a summary + a PDF); the rep asks for it. */
+  async function statement() {
+    if (!repOfConv || statementBusy) return;
+    setStatementBusy(true);
+    try {
+      if (side.rep) {
+        await post(draft(target, side, { text: "", statementAsk: true }));
+        flashNote("🧾 طُلب كشفك - يصلك هنا");
+        return;
+      }
+      setNote("⏳ يجهّز الكشف…");
+      const built = await buildRepChatStatement(repOfConv);
+      if (!built) return flashNote("⚠️ تعذّر تجهيز الكشف");
+      await post(draft(target, side, { text: built.text, file: built.file }));
+    } finally {
+      setStatementBusy(false);
+      setStatementSheet(false);
+    }
+  }
+
+  /** ⬇️ A picture → the gallery, a voice → music, a file → downloads (`open`: shown too). */
+  async function saveOf(m: ChatMessage, open = false) {
+    const media = await chatMediaOf(m);
+    const stamp = new Date(m.at).toISOString().slice(0, 19).replace(/[-:T]/g, "");
+    if (m.file && media?.file) return flashNote(await saveChatMedia(media.file, m.file.name, open));
+    if (media?.image) return flashNote(await saveChatMedia(media.image, `STARNET-${stamp}.jpg`, open));
+    if (media?.audio) {
+      const ext = /audio\/(mp4|aac)/.test(media.audio) ? "m4a" : /audio\/ogg/.test(media.audio) ? "ogg" : /audio\/mpeg/.test(media.audio) ? "mp3" : "webm";
+      return flashNote(await saveChatMedia(media.audio, `STARNET-${stamp}.${ext}`, open));
+    }
+    flashNote("⚠️ لم يعد محفوظًا في هذا الهاتف");
   }
 
   async function sendText(voice?: { audio: string; seconds: number }) {
@@ -391,7 +442,7 @@ function Conversation({
     setSwipe(null);
   }
 
-  async function act(action: "reply" | "copy" | "forward" | "deleteMe" | "deleteAll") {
+  async function act(action: "reply" | "copy" | "forward" | "deleteMe" | "deleteAll" | "save") {
     const m = menu;
     setMenu(null);
     if (!m) return;
@@ -404,17 +455,21 @@ function Conversation({
       window.setTimeout(() => setNote(null), 1500);
     } else if (action === "forward") {
       setForwarding(m);
+    } else if (action === "save") {
+      await saveOf(m);
     } else if (action === "deleteMe") {
       saveChat(deleteForMe(loadChat(), m.id));
+      void deleteChatMedia(chatMediaKey(m.id));
     } else if (action === "deleteAll") {
       await post(draft(target, side, { text: "", deleteOf: m.id }));
     }
   }
 
   async function forwardTo(to: ChatTarget) {
-    const m = forwarding;
+    const one = forwarding;
     setForwarding(null);
-    if (!m) return;
+    if (!one) return;
+    const m = await fullChatMessage(one);
     const sideTo = { rep: side.rep, memberId: side.memberId };
     await post(
       newChatMessage({
@@ -427,6 +482,7 @@ function Conversation({
         device: m.device,
         audio: m.audio,
         seconds: m.seconds,
+        file: m.file?.data ? { name: m.file.name, data: m.file.data } : null,
         forwarded: true,
       }),
       to,
@@ -461,10 +517,25 @@ function Conversation({
             🎙️
           </button>
         )}
+        {repOfConv && (
+          <button type="button" className="chat-call" onClick={() => setStatementSheet(true)} aria-label={side.rep ? "اطلب كشف حسابك" : "أرسل كشف حسابه"}>
+            🧾
+          </button>
+        )}
         <button type="button" className="chat-call" onClick={() => startCall(target.conv)} aria-label="مكالمة صوتية">
           📞
         </button>
       </div>
+      {statementSheet && (
+        <PartySheet title={side.rep ? "🧾 كشف حسابي" : `🧾 كشف ${target.title.replace(/^\S+\s/, "")}`} onClose={() => setStatementSheet(false)}>
+          <p className="settings-hint">
+            {side.rep ? "يصل طلبك للمسؤول، ويرسل لك كشفك هنا: ملخص الأرصدة + ملف PDF." : "يُرسل له هنا: ملخص كل حساب والباقي بعد خصم ربحه وبعد خصم كل شيء، ومعه ملف PDF بالعمليات."}
+          </p>
+          <button type="button" className="dialog-primary" disabled={statementBusy} onClick={() => void statement()}>
+            {statementBusy ? "⏳ يجهّز…" : side.rep ? "🧾 اطلب كشفي" : "🧾 أرسل كشفه الآن"}
+          </button>
+        </PartySheet>
+      )}
       {recordings && <RecordingsSheet conv={target.conv} onClose={() => setRecordings(false)} />}
       <div className="chat-messages chat-wallpaper" ref={listRef}>
         {messages.length === 0 && <p className="chat-day">لا رسائل بعد - اكتب أول رسالة.</p>}
@@ -502,9 +573,18 @@ function Conversation({
                     <span>{m.reply.preview}</span>
                   </button>
                 )}
-                {m.image && (
-                  <button type="button" className="chat-image" onClick={() => setViewer(m.image!)} aria-label="عرض الصورة">
-                    <img src={m.image} alt="صورة" />
+                {hasImage(m) && <ChatImage m={m} onOpen={(src) => setViewer({ src, m })} />}
+                {m.file && (
+                  <button type="button" className="chat-file" onClick={() => void saveOf(m, true)}>
+                    <span className="chat-file-icon" aria-hidden="true">
+                      📄
+                    </span>
+                    <span className="chat-file-text">
+                      <strong>{m.file.name}</strong>
+                      <small>
+                        PDF · <bdi dir="ltr">{Math.max(1, Math.round(m.file.size / 1024))} KB</bdi> · اضغط للفتح
+                      </small>
+                    </span>
                   </button>
                 )}
                 {m.device && (
@@ -512,13 +592,14 @@ function Conversation({
                     📡 {m.device.name}
                   </button>
                 )}
-                {m.audio && (
-                  <span className="chat-voice">
-                    <audio className="chat-audio" controls preload="none" src={m.audio} />
-                  </span>
-                )}
+                {hasAudio(m) && <ChatVoice m={m} />}
                 {m.mediaGone && <small className="chat-forwarded">🗑️ الصورة / التسجيل لم يعد محفوظًا في هذا الهاتف</small>}
                 {m.deleted ? <p className="chat-text chat-text-deleted">🚫 حُذفت هذه الرسالة</p> : m.text && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
+                {m.statementAsk && !side.rep && !m.deleted && (
+                  <button type="button" className="chat-device" disabled={statementBusy} onClick={() => void statement()}>
+                    {statementBusy ? "⏳ يجهّز…" : "🧾 أرسل كشفه"}
+                  </button>
+                )}
                 <small className="chat-meta">
                   {m.seconds ? `🎤 ${m.seconds} ث · ` : ""}
                   <bdi dir="ltr">{chatTime(m.at, now).replace(/^.* /, "")}</bdi>
@@ -582,7 +663,10 @@ function Conversation({
             <button type="button" className="chat-field-tool" onClick={() => setPicking(true)} aria-label="إرفاق جهاز">
               📡
             </button>
-            <button type="button" className="chat-field-tool" onClick={() => fileRef.current?.click()} aria-label="إرسال صور">
+            <button type="button" className="chat-field-tool" onClick={() => fileRef.current?.click()} aria-label="صور من المعرض">
+              🖼️
+            </button>
+            <button type="button" className="chat-field-tool" onClick={() => cameraRef.current?.click()} aria-label="صورة بالكاميرا">
               📷
             </button>
           </div>
@@ -606,10 +690,23 @@ function Conversation({
             if (list.length) setPictures(list);
           }}
         />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const list = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (list.length) setPictures(list);
+          }}
+        />
       </form>
       {pictures && <ChatImageEditor files={pictures} onSend={(list) => void sendPictures(list)} onClose={() => setPictures(null)} />}
       {picking && (
         <DevicePicker
+          repId={side.rep ? null : repOfConv}
           onPick={(d) => {
             setDevice(d);
             setPicking(false);
@@ -626,6 +723,11 @@ function Conversation({
             {menu.text && (
               <button type="button" className="msg-item" onClick={() => void act("copy")}>
                 <span className="msg-item-label">📋 نسخ</span>
+              </button>
+            )}
+            {(hasImage(menu) || hasAudio(menu) || menu.file) && !menu.deleted && (
+              <button type="button" className="msg-item" onClick={() => void act("save")}>
+                <span className="msg-item-label">⬇️ حفظ في الهاتف{hasImage(menu) ? " (المعرض)" : ""}</span>
               </button>
             )}
             {!menu.call && targets.length > 1 && (
@@ -662,38 +764,77 @@ function Conversation({
           <button type="button" className="rep-receipt-close" aria-label="إغلاق" onClick={() => setViewer(null)}>
             ✕
           </button>
-          <img src={viewer} alt="الصورة" onClick={(e) => e.stopPropagation()} />
+          <img src={viewer.src} alt="الصورة" onClick={(e) => e.stopPropagation()} />
+          <button
+            type="button"
+            className="chat-viewer-save"
+            onClick={(e) => {
+              e.stopPropagation();
+              void saveOf(viewer.m);
+            }}
+          >
+            ⬇️ حفظ في المعرض
+          </button>
         </div>
       )}
     </main>
   );
 }
 
-/** 📡 Attach a device: search by name / email / KIT. */
-function DevicePicker({ onPick, onClose }: { onPick: (d: { id: string; name: string }) => void; onClose: () => void }) {
+/** 📡 Attach a device: in a rep's conversation only his devices; by its name, the customer's name, email or KIT. */
+function DevicePicker({ repId, onPick, onClose }: { repId: string | null; onPick: (d: { id: string; name: string }) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
-  const devices = useMemo(() => loadDemoAccounts(demoAccounts).filter((a) => !a.deletedAt && !a.archivedAt), []);
-  const found = devices
-    .filter((a) => {
-      const t = q.trim().toLowerCase();
-      if (!t) return true;
-      return [a.name, a.expectedEmail, a.starlinkAccountEmail, a.kitNumber].some((v) => (v ?? "").toLowerCase().includes(t));
-    })
-    .slice(0, 40);
+  const devices = useMemo(() => loadDemoAccounts(demoAccounts), []);
+  const clients = useMemo(() => loadClientStore(), []);
+  const found = useMemo(() => chatDeviceChoices(devices, (id) => clients[id]?.name, q, repId), [devices, clients, q, repId]);
   return (
     <PartySheet title="📡 أرفق جهازًا" onClose={onClose}>
-      <input className="msg-input" placeholder="ابحث: اسم، إيميل، KIT" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      <input className="msg-input" placeholder="ابحث: الجهاز، الزبون، الإيميل، KIT" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
       <div className="msg-list chat-picker">
         {found.map((a) => (
           <button key={a.id} type="button" className="msg-item" onClick={() => onPick({ id: a.id, name: a.name })}>
             <span className="msg-item-label">{a.name}</span>
-            {a.expectedEmail && <small className="msg-item-hint">{a.expectedEmail}</small>}
+            {a.hint && <small className="msg-item-hint">{a.hint}</small>}
           </button>
         ))}
-        {found.length === 0 && <p className="party-empty">لا جهاز بهذا البحث.</p>}
+        {found.length === 0 && <p className="party-empty">{q.trim() ? "لا جهاز بهذا البحث." : "لا أجهزة."}</p>}
       </div>
     </PartySheet>
   );
+}
+
+/** 📷 A picture: inline, else from the chat media store (it shows once read). */
+function ChatImage({ m, onOpen }: { m: ChatMessage; onOpen: (src: string) => void }) {
+  const src = useMedia(m, "image");
+  if (src === null) return <small className="chat-forwarded">📷 الصورة غير موجودة في هذا الهاتف</small>;
+  return (
+    <button type="button" className="chat-image" onClick={() => src && onOpen(src)} aria-label="عرض الصورة">
+      {src ? <img src={src} alt="صورة" /> : <span className="chat-image-wait">📷</span>}
+    </button>
+  );
+}
+
+/** 🎤 A voice message. */
+function ChatVoice({ m }: { m: ChatMessage }) {
+  const src = useMedia(m, "audio");
+  if (src === null) return <small className="chat-forwarded">🎤 التسجيل غير موجود في هذا الهاتف</small>;
+  return <span className="chat-voice">{src ? <audio className="chat-audio" controls preload="none" src={src} /> : <span className="chat-audio">🎤 …</span>}</span>;
+}
+
+/** The message's picture / voice: undefined while it loads, null when this phone hasn't got it. */
+function useMedia(m: ChatMessage, kind: "image" | "audio"): string | null | undefined {
+  const inline = m[kind];
+  const [src, setSrc] = useState<string | null | undefined>(inline);
+  useEffect(() => {
+    if (inline) return setSrc(inline);
+    let live = true;
+    void chatMediaOf(m).then((p) => live && setSrc(p?.[kind] ?? null));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m.id, inline, m.stored?.join()]);
+  return src;
 }
 
 /** 👤 The customers have no app: each one's WhatsApp. */
@@ -730,17 +871,18 @@ function RecordingsSheet({ conv, onClose }: { conv: string; onClose: () => void 
   const [list, setList] = useState<CallRecording[]>(() => recordingsOf(loadRecordings(), conv));
   const [sound, setSound] = useState<Record<string, string | null>>({});
   const play = async (id: string) => {
-    const url = await getProof(recordingKey(id));
+    const url = (await getChatMedia(recordingKey(id))) ?? (await getProof(recordingKey(id))); // the first ones went to the proofs
     setSound((s) => ({ ...s, [id]: url ?? null }));
   };
   const remove = async (id: string) => {
+    await deleteChatMedia(recordingKey(id));
     await deleteProof(recordingKey(id));
     saveRecordings(loadRecordings().filter((r) => r.id !== id));
     setList((l) => l.filter((r) => r.id !== id));
   };
   return (
     <PartySheet title="🎙️ تسجيلات المكالمات" onClose={onClose}>
-      <p className="settings-hint">محفوظة على هذا الهاتف فقط (آخر {MAX_RECORDINGS} تسجيلًا).</p>
+      <p className="settings-hint">محفوظة على هذا الهاتف فقط - لا يُحذف منها شيء إلا بيدك.</p>
       {list.length === 0 && <p className="settings-hint">لا تسجيلات.</p>}
       <ul className="call-rec-list">
         {list.map((r) => (

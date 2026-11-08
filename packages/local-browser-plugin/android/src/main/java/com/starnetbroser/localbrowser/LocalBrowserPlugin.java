@@ -521,6 +521,25 @@ public class LocalBrowserPlugin extends Plugin {
     }
 
     /** ⏰ «تم»: the reminder is over (its alarm cancelled if it hasn't rung). */
+    /** ⬇️ The chat's picture / voice / file saved on the phone (gallery, music, downloads) - `open` shows it too. */
+    @PluginMethod
+    public void saveMedia(PluginCall call) {
+        String name = call.getString("fileName", "starnet");
+        String base64 = call.getString("base64", "");
+        byte[] bytes;
+        try {
+            bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+        } catch (IllegalArgumentException e) {
+            call.reject("bad data");
+            return;
+        }
+        String where = ChatMediaSaver.save(getContext(), name, bytes, call.getString("mimeType", ""), Boolean.TRUE.equals(call.getBoolean("open", false)));
+        JSObject ret = new JSObject();
+        ret.put("saved", where != null);
+        ret.put("where", where == null ? "" : where);
+        call.resolve(ret);
+    }
+
     /** 📞 An incoming call rings (ringtone + vibration + call notification) until stopCallRing or 45 s. */
     @PluginMethod
     public void ringCall(PluginCall call) {

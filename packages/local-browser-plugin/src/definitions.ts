@@ -779,6 +779,9 @@ export interface LocalBrowserPlugin {
   stopCallRing(): Promise<void>;
   /** 📞 During a call: the voice to the loudspeaker (`speaker`) or the earpiece; `active` false = back to normal. */
   callAudio(options: { active: boolean; speaker: boolean }): Promise<void>;
+  /** ⬇️ The chat's picture (gallery) / voice (music) / file (downloads) saved on the phone; `open` shows it too.
+   * `where`: gallery / music / downloads (Android 10+), app (older - it was opened). */
+  saveMedia(options: { fileName: string; base64: string; mimeType: string; open?: boolean }): Promise<{ saved: boolean; where: string }>;
 
   /** 🔴🟡 What the background service («رد البوت والتطبيق مغلق») watches while the app is closed: JSON from apps/web
    * lib/alertWatch.ts (Firebase, the reps' channels, the team's alerts); empty = nothing. `running`: the service runs. */

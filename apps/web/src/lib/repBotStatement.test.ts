@@ -90,3 +90,21 @@ describe("📊 «كشفي» in the money bot", () => {
     expect(doc.rows).toEqual([["2026-10-16", "➖ عليه · سلفة", "-6,652 فرنك FCFA", "عليك 6,652 فرنك FCFA"]]);
   });
 });
+
+describe("🧾 the statement in the rep's chat (his Nov 8 2026 choice: summary + PDF)", () => {
+  it("each account and what is left in the text; the accounts then their operations in the PDF", async () => {
+    const { repChatStatement } = await import("./repBotStatement");
+    const line = (id: string, v: number) => ({ id, date: "2026-11-01", text: "دفعة", amount: { SIFA: v }, after: { SIFA: v } });
+    const accounts = [
+      { key: "a0", title: "💰 الربح", balance: { SIFA: 5000 }, stored: { SIFA: 5000 }, isProfit: true, isNamed: false, lines: [line("l1", 5000)] },
+      { key: "a1", title: "📒 حساب تجريبي", balance: { SIFA: -2000 }, stored: { SIFA: -2000 }, isProfit: false, isNamed: true, lines: [] },
+    ];
+    const { text, doc } = repChatStatement("مندوب تجريبي", accounts);
+    expect(text).toContain("🧾 كشف حساب مندوب تجريبي");
+    expect(text).toContain("💰 الربح:");
+    expect(text).toContain("⚖️ الباقي بعد خصم كل شيء:");
+    expect(doc.rows).toHaveLength(2);
+    expect(doc.sections).toHaveLength(1); // an account with no operation gets no table
+    expect(doc.sections![0]!.rows[0]![1]).toBe("دفعة");
+  });
+});

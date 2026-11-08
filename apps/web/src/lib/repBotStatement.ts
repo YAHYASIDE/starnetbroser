@@ -309,3 +309,54 @@ export function repBotAccountPdf(repName: string, account: BotAccount, since?: s
   };
 }
 
+
+// ---- 🧾 the whole statement in his chat conversation ----
+
+/** Operations per account in the chat's PDF at most (newest) - the file must fit in one chat message. */
+export const CHAT_STATEMENT_LINES = 120;
+
+/**
+ * 🧾 «كشف حسابه» in the rep's chat conversation (his Nov 8 2026 choice: a summary + a PDF): the summary message (each
+ * account, what is left after his profit / after everything) and one PDF - the accounts table, then each account's
+ * operations (newest CHAT_STATEMENT_LINES). Per currency, never converted.
+ */
+export function repChatStatement(repName: string, accounts: BotAccount[], since?: string): { text: string; doc: PrintableDocument } {
+  const { afterProfit, afterAll } = repBotRemaining(accounts);
+  const text = [
+    `🧾 كشف حساب ${repName}`,
+    ...(since ? [`🔄 منذ ${since}`] : []),
+    "",
+    ...(accounts.length ? accounts.map((a) => `${a.title}: ${botBalanceWords(a.balance)}`) : ["لا حسابات بعد."]),
+    "",
+    `⚖️ الباقي بعد خصم ربحك فقط: ${botBalanceWords(afterProfit)}`,
+    `⚖️ الباقي بعد خصم كل شيء: ${botBalanceWords(afterAll)}`,
+    "",
+    "📄 التفاصيل في الملف.",
+  ].join("\n");
+  const tone = (v: Record<string, number>): PrintableTone => {
+    const s = Object.values(v).reduce((t, x) => t + x, 0);
+    return s > EPS ? "clear" : s < -EPS ? "due" : "neutral";
+  };
+  const doc: PrintableDocument = {
+    title: "كشف حساب المندوب",
+    partyName: repName,
+    ...(since ? { subtitle: `منذ ${since}` } : {}),
+    summary: [
+      { label: "بعد خصم ربحك فقط", value: botBalanceWords(afterProfit), tone: tone(afterProfit) },
+      { label: "بعد خصم كل شيء", value: botBalanceWords(afterAll), tone: tone(afterAll) },
+    ],
+    columns: ["الحساب", "الرصيد", "العمليات"],
+    rows: accounts.map((a) => [a.title, botBalanceWords(a.balance), String(a.lines.length)]),
+    rowTones: accounts.map((a) => tone(a.balance)),
+    sections: accounts
+      .filter((a) => a.lines.length > 0)
+      .map((a) => ({
+        title: `${a.title} · ${botBalanceWords(a.balance)}`,
+        columns: ["التاريخ", "العملية", "المبلغ", "الرصيد بعدها"],
+        rows: a.lines.slice(0, CHAT_STATEMENT_LINES).map((l) => [l.date, l.text, signedWords(l.amount), botBalanceWords(l.after)]),
+        ...(a.lines.length > CHAT_STATEMENT_LINES ? { note: `آخر ${CHAT_STATEMENT_LINES} عملية من ${a.lines.length}` } : {}),
+      })),
+    footerNote: "«+» = لك، «-» = عليك. كل عملة وحدها - لا تُحوَّل ولا تُخلط.",
+  };
+  return { text, doc };
+}

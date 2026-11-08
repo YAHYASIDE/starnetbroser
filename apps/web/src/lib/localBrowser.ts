@@ -509,6 +509,35 @@ export async function callAudio(active: boolean, speaker: boolean): Promise<void
   if (isRunningInAndroidApp()) await LocalBrowser.callAudio({ active, speaker }).catch(() => undefined);
 }
 
+/**
+ * ⬇️ A chat picture / voice / file (a data URL) saved on the phone: the gallery, music or downloads (STAR NET folder);
+ * `open` also shows it (the statement PDF). Off Android (the laptop) it's a normal download. The words to show back.
+ */
+export async function saveChatMedia(dataUrl: string, fileName: string, open = false): Promise<string> {
+  const m = /^data:([^;,]+)(?:;[^,]*)?;base64,(.*)$/.exec(dataUrl);
+  if (!m) return "⚠️ تعذّر الحفظ";
+  const mimeType = m[1]!;
+  if (isRunningInAndroidApp()) {
+    try {
+      const r = await LocalBrowser.saveMedia({ fileName, base64: m[2]!, mimeType, open });
+      if (!r.saved) return "⚠️ تعذّر الحفظ على الهاتف";
+      if (r.where === "gallery") return "✓ حُفظت في المعرض (الصور / STAR NET)";
+      if (r.where === "music") return "✓ حُفظ في الموسيقى / STAR NET";
+      if (r.where === "downloads") return "✓ حُفظ في التنزيلات / STAR NET";
+      return "✓ فُتح - احفظه من العارض";
+    } catch {
+      return "⚠️ تعذّر الحفظ على الهاتف";
+    }
+  }
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return "✓ نُزّل";
+}
+
 /** 🔴🟡 What the background service watches while the app is closed (lib/alertWatch.ts) - null off the Android app;
  * `running` = the service «رد البوت والتطبيق مغلق» runs. */
 export async function setAlertWatch(config: string): Promise<{ running: boolean } | null> {

@@ -3216,6 +3216,31 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 💬 Chat: rep statement · camera · rep-scoped device search · save to gallery · keep everything (Nov 8 2026)
+
+- His «لكل مندوب أجهزته، يمكنه البحث عن زبونه باسمه أو إيميله أو كيته · إرسال صورة بالكاميرا · إرسال كشوف حسابات
+  المندوبين داخل محادثاتهم · تنزيل الوسائط في المعرض · هل المحادثات تُمحى؟». His choices: the statement = a summary +
+  a PDF; the operator sends it, the rep asks for it; and «لا تحذف شيئًا من الهاتف أبدًا».
+- 🧾 (lib/chatStatement.ts, repBotStatement.ts `repChatStatement`): the header's 🧾 in a rep's conversation. Operator:
+  «أرسل كشفه الآن» → a message = «كشفي»'s summary (each account, «الباقي بعد خصم ربحك فقط» / «بعد خصم كل شيء», per
+  currency) + one PDF (accounts table, then each account's newest 120 operations), rendered small (pixel ratio 1.5 /
+  JPEG 0.7, then 1 / 0.5) to fit `MAX_CHAT_FILE` 600 KB; too big → the summary alone + «اطلب 📄 PDF من بوت الأموال».
+  Rep: «اطلب كشفي» → a `statementAsk` message («🧾 أطلب كشف حسابي») with «🧾 أرسل كشفه» on the operator's side.
+  A message's `file` = a PDF only (name, size, data URL); tapping it saves it to Download / STAR NET and opens it.
+- 📷 camera (`capture="environment"`) next to 🖼️ gallery; the picture goes through the picture editor as before.
+- 📡 «أرفق جهازًا» (lib/chatDevices.ts): in a rep's conversation on the operator's phone only devices whose
+  `representativeId` is that rep (on the rep's phone his copy holds only his); searched by device name, customer name,
+  emails, KIT - the home search's matching (any order, a typo away, closest first).
+- ⬇️ Save (native ChatMediaSaver / plugin saveMedia): long press → «⬇️ حفظ في الهاتف», or under the opened picture:
+  pictures → Pictures / STAR NET (the gallery), voices → Music / STAR NET, files → Download / STAR NET (Android 10+;
+  older Android: opened in a viewer to save from there). On the laptop: a normal download.
+- 💾 Nothing is dropped from the phone any more (the 500 messages / 40 media limits are gone). The pictures, voices,
+  files and ⏺ call recordings live in their own IndexedDB (`starnet_chat_media`, lib/chatMediaStore.ts; key
+  `chatmedia:<id>` / `callrec:<id>`), the message keeps `stored`; ChatRunner moves them out of localStorage 1.5 s after
+  a save (and the old ones on first start). Not in the backup file (it would grow without end) - the messages' text is.
+  The server copy still goes after 30 days (each phone keeps its own). Call recordings: no limit either, only «🗑️».
+  The proofs' orphan cleanup now spares `callrec:` (the first recordings went there).
+
 ## 🚩 Reps' warnings reach every phone of the team (Nov 8 2026)
 
 - His «المسؤول 2 عندما يضيف مستعجل أو أي تنبيه يأتي، ولكن تنبيهات المندوبين لا تأتي». Cause: `pullFlags` deleted a

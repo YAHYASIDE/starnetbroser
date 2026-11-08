@@ -4,18 +4,19 @@
  *
  * Conversations: «team» (YAHYA, المسؤول 2… - the team link's space and key) and «rep:<id>» (the operator's phones ↔ that
  * rep - his warnings channel's space and key). Every message is a sealed Firestore document (lib/chatTransport.ts);
- * each phone keeps what it read here (`starnet_chat_v1`, id → message - in the backup), the last 500 per conversation.
+ * each phone keeps what it read here (`starnet_chat_v1`, id → message - in the backup): everything, never dropped (his
+ * Nov 8 2026 «لا تحذف شيئًا من الهاتف أبدًا») - the pictures / voices / files themselves in their own IndexedDB
+ * (lib/chatMediaStore.ts, `stored`), so the business data's localStorage never fills.
  * What was read is per phone (`starnet.chatRead`). Pure + small stores.
  */
 
 export const TEAM_CONV = "team";
-export const MAX_CHAT_TEXT = 1000;
+export const MAX_CHAT_TEXT = 2000;
 /** A picture's data URL at most (it travels inside the sealed document). */
 export const MAX_CHAT_IMAGE = 200_000;
-export const MAX_PER_CONV = 500;
-/** 🗑️ Pictures and voice messages kept on the phone (all conversations): the newest 40 - the rest keep their place in
- * the conversation without the file, so the chat can never fill the phone's storage the business data needs. */
-export const MAX_MEDIA_KEPT = 40;
+/** 📄 A file's (the rep's statement PDF) data URL at most - it travels inside the sealed document (Firestore ≤ 1 MB). */
+export const MAX_CHAT_FILE = 600_000;
+export const STATEMENT_ASK_TEXT = "🧾 أطلب كشف حسابي";
 /** 🎤 A voice message's data URL at most (~90 s of speech at 16 kbit/s) - it travels inside the sealed document. */
 export const MAX_CHAT_AUDIO = 400_000;
 /** 🎤 The longest voice message. */
@@ -41,8 +42,14 @@ export interface ChatMessage {
   /** 🎤 a voice message: an audio data URL (webm/ogg/mp4) and its length in seconds. */
   audio?: string;
   seconds?: number;
-  /** 🗑️ Its picture / voice is no longer kept on this phone (only the newest 40 are - the phone's storage). */
+  /** 🗑️ Its picture / voice is no longer kept on this phone (the old limit of 40, before Nov 8 2026). */
   mediaGone?: boolean;
+  /** 📄 a file (the rep's statement PDF): its name, size, and the PDF data URL (until it is moved to `stored`). */
+  file?: { name: string; size: number; data?: string };
+  /** 🧾 The rep asks for his statement - the operator's side shows «أرسل كشفه». */
+  statementAsk?: true;
+  /** 💾 What of it lives in the chat media store (`chatmedia:<id>`) instead of this message. */
+  stored?: ("image" | "audio" | "file")[];
   /** 📞 a voice call started (its signalling document: lib/callSignal.ts) - the other side rings. */
   call?: { id: string };
   /** ↩️ the message it answers (WhatsApp's quote): its id, who wrote it and a short preview. */
@@ -95,6 +102,15 @@ function cleanCall(call: unknown): { id: string } | undefined {
   return typeof id === "string" && /^[0-9a-f]{8,40}$/.test(id) ? { id } : undefined;
 }
 
+/** 📄 A PDF only, small enough for the sealed document; its name kept short and plain. */
+export function cleanFile(file: unknown): { name: string; size: number; data: string } | undefined {
+  const f = file as { name?: unknown; data?: unknown } | null | undefined;
+  if (!f || typeof f.data !== "string" || f.data.length > MAX_CHAT_FILE || !/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(f.data)) return undefined;
+  const name = (typeof f.name === "string" ? f.name : "").replace(/[\\/:*?"<>|\n\r\t]/g, " ").trim().slice(0, 80) || "ملف.pdf";
+  const base64 = f.data.length - f.data.indexOf(",") - 1;
+  return { name, size: Math.round((base64 * 3) / 4), data: f.data };
+}
+
 export function isChatImage(image: unknown): image is string {
   return typeof image === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length <= MAX_CHAT_IMAGE;
 }
@@ -115,6 +131,8 @@ export function newChatMessage(
     reply?: { id: string; by: string; preview: string } | null;
     forwarded?: boolean;
     deleteOf?: string | null;
+    file?: { name: string; data: string } | null;
+    statementAsk?: boolean;
   },
   now = Date.now(),
   random: () => string = randomId,
@@ -125,12 +143,14 @@ export function newChatMessage(
   }
   const call = cleanCall(input.call);
   const reply = cleanReply(input.reply);
-  const text = call ? CALL_TEXT : input.text.replace(/\r/g, "").trim().slice(0, MAX_CHAT_TEXT);
+  const statementAsk = input.statementAsk === true && input.from === "rep";
+  const text = call ? CALL_TEXT : statementAsk ? STATEMENT_ASK_TEXT : input.text.replace(/\r/g, "").trim().slice(0, MAX_CHAT_TEXT);
+  const file = cleanFile(input.file);
   const image = isChatImage(input.image) ? input.image : undefined;
   const device = input.device && input.device.id ? { id: input.device.id.slice(0, 120), name: (input.device.name || "جهاز").slice(0, 120) } : undefined;
   const audio = isChatAudio(input.audio) ? input.audio : undefined;
   const seconds = audio ? cleanSeconds(input.seconds) : undefined;
-  if (!text && !image && !device && !audio) return null;
+  if (!text && !image && !device && !audio && !file) return null;
   return {
     id: random(),
     conv: input.conv,
@@ -145,6 +165,8 @@ export function newChatMessage(
     ...(call ? { call } : {}),
     ...(reply ? { reply } : {}),
     ...(input.forwarded ? { forwarded: true as const } : {}),
+    ...(file ? { file } : {}),
+    ...(statementAsk ? { statementAsk: true as const } : {}),
     at: now,
   };
 }
@@ -164,7 +186,9 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
     const call = cleanCall(p.call);
     const reply = cleanReply(p.reply);
     const deleteOf = cleanId(p.deleteOf);
-    if (!text && !image && !device && !audio && !deleteOf) return null;
+    const file = cleanFile(p.file);
+    const statementAsk = p.statementAsk === true && from === "rep";
+    if (!text && !image && !device && !audio && !deleteOf && !file) return null;
     return {
       id: p.id,
       conv, // whichever channel it came on - never what the document claims
@@ -180,6 +204,8 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
       ...(reply ? { reply } : {}),
       ...(p.forwarded === true ? { forwarded: true as const } : {}),
       ...(deleteOf ? { deleteOf } : {}),
+      ...(file ? { file } : {}),
+      ...(statementAsk ? { statementAsk: true as const } : {}),
       at: typeof p.at === "number" && Number.isFinite(p.at) ? p.at : Date.now(),
     };
   } catch {
@@ -193,29 +219,7 @@ export function addChatMessages(store: ChatStore, messages: ChatMessage[]): { st
   if (added.length === 0) return { store, added };
   const next = { ...store };
   for (const m of added) next[m.id] = m;
-  return { store: pruneChat(next), added };
-}
-
-/** The last 500 of each conversation, and the files of the newest 40 pictures / voice messages only. */
-export function pruneChat(store: ChatStore, max = MAX_PER_CONV, maxMedia = MAX_MEDIA_KEPT): ChatStore {
-  const byConv = new Map<string, ChatMessage[]>();
-  for (const m of Object.values(store)) byConv.set(m.conv, [...(byConv.get(m.conv) ?? []), m]);
-  let changed = false;
-  const next: ChatStore = {};
-  for (const list of byConv.values()) {
-    const kept = list.sort((a, b) => a.at - b.at).slice(-max);
-    if (kept.length < list.length) changed = true;
-    for (const m of kept) next[m.id] = m;
-  }
-  const media = Object.values(next)
-    .filter((m) => m.image || m.audio)
-    .sort((a, b) => b.at - a.at);
-  for (const m of media.slice(maxMedia)) {
-    const { image: _image, audio: _audio, ...rest } = m;
-    next[m.id] = { ...rest, mediaGone: true };
-    changed = true;
-  }
-  return changed ? next : store;
+  return { store: next, added }; // 💾 nothing is ever dropped (his Nov 8 2026 choice)
 }
 
 /** The same sender (a «delete for everyone» counts only from whoever wrote the message). */
@@ -309,17 +313,18 @@ export function unreadCount(store: ChatStore, conv: string, read: ChatRead, side
 }
 
 /** The line under a conversation / in a notification: «📷 صورة», «📡 DEMO 1», or the text. */
-export function messagePreview(m: Pick<ChatMessage, "text" | "image" | "device" | "audio"> & { deleted?: boolean }): string {
+export function messagePreview(m: Pick<ChatMessage, "text" | "image" | "device" | "audio"> & { deleted?: boolean; file?: { name: string }; stored?: ChatMessage["stored"] }): string {
   if (m.deleted) return "🚫 حُذفت هذه الرسالة";
   if (m.text) return m.text.length > 80 ? `${m.text.slice(0, 80)}…` : m.text;
-  if (m.audio) return "🎤 رسالة صوتية";
-  if (m.image) return "📷 صورة";
+  if (hasAudio(m)) return "🎤 رسالة صوتية";
+  if (hasImage(m)) return "📷 صورة";
+  if (m.file) return `📄 ${m.file.name}`;
   if (m.device) return `📡 ${m.device.name}`;
   return "";
 }
 
 /** «💬 المسؤول 2: الطبق لا يتصل» - the phone notification. */
-export function chatNotification(m: Pick<ChatMessage, "by" | "text" | "image" | "device" | "audio">): string {
+export function chatNotification(m: Pick<ChatMessage, "by" | "text" | "image" | "device" | "audio"> & { file?: { name: string }; stored?: ChatMessage["stored"] }): string {
   return `💬 ${m.by}: ${messagePreview(m)}`;
 }
 
@@ -343,6 +348,51 @@ export function chatAtKey(at: number): string {
 
 export function chatCollection(spaceId: string): string {
   return `starnet/${spaceId}/chat`;
+}
+
+// ---- 💾 media in their own store ----
+
+/** What of a message lives in the chat media store. */
+export interface ChatMediaPayload {
+  image?: string;
+  audio?: string;
+  file?: string;
+}
+
+export function chatMediaKey(id: string): string {
+  return `chatmedia:${id}`;
+}
+
+export function hasImage(m: Pick<ChatMessage, "image"> & { stored?: ChatMessage["stored"] }): boolean {
+  return Boolean(m.image) || Boolean(m.stored?.includes("image"));
+}
+
+export function hasAudio(m: Pick<ChatMessage, "audio"> & { stored?: ChatMessage["stored"] }): boolean {
+  return Boolean(m.audio) || Boolean(m.stored?.includes("audio"));
+}
+
+/** The message without its picture / voice / file data (they go to the media store), or null when it carries none. */
+export function stripChatMedia(m: ChatMessage): { message: ChatMessage; payload: ChatMediaPayload } | null {
+  const payload: ChatMediaPayload = {};
+  if (m.image) payload.image = m.image;
+  if (m.audio) payload.audio = m.audio;
+  if (m.file?.data) payload.file = m.file.data;
+  const kinds = Object.keys(payload) as ("image" | "audio" | "file")[];
+  if (kinds.length === 0) return null;
+  const { image: _i, audio: _a, ...rest } = m;
+  const message: ChatMessage = { ...rest, ...(m.file ? { file: { name: m.file.name, size: m.file.size } } : {}), stored: [...new Set([...(m.stored ?? []), ...kinds])] };
+  return { message, payload };
+}
+
+/** The message with its media back (to show, forward, send again). */
+export function withChatMedia(m: ChatMessage, payload: ChatMediaPayload | null | undefined): ChatMessage {
+  if (!payload) return m;
+  return {
+    ...m,
+    ...(payload.image ? { image: payload.image } : {}),
+    ...(payload.audio ? { audio: payload.audio } : {}),
+    ...(payload.file && m.file ? { file: { ...m.file, data: payload.file } } : {}),
+  };
 }
 
 // ---- stores ----
