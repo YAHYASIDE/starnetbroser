@@ -1,5 +1,10 @@
 "use client";
 
+import { rowDeviceEmail, rowHasPhoto, rowProofPlan } from "@/lib/repRowExtras";
+import { loadOpLog, type OpLogStore } from "@/lib/repOpLog";
+import { getProof, listProofIds } from "@/lib/paymentProofStore";
+import { downloadRepImage } from "@/lib/telegram";
+
 import { DateInput } from "@/components/DateInput";
 import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { createContext, CSSProperties, FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -894,6 +899,17 @@ function RepCard({
   const nowNative = useMemo(() => buildRepPeriodStatement(allDays, {}, keepCurrency), [allDays]);
   const since = useMemo(() => last24h(), [allDays]); // eslint-disable-line react-hooks/exhaustive-deps
   const [rowSheet, setRowSheet] = useState<RepTableLine | null>(null);
+  // 🧾 email under the device · 📸 the payment's photo (his Nov 8 2026 ask; lib/repRowExtras.ts)
+  const [opLog, setOpLog] = useState<OpLogStore>({});
+  const [keptProofs, setKeptProofs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setOpLog(loadOpLog());
+    void listProofIds().then((ids) => setKeptProofs(new Set(ids)));
+  }, [rowSheet]);
+  const rowExtras: RowExtras = {
+    email: (row) => rowDeviceEmail(row, accounts),
+    hasPhoto: (row) => rowHasPhoto(row, opLog, rep.id, keptProofs),
+  };
   // 💱 «⚠️ عملة مختلفة» on a line whose operation is in another currency than his.
   const wrongRow = (row: RepStatementRow) =>
     row.type === "customer" ? wrongCurrency.has(row.op.entryId) : row.type === "device" ? wrongCurrency.has(row.row.entry.id) : false;
@@ -1133,7 +1149,7 @@ function RepCard({
                 currencyLabel={blocks.length > 1 ? (LEDGER_CURRENCY_LABELS[b.code as LedgerCurrency] ?? b.code) : undefined}
                 values={b.values}
                 lines={b.lines}
-                describe={describeRow} wrong={wrongRow}
+                describe={describeRow} wrong={wrongRow} extras={rowExtras}
                 onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
                 empty="لا عمليات بهذه العملة في آخر 24 ساعة."
               />
@@ -1143,7 +1159,7 @@ function RepCard({
             title="📈 ربحه الآن"
             values={nowStatement.profit.closing}
             lines={repStatementTable(nowStatement, nowNative, "profit", fx.convert, since)}
-            describe={describeRow} wrong={wrongRow}
+            describe={describeRow} wrong={wrongRow} extras={rowExtras}
             onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
             empty="لا عمليات على ربحه في آخر 24 ساعة."
             tone="profit"
@@ -1241,9 +1257,9 @@ function RepCard({
             ) : (
               <>
                 <h4 className="rep-older-title">📡 ما عليه</h4>
-                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "debt", fx.convert)} describe={describeRow} wrong={wrongRow} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
+                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "debt", fx.convert)} describe={describeRow} wrong={wrongRow} extras={rowExtras} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
                 <h4 className="rep-older-title">📈 ربحه</h4>
-                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "profit", fx.convert)} describe={describeRow} wrong={wrongRow} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
+                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "profit", fx.convert)} describe={describeRow} wrong={wrongRow} extras={rowExtras} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
               </>
             )}
             <RepProfitList breakdown={profits} accountName={accountName} />
@@ -1256,10 +1272,14 @@ function RepCard({
           <div className="rep-row-info">
             <div><span>التاريخ</span><strong dir="ltr">{rowSheet.row.date}</strong></div>
             <div><span>العملية</span><strong>{describeRow(rowSheet.row)}</strong></div>
+            {rowDeviceEmail(rowSheet.row, accounts) && (
+              <div><span>الإيميل</span><strong dir="ltr">{rowDeviceEmail(rowSheet.row, accounts)}</strong></div>
+            )}
             <div><span>قبل العملية</span><strong>{balanceText(rowSheet.before)}</strong></div>
             <div><span>الحركة</span><strong><bdi dir="ltr">{signedList(rowSheet.delta)}</bdi></strong></div>
             <div><span>بعد العملية</span><strong>{balanceText(rowSheet.after)}</strong></div>
           </div>
+          <RowPhoto plan={rowProofPlan(rowSheet.row, opLog, rep.id, keptProofs)} />
           {rowSheet.row.type === "invoice" ? (
             <p className="settings-hint">🧾 فاتورة متجر - تُعدّل أو تُحذف من المتجر.</p>
           ) : (
@@ -2746,18 +2766,74 @@ function BalanceCell({ values }: { values: Record<string, number> }) {
 }
 
 /** 🧾 The statement as a small table like his PDF: operation · before · movement · after, newest first. */
+type RowExtras = { email: (row: RepStatementRow) => string | undefined; hasPhoto: (row: RepStatementRow) => boolean };
+
+/** 📸 The payment's photo inside «العملية» (kept on the phone, or fetched again from Telegram once). */
+function RowPhoto({ plan }: { plan: { keys: string[]; fileId?: string; bot?: "reps" | "money" } }) {
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [full, setFull] = useState(false);
+  const keyList = plan.keys.join("|");
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      for (const k of plan.keys) {
+        const d = await getProof(k);
+        if (d && alive) return setPhoto(d);
+      }
+      // nothing kept: fetch it from Telegram at once (his ask «تظهر مباشرة»)
+      if (plan.fileId && alive) {
+        setStatus("⏳ تُنزَّل الصورة…");
+        const d = await downloadRepImage(plan.fileId, plan.bot ?? "reps");
+        if (!alive) return;
+        if (d) {
+          setPhoto(d);
+          setStatus(null);
+        } else setStatus("تعذّر تنزيل الصورة - تحقق من الإنترنت");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyList, plan.fileId]);
+  if (!photo && !status) return null;
+  return (
+    <div className="rep-row-photo">
+      {photo ? (
+        <button type="button" className="rep-row-photo-btn" onClick={() => setFull(true)} aria-label="عرض الصورة كاملة">
+          <img src={photo} alt="صورة الدفع" />
+        </button>
+      ) : (
+        <p className="settings-hint">{status}</p>
+      )}
+      {full && photo && (
+        <div className="rep-receipt-viewer" role="dialog" aria-label="صورة الدفع" onClick={() => setFull(false)}>
+          <button type="button" className="rep-receipt-close" aria-label="إغلاق" onClick={() => setFull(false)}>
+            ✕
+          </button>
+          <img src={photo} alt="صورة الدفع" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RepStatementTable({
   lines,
   describe,
   onOpen,
   empty,
   wrong,
+  extras,
 }: {
   lines: RepTableLine[];
   describe: (row: RepStatementRow) => string;
   onOpen?: (line: RepTableLine) => void;
   empty?: string;
   wrong?: (row: RepStatementRow) => boolean;
+  /** 🧾 the device's email under its name, 📸 when the payment came with a photo (his Nov 8 2026 ask) */
+  extras?: RowExtras;
 }) {
   if (lines.length === 0) return <p className="party-empty">{empty ?? "لا توجد عمليات."}</p>;
   // 🤲 the parts of one handed-over sum (devices of his customers first, the rest in his account) - each says so
@@ -2805,7 +2881,12 @@ function RepStatementTable({
                 <span className="rep-table-date" dir="ltr">{line.row.date}</span>
                 {wrong?.(line.row) && <span className="rep-table-wrong">⚠️ عملة مختلفة · </span>}
                 {describe(line.row)}
+                {extras?.hasPhoto(line.row) && <span className="rep-table-photo" aria-label="معها صورة"> 📸</span>}
                 {handoverTag(line.row)}
+                {(() => {
+                  const email = extras?.email(line.row);
+                  return email ? <small className="rep-table-email" dir="ltr">{email}</small> : null;
+                })()}
               </td>
               <td><BalanceCell values={line.before} /></td>
               <td className={`rep-table-move ${fillOf(line.delta)}`}>
@@ -2837,7 +2918,9 @@ function RepNowBlock({
   empty,
   wrong,
   tone = "debt",
+  extras,
 }: {
+  extras?: RowExtras;
   title: string;
   /** 💱 the block's currency, when he has more than one */
   currencyLabel?: string;
@@ -2870,7 +2953,7 @@ function RepNowBlock({
       <button type="button" className="rep-now-sub rep-now-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         {open ? "▴" : "▾"} 🕒 عمليات آخر 24 ساعة ({lines.length})
       </button>
-      {open && <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} />}
+      {open && <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} extras={extras} />}
     </section>
   );
 }

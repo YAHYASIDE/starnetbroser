@@ -3211,3 +3211,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   strokes / texts in 0..1 coordinates and baked in on rotate / crop / send; sent as one message each, a JPEG made to
   fit (1280 → 640 px, quality 0.72 → 0.4) under `MAX_CHAT_IMAGE`.
 
+## 🧾 Rep statement rows: the device's email · the payment photo (Nov 8 2026)
+
+- His screenshot (الحسين's «ما عليه الآن · سيفا» table): «اجعل مع اسم الجهاز الذي يُعرض في الكشف تحته الإيميل أيضًا» and «العمليات
+  التي جاءت بصورة (مثلًا 19,000) عندما أضغطها تظهر لي العملية مباشرة مع الصورة».
+- lib/repRowExtras.ts (tested): `rowDeviceEmail` (a customer operation's / a shipment's device: its Starlink email, else
+  the email it was added with) shown small under the row's words and in «العملية»; `rowProofPlan` / `rowHasPhoto` find
+  the photo under the record's own id, else under its «📜 السجل» operation (`oplog:<repId>:<serial>`), else the Telegram
+  file to fetch. A row with a photo shows 📸; «العملية» shows the photo at once (fetched from Telegram when not kept),
+  tap = full size. Every statement table of the rep card (24 h blocks and the period tables).
+

@@ -20556,3 +20556,10 @@ html.chat-open .chat-head { position: static; margin: 0; }
 html.chat-open .chat-wallpaper { flex: 1 1 auto; min-height: 0; max-height: none; margin: 0; }
 html.chat-open .chat-compose { position: static; margin: 0; }
 html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4px 10px; background: var(--wa-bg); }
+
+/* 🧾 the rep statement: the device's email under its name, 📸 rows with a payment photo, the photo in «العملية» */
+.rep-table-email { display: block; margin-top: 2px; color: var(--text-muted); font-size: 0.7rem; font-weight: 400; overflow-wrap: anywhere; text-align: start; }
+.rep-table-photo { white-space: nowrap; }
+.rep-row-photo { margin: 8px 0; }
+.rep-row-photo-btn { display: block; width: 100%; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-alt); overflow: hidden; cursor: zoom-in; }
+.rep-row-photo-btn img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
