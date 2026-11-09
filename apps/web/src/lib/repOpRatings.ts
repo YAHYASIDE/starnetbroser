@@ -39,6 +39,8 @@ export interface OpRating {
   history: OpRatingEvent[];
   /** «✓ راجعتها» on a «غير جيد». */
   reviewedAt?: number;
+  /** ❌ Why - his words with a «غير جيد» from the chat (chatOps.ts). */
+  note?: string;
 }
 
 export interface OpRatingsStore {
@@ -69,13 +71,15 @@ export interface RatingInput {
   by: string;
   at: number;
   text?: string;
+  /** ❌ Why (the chat's «غير جيد» asks for it). */
+  note?: string;
 }
 
 /** «same» = this choice is already the operation's (a second tap) - nothing is written. */
 export function applyRating(store: OpRatingsStore, input: RatingInput): { store: OpRatingsStore; change: "new" | "changed" | "same" } {
   if (!/^[0-9a-f]{8}$/.test(input.token) || (input.verdict !== "good" && input.verdict !== "bad")) return { store, change: "same" };
   const before = store.ratings[input.token];
-  if (before && before.verdict === input.verdict) return { store, change: "same" };
+  if (before && before.verdict === input.verdict && (before.note ?? "") === (input.note ?? before.note ?? "")) return { store, change: "same" };
   const event: OpRatingEvent = { verdict: input.verdict, by: input.by, at: input.at };
   const next: OpRating = {
     token: input.token,
@@ -84,6 +88,7 @@ export function applyRating(store: OpRatingsStore, input: RatingInput): { store:
     by: input.by,
     at: input.at,
     ...(input.text || before?.text ? { text: input.text || before?.text } : {}),
+    ...(input.verdict === "bad" && input.note ? { note: input.note } : {}),
     history: [...(before?.history ?? []), event],
     // a new «غير جيد» is open again, even if an earlier one was reviewed
   };

@@ -38,6 +38,16 @@ describe("✅ / ❌ under the money bot's operation messages", () => {
     expect(openFlags(s)).toHaveLength(1); // a new «غير جيد» is open again
   });
 
+  it("💳 «غير جيد» from the chat keeps his reason; the same answer again changes nothing", () => {
+    const input = { token: "0a1b2c3d", repId: "r1", verdict: "bad" as const, by: "الحافظ", at: 5, note: "استلمت 900 وليس 1000" };
+    const first = applyRating(EMPTY_OP_RATINGS, input);
+    expect(first.change).toBe("new");
+    expect(first.store.ratings["0a1b2c3d"]!.note).toBe("استلمت 900 وليس 1000");
+    expect(openFlags(first.store)[0]!.rating.note).toBe("استلمت 900 وليس 1000");
+    expect(applyRating(first.store, { ...input, at: 9 }).change).toBe("same");
+    expect(applyRating(first.store, { ...input, at: 9, note: "900 فقط" }).change).toBe("changed");
+  });
+
   it("a rating with no sent record still shows what Telegram gave back", () => {
     const { store } = applyRating(EMPTY_OP_RATINGS, { token: T, repId: "r1", verdict: "bad", by: "Ali", at: 1, text: "نص الرسالة" });
     expect(openFlags(store)[0]!.text).toBe("نص الرسالة");

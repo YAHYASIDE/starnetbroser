@@ -5,6 +5,7 @@
  * watch, and writes a sealed copy of each team alert made here for the others' background service.
  */
 
+import { loadChatListPrefs } from "./chatList";
 import { alertWatchConfig, staleAlertIds, teamAlertDocId, teamAlertPayload, teamAlertsPath } from "./alertWatch";
 import { TEAM_CONV } from "./chat";
 import { chatTargets } from "./chatTransport";
@@ -24,7 +25,7 @@ import { loadRepresentativeStore } from "./repStore";
 export async function pushAlertWatch(): Promise<{ running: boolean } | null> {
   if (isRepWorkspace()) {
     const target = chatTargets()[0];
-    const config = target
+    const config = target && !loadChatListPrefs().muted.includes(target.conv)
       ? alertWatchConfig({ firebase: target.firebase, channels: {}, repName: () => "", link: null, chats: [{ conv: target.conv, spaceId: target.spaceId, key: target.key, mine: "rep" }] })
       : "";
     return setAlertWatch(config);
@@ -32,8 +33,10 @@ export async function pushAlertWatch(): Promise<{ running: boolean } | null> {
   const link = loadLinkConfig(browserLinkStorage());
   const reps = loadRepresentativeStore();
   const watchReps = !link || isMainMember(link.memberId);
+  // 🔕 a muted conversation is not announced while the app is closed either
+  const muted = new Set(loadChatListPrefs().muted);
   const chats = chatTargets()
-    .filter((t) => t.conv === TEAM_CONV || watchReps)
+    .filter((t) => (t.conv === TEAM_CONV || watchReps) && !muted.has(t.conv))
     .map((t) => ({ conv: t.conv, spaceId: t.spaceId, key: t.key, mine: "owner" as const }));
   const config = alertWatchConfig({
     firebase: ownerFirebase({ link: () => link, live: loadLiveSyncConfig }),

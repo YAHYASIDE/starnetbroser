@@ -20597,3 +20597,36 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .call-server-input { width: 100%; font-family: ui-monospace, monospace; font-size: 0.78rem; overflow-wrap: anywhere; }
 .call-server-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .call-server-bad { color: var(--red); }
+/* 💳 a money operation's card in the rep's conversation (ChatOpCard) */
+.op-card { display: flex; flex-direction: column; gap: 6px; min-width: min(260px, 68vw); max-width: 100%; padding: 10px; border: 1px solid var(--border); border-inline-start: 4px solid var(--yellow); border-radius: 10px; background: color-mix(in srgb, var(--surface) 82%, transparent); color: var(--wa-text); }
+.op-card-good { border-inline-start-color: var(--green); }
+.op-card-bad { border-inline-start-color: var(--red); }
+.op-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.op-card-head small { color: var(--wa-meta); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.op-card-what { margin: 0; font-weight: 700; font-size: 0.9rem; overflow-wrap: anywhere; }
+.op-card-account, .op-card-device { margin: 0; color: var(--wa-meta); font-size: 0.78rem; overflow-wrap: anywhere; }
+.op-card-row { display: grid; grid-template-columns: 1fr 1.15fr 1fr auto; align-items: center; gap: 6px; padding: 6px; border-radius: 8px; background: color-mix(in srgb, var(--surface-alt) 70%, transparent); }
+.op-card-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; font-variant-numeric: tabular-nums; font-size: 0.85rem; font-weight: 700; }
+.op-card-cell small { color: var(--wa-meta); font-weight: 400; font-size: 0.68rem; }
+.op-card-amount { font-size: 0.98rem; }
+.op-card-amount.is-plus { color: var(--green); }
+.op-card-amount.is-minus { color: var(--red); }
+.op-card-code { color: var(--wa-meta); font-size: 0.72rem; white-space: nowrap; }
+.op-card-status { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; font-weight: 700; }
+.op-card-status.is-good { color: var(--green); }
+.op-card-status.is-bad { color: var(--red); overflow-wrap: anywhere; }
+.op-card-status.is-waiting { color: var(--yellow); }
+.op-card-actions { display: flex; gap: 8px; }
+.op-card-btn { flex: 1 1 0; padding: 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.op-card-btn.is-good { border-color: var(--green); color: var(--green); }
+.op-card-btn.is-bad { border-color: var(--red); color: var(--red); }
+.op-flag-note { margin: 0; color: var(--red); font-weight: 700; overflow-wrap: anywhere; }
+/* 💬 the conversations: search, filters, 📌 / 🔕 marks */
+.chat-tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.chat-search { width: 100%; }
+.chat-filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chat-filters::-webkit-scrollbar { display: none; }
+.chat-filter { flex-shrink: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+.chat-filter.is-on { border-color: var(--wa-accent); background: color-mix(in srgb, var(--wa-accent) 18%, transparent); color: var(--wa-accent); }
+.chat-list-marks { flex-shrink: 0; font-size: 0.78rem; }
+.chat-badge.is-muted { background: var(--text-muted); }

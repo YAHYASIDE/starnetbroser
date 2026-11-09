@@ -84,7 +84,7 @@ export function opWhen(line: Pick<BotLine, "date" | "at">): { day: string; time?
   return { day, time: `${String(hour12).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")} ${h < 12 ? "ص" : "م"}` };
 }
 
-function headline(account: BotAccount, line: BotLine): string {
+export function opHeadline(account: BotAccount, line: BotLine): string {
   const up = Object.values(line.amount).some((v) => v > EPS);
   if (account.isProfit) return up ? "ربح جديد" : "خصم من الربح";
   if (up && /💵|🤖|استلمت/.test(line.kind ?? line.text)) return "دفعة مستلمة";
@@ -132,7 +132,7 @@ export interface OpMessage {
 /** The message for one operation of one of his accounts. */
 export function repOpMessage(repId: string, account: BotAccount, line: BotLine, device?: OpDevice, serial?: number): OpMessage {
   const { day, time } = opWhen(line);
-  const lines = [`🔔 <b>STAR NET | ${headline(account, line)}</b>`, `🗓️ <b>${day}</b>${time ? ` — ${time}` : ""}`];
+  const lines = [`🔔 <b>STAR NET | ${opHeadline(account, line)}</b>`, `🗓️ <b>${day}</b>${time ? ` — ${time}` : ""}`];
   // 📜 its number in «سجل العمليات» (his Nov 5 2026 ask) - each rep counts his own
   if (serial) lines.push(`🔢 رقم العملية: <b>#${serial}</b>`);
   lines.push("");

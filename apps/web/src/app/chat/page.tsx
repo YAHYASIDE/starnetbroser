@@ -12,6 +12,9 @@ import { callClock } from "@/lib/callSignal";
 import { deleteChatMedia, getChatMedia } from "@/lib/chatMediaStore";
 import { deleteProof, getProof } from "@/lib/paymentProofStore";
 import { ChatImageEditor } from "@/components/ChatImageEditor";
+import { ChatOpCard } from "@/components/ChatOpCard";
+import { opStatusOf } from "@/lib/chatOps";
+import { CHAT_FILTERS, CHAT_PREFS_EVENT, chatRows, EMPTY_PREFS, loadChatListPrefs, saveChatListPrefs, togglePref, type ChatFilter, type ChatListPrefs } from "@/lib/chatList";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { teamMemberName } from "@/components/TeamFlagSheet";
 import {
@@ -28,6 +31,7 @@ import {
   loadChatRead,
   loadChatSeen,
   markChatRead,
+  messagesOf,
   MAX_CHAT_TEXT,
   messagePreview,
   nameHue,
@@ -57,6 +61,7 @@ import { chatMediaOf, fullChatMessage } from "@/lib/chatMediaKeep";
 import { buildRepChatStatement } from "@/lib/chatStatement";
 import { chatDeviceChoices } from "@/lib/chatDevices";
 import { saveChatMedia } from "@/lib/localBrowser";
+import { pushAlertWatch } from "@/lib/alertWatchRun";
 
 type Side = { rep: boolean; memberId: string };
 
@@ -97,6 +102,12 @@ export default function ChatPage() {
   const [repsWaiting, setRepsWaiting] = useState<Representative[]>([]);
   const [members, setMembers] = useState<string[]>([]);
   const [copyNote, setCopyNote] = useState<Record<string, string>>({});
+  // 📌🔕🗄️ + filters + search (lib/chatList.ts)
+  const [prefs, setPrefs] = useState<ChatListPrefs>(EMPTY_PREFS);
+  const [filter, setFilter] = useKeptState<ChatFilter>("chat.filter", "all");
+  const [query, setQuery] = useKeptState("chat.query", "");
+  const [itemMenu, setItemMenu] = useState<string | null>(null);
+  const itemPress = useRef<number | null>(null);
 
   useEffect(() => {
     const isRep = isRepWorkspace();
@@ -117,6 +128,9 @@ export default function ChatPage() {
       setUnsent(loadUnsent());
     };
     reload();
+    const loadPrefs = () => setPrefs(loadChatListPrefs());
+    loadPrefs();
+    window.addEventListener(CHAT_PREFS_EVENT, loadPrefs);
     const onLive = (e: Event) => {
       const d = (e as CustomEvent<{ conv: string; live: boolean }>).detail;
       setLive((cur) => ({ ...cur, [d.conv]: d.live }));
@@ -126,6 +140,7 @@ export default function ChatPage() {
     return () => {
       window.removeEventListener(CHAT_EVENT, reload);
       window.removeEventListener(CHAT_LIVE_EVENT, onLive);
+      window.removeEventListener(CHAT_PREFS_EVENT, loadPrefs);
     };
   }, []);
 
@@ -170,15 +185,59 @@ export default function ChatPage() {
             : "الدردشة تحتاج «🔗 ربط الأجهزة (الفريق)» في الإعدادات ← النسخ الاحتياطي (Firebase)."}
         </p>
       ) : (
+        <>
+        <div className="chat-tools">
+          <input className="msg-input chat-search" type="search" placeholder="🔎 ابحث: اسم أو كلمة في الرسائل" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="chat-filters" role="tablist">
+            {CHAT_FILTERS.map((f) => (
+              <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`chat-filter${filter === f.id ? " is-on" : ""}`} onClick={() => setFilter(f.id)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <ul className="chat-list">
-          {targets.map((t) => {
+          {chatRows(
+            targets.map((t) => {
+              const list = visibleMessages(store, t.conv);
+              return { conv: t.conv, title: t.title, lastAt: list.at(-1)?.at ?? 0, unread: unreadCount(store, t.conv, read, side), texts: list.map((m) => m.text).filter(Boolean) };
+            }),
+            prefs,
+            filter,
+            query,
+          ).map((row) => {
+            const t = targets.find((x) => x.conv === row.conv)!;
             const list = visibleMessages(store, t.conv);
             const last = list.at(-1);
-            const count = unreadCount(store, t.conv, read, side);
+            const count = row.unread;
             const mine = last ? isMine(last, side) : false;
             return (
               <li key={t.conv}>
-                <button type="button" className="chat-list-item" onClick={() => setOpen(t.conv)}>
+                <button
+                  type="button"
+                  className="chat-list-item"
+                  onClick={() => {
+                    if (itemPress.current === -1) return;
+                    setOpen(t.conv);
+                  }}
+                  onPointerDown={() => {
+                    itemPress.current = window.setTimeout(() => {
+                      itemPress.current = -1;
+                      setItemMenu(t.conv);
+                    }, 500);
+                  }}
+                  onPointerUp={() => {
+                    if (itemPress.current && itemPress.current > 0) window.clearTimeout(itemPress.current);
+                    window.setTimeout(() => (itemPress.current = null), 50);
+                  }}
+                  onPointerLeave={() => {
+                    if (itemPress.current && itemPress.current > 0) window.clearTimeout(itemPress.current);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setItemMenu(t.conv);
+                  }}
+                >
                   <span className="chat-avatar" aria-hidden="true">
                     {avatarOf(t)}
                   </span>
@@ -192,7 +251,9 @@ export default function ChatPage() {
                     </span>
                     <span className="chat-list-bottom">
                       <span className="chat-list-last">
-                        {last ? (
+                        {row.hit ? (
+                          <>🔎 {row.hit}</>
+                        ) : last ? (
                           <>
                             {mine && <span className={`chat-ticks${isReadByOthers(last, seen, readerId(t.conv, side)) ? " is-read" : ""}`}>{unsent.includes(last.id) ? "⏳" : "✓✓"}</span>}
                             {!mine && t.conv === "team" ? `${last.by}: ` : ""}
@@ -202,7 +263,11 @@ export default function ChatPage() {
                           "لا رسائل بعد"
                         )}
                       </span>
-                      {count > 0 && <span className="chat-badge">{count}</span>}
+                      <span className="chat-list-marks" aria-hidden="true">
+                        {prefs.muted.includes(t.conv) && "🔕"}
+                        {prefs.pinned.includes(t.conv) && "📌"}
+                      </span>
+                      {count > 0 && <span className={`chat-badge${prefs.muted.includes(t.conv) ? " is-muted" : ""}`}>{count}</span>}
                     </span>
                   </span>
                 </button>
@@ -256,9 +321,36 @@ export default function ChatPage() {
             </li>
           )}
         </ul>
+        </>
       )}
 
       {customers && <CustomersSheet onClose={() => setCustomers(false)} />}
+      {itemMenu && (
+        <PartySheet title={targets.find((t) => t.conv === itemMenu)?.title ?? "محادثة"} onClose={() => setItemMenu(null)}>
+          <div className="msg-list">
+            {(
+              [
+                ["pinned", prefs.pinned.includes(itemMenu) ? "📌 إلغاء التثبيت" : "📌 تثبيت في الأعلى"],
+                ["muted", prefs.muted.includes(itemMenu) ? "🔔 إلغاء الكتم" : "🔕 كتم الإشعارات"],
+                ["archived", prefs.archived.includes(itemMenu) ? "🗄️ إخراج من الأرشيف" : "🗄️ أرشفة"],
+              ] as const
+            ).map(([kind, label]) => (
+              <button
+                key={kind}
+                type="button"
+                className="msg-item"
+                onClick={() => {
+                  saveChatListPrefs(togglePref(loadChatListPrefs(), kind, itemMenu));
+                  if (kind === "muted") void pushAlertWatch();
+                  setItemMenu(null);
+                }}
+              >
+                <span className="msg-item-label">{label}</span>
+              </button>
+            ))}
+          </div>
+        </PartySheet>
+      )}
     </main>
   );
 }
@@ -317,6 +409,8 @@ function Conversation({
   const [swipe, setSwipe] = useState<{ id: string; dx: number } | null>(null);
   const sentRead = useRef(0);
   const messages = visibleMessages(store, target.conv);
+  // 💳 the rep's answers to the cards are hidden messages - the cards read them here
+  const allMessages = useMemo(() => messagesOf(store, target.conv), [store, target.conv]);
   const lastAt = messages.at(-1)?.at ?? 0;
   const me = readerId(target.conv, side);
 
@@ -595,7 +689,10 @@ function Conversation({
                 )}
                 {hasAudio(m) && <ChatVoice m={m} />}
                 {m.mediaGone && <small className="chat-forwarded">🗑️ الصورة / التسجيل لم يعد محفوظًا في هذا الهاتف</small>}
-                {m.deleted ? <p className="chat-text chat-text-deleted">🚫 حُذفت هذه الرسالة</p> : m.text && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
+                {m.op && !m.deleted && (
+                  <ChatOpCard op={m.op} status={opStatusOf(allMessages, m.op.token)} rep={side.rep} onRate={(verdict, note) => void post(draft(target, side, { text: "", opRate: { token: m.op!.token, verdict, ...(note ? { note } : {}) } }))} />
+                )}
+                {m.deleted ? <p className="chat-text chat-text-deleted">🚫 حُذفت هذه الرسالة</p> : m.text && !m.op && <p className={`chat-text${m.call ? " chat-call-line" : ""}`}>{m.text}</p>}
                 {m.statementAsk && !side.rep && !m.deleted && (
                   <button type="button" className="chat-device" disabled={statementBusy} onClick={() => void statement()}>
                     {statementBusy ? "⏳ يجهّز…" : "🧾 أرسل كشفه"}
@@ -731,7 +828,7 @@ function Conversation({
                 <span className="msg-item-label">⬇️ حفظ في الهاتف{hasImage(menu) ? " (المعرض)" : ""}</span>
               </button>
             )}
-            {!menu.call && targets.length > 1 && (
+            {!menu.call && !menu.op && targets.length > 1 && (
               <button type="button" className="msg-item" onClick={() => void act("forward")}>
                 <span className="msg-item-label">↪️ إعادة توجيه</span>
               </button>
@@ -739,7 +836,7 @@ function Conversation({
             <button type="button" className="msg-item" onClick={() => void act("deleteMe")}>
               <span className="msg-item-label">🗑️ حذف عندي</span>
             </button>
-            {isMine(menu, side) && (
+            {isMine(menu, side) && !menu.op && (
               <button type="button" className="msg-item msg-item-bad" onClick={() => void act("deleteAll")}>
                 <span className="msg-item-label">🗑️ حذف عند الجميع</span>
               </button>

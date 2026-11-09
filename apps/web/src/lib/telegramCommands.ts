@@ -97,7 +97,7 @@ import { loadRepBook } from "./repClients";
 import { loadRepDisplayCodes, repPosition } from "./repPosition";
 import { ledgerAfterRepReset, makeRepConverter } from "./repAccount";
 
-async function loadAccounts(): Promise<StarlinkAccountSummary[]> {
+export async function loadAccounts(): Promise<StarlinkAccountSummary[]> {
   if (isDemoMode()) return loadDemoAccounts(demoAccounts);
   if (!isLoggedIn()) return [];
   try {

@@ -7,6 +7,9 @@ import { notifyPhone } from "@/lib/appEvents";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { isRepWorkspace } from "@/lib/repMode";
 import { fullChatMessage, stashChatMedia } from "@/lib/chatMediaKeep";
+import { postNewOpCards, recordChatRating } from "@/lib/chatOpsSend";
+import { loadChatListPrefs } from "@/lib/chatList";
+import { teamMemberName } from "./TeamFlagSheet";
 import { CALL_INCOMING_EVENT, shouldRing } from "@/lib/callSignal";
 
 /** The conversation open on the screen now (the chat page sets it) - no notification for it. */
@@ -83,12 +86,18 @@ export function ChatRunner() {
               saveChat(store);
               for (const m of added) {
                 if (m.deleteOf) continue; // a «delete for everyone» - never announced
+                // 💳 the rep's «✅ / ❌» on a card → the same ratings as the money bot's buttons
+                if (m.opRate) {
+                  if (!side.rep) recordChatRating(m);
+                  if (!m.text) continue; // «✅ جيد» stays quiet
+                }
                 // 📞 a call message rings here (CallManager: the phone's ringtone + a full-screen call notification)
                 if (m.call && shouldRing(m, isMine(m, side), Date.now())) {
                   window.dispatchEvent(new CustomEvent(CALL_INCOMING_EVENT, { detail: { conv: m.conv, id: m.call.id, by: m.by } }));
                   continue;
                 }
                 if (isMine(m, side) || chatView.conv === m.conv || Date.now() - m.at > MARGIN_MS) continue;
+                if (loadChatListPrefs().muted.includes(m.conv)) continue; // 🔕
                 void notifyPhone(chatNotification(m), "/chat");
               }
             },
@@ -123,7 +132,15 @@ export function ChatRunner() {
     };
     start();
     void retry();
-    const firstLook = window.setTimeout(ringMissed, 1500); // opened from the call notification: CallManager is listening by then
+    const firstLook = window.setTimeout(ringMissed, 1500);
+    // 💳 new money operations → cards in each rep's conversation (the reference phone; chatOpsSend.ts)
+    const by = () => {
+      const n = teamMemberName();
+      return n === "أنا" ? "المسؤول" : n;
+    };
+    const cards = () => void postNewOpCards(postChat, by(), side.memberId || undefined).catch(() => undefined);
+    const firstCards = window.setTimeout(cards, 20_000);
+    const cardsTimer = window.setInterval(cards, 60_000); // opened from the call notification: CallManager is listening by then
     const timer = window.setInterval(() => void retry(), 15_000);
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
@@ -143,6 +160,8 @@ export function ChatRunner() {
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(firstLook);
+      window.clearTimeout(firstCards);
+      window.clearInterval(cardsTimer);
       window.clearTimeout(stashTimer);
       window.removeEventListener(CHAT_EVENT, onChat);
       document.removeEventListener("visibilitychange", onVisible);

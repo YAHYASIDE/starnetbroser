@@ -126,6 +126,8 @@ final class AlertWatch {
                 seen.add(id);
                 JSONObject m = openDoc(doc, chat.optString("key"));
                 if (m == null || m.has("deleteOf")) continue; // a «delete for everyone» - never announced
+                // 💳 a rep's «✅ جيد» on an operation card is quiet (its text is empty); «❌ غير جيد» is said
+                if (m.has("opRate") && m.optString("text").trim().isEmpty()) continue;
                 boolean teamChat = "team".equals(chat.optString("conv"));
                 boolean mine = teamChat ? me.equals(m.optString("member")) : chat.optString("mine").equals(m.optString("from", "owner"));
                 if (mine || m.optLong("at", 0) < appSeen - 60_000) continue;

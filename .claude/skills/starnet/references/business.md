@@ -3216,6 +3216,33 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 💬 «SADAGHA CONNECT» brief → the chat grows step by step (Nov 9 2026)
+
+- He sent a long brief (`SADAGHA_CONNECT_Claude_Prompt.txt`: WhatsApp + Telegram files + Snapchat camera + Slack tasks
+  + financial cards, disputes, statements, scheduling, roles, search, assistant…). My report: what exists / what is
+  missing / where the brief assumes a server. **His choices:** build **both parts gradually** (some money, some chat in
+  each update); **no server - YAHYA's phone is the reference** (operations confirmed there, cards built from the real
+  ledger, each rep's channel sealed with his own key, scheduling from the background service); the app **stays
+  STAR NET**; **Telegram bots stay alongside** until he decides.
+- Update 1 - 💳 operation cards (lib/chatOps.ts, chatOpsSend.ts, components/ChatOpCard.tsx): every new operation of a
+  rep (the same ones the money bot announces - `repBotAccountsNow`, `newBotOperations`, handover parts merged) goes to
+  his conversation as a card: headline, date, «#serial» (from «سجل العمليات» when the bot numbered it), what, account,
+  device, then per currency «قبل · العملية · بعد» on one row (amount in the middle, green / red). Posted every minute by
+  the reference phone (YAHYA, or a phone without the team link); its own seen list `starnet.chatOpsSeen` (the first look
+  only remembers); the message id = the operation's token + `00c4`, so a card sent twice is one message. A card never
+  touches a balance; «حذف عند الجميع» / forward are not offered on it.
+- The rep answers on the card: «✅ جيد» (a quiet hidden message) or «❌ غير جيد» + why (a hidden `opRate` message whose
+  text says it - the background notification shows it). The operator's phone records it in the SAME ratings as the
+  bot's buttons (`applyRating`, now with `note`): the red «🚨 للمراجعة» badge shows his reason. The card shows the
+  state (⏳ بانتظار / ✅ أكّدها / ❌ غير جيد: why); the rep can «تغيير».
+- 📌 / 🔕 / 🗄️ + filters + search (lib/chatList.ts): long press a conversation → pin on top, mute (no notification,
+  also not while the app is closed), archive (only under «المؤرشفة», or found by a search); chips الكل / غير المقروءة /
+  المندوبون / الفريق / المؤرشفة; the search reads names and every message's words (hamza / ta marbuta folded) and shows
+  the matching line. Phone-only `starnet.chatListPrefs`.
+- Next (his brief, in order): statement options (period / type, Excel), disputes centre, member-to-member chats,
+  files (Excel / Word / video), message edit / reactions, conversation tabs (المالية / الملفات / المهام / الأجهزة),
+  quick replies, scheduled statements.
+
 ## 👥 Working together without being thrown out (Nov 9 2026)
 
 - His «ما زال المسؤول عندما يعمل التطبيق وأنا أعمله، يُخرجه مرات ويُخرجني مرات» → all three of: «جهاز Starlink يخرج من

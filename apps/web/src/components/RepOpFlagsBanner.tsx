@@ -50,7 +50,8 @@ export function RepOpFlagsBanner() {
                   {f.rating.by && f.rating.by !== reps[f.rating.repId]?.name ? ` (${f.rating.by})` : ""} · <bdi dir="ltr">{when(f.rating.at)}</bdi>
                   {f.op ? ` · ${f.op.account}` : ""}
                 </p>
-                <pre className="op-flag-text">{f.text || "(لا نص)"}</pre>
+                {f.rating.note && <p className="op-flag-note">💬 «{f.rating.note}»</p>}
+                <pre className="op-flag-text">{f.text || "(من الدردشة)"}</pre>
                 <button
                   type="button"
                   className="dialog-primary op-flag-done"

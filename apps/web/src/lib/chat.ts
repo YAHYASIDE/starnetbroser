@@ -10,6 +10,8 @@
  * What was read is per phone (`starnet.chatRead`). Pure + small stores.
  */
 
+import { chatOpMessageId, chatOpText, cleanChatOp, cleanChatOpRate, type ChatOp, type ChatOpRate } from "./chatOps";
+
 export const TEAM_CONV = "team";
 export const MAX_CHAT_TEXT = 2000;
 /** A picture's data URL at most (it travels inside the sealed document). */
@@ -48,6 +50,10 @@ export interface ChatMessage {
   file?: { name: string; size: number; data?: string };
   /** 🧾 The rep asks for his statement - the operator's side shows «أرسل كشفه». */
   statementAsk?: true;
+  /** 💳 A money operation's card (lib/chatOps.ts) - from the operator's side, in a rep's conversation. */
+  op?: ChatOp;
+  /** 💳 A control message (never shown as a bubble): the rep's «✅ جيد» / «❌ غير جيد» on a card. */
+  opRate?: ChatOpRate;
   /** 💾 What of it lives in the chat media store (`chatmedia:<id>`) instead of this message. */
   stored?: ("image" | "audio" | "file")[];
   /** 📞 a voice call started (its signalling document: lib/callSignal.ts) - the other side rings. */
@@ -133,10 +139,23 @@ export function newChatMessage(
     deleteOf?: string | null;
     file?: { name: string; data: string } | null;
     statementAsk?: boolean;
+    op?: ChatOp | null;
+    opRate?: ChatOpRate | null;
   },
   now = Date.now(),
   random: () => string = randomId,
 ): ChatMessage | null {
+  // 💳 a card keeps the id its operation gives it (the same operation = the same message, never two)
+  const op = input.from === "owner" && input.conv !== TEAM_CONV ? cleanChatOp(input.op) : undefined;
+  if (op) {
+    return { id: chatOpMessageId(op.token), conv: input.conv, from: "owner", by: input.by.trim().slice(0, 60) || "المسؤول", ...(input.member ? { member: input.member } : {}), text: chatOpText(op), op, at: now };
+  }
+  const opRate = input.from === "rep" ? cleanChatOpRate(input.opRate) : undefined;
+  if (opRate) {
+    // «❌ غير جيد» is said in words too (the background notification shows it); «✅ جيد» stays quiet
+    const text = opRate.verdict === "bad" ? `❌ غير جيد${opRate.note ? `: ${opRate.note}` : ""}` : "";
+    return { id: random(), conv: input.conv, from: "rep", by: input.by.trim().slice(0, 60) || "المندوب", text, opRate, at: now };
+  }
   const deleteOf = cleanId(input.deleteOf);
   if (deleteOf) {
     return { id: random(), conv: input.conv, from: input.from, by: input.by.trim().slice(0, 60) || "-", ...(input.member ? { member: input.member } : {}), text: "", deleteOf, at: now };
@@ -188,7 +207,9 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
     const deleteOf = cleanId(p.deleteOf);
     const file = cleanFile(p.file);
     const statementAsk = p.statementAsk === true && from === "rep";
-    if (!text && !image && !device && !audio && !deleteOf && !file) return null;
+    const op = from === "owner" && conv !== TEAM_CONV ? cleanChatOp(p.op) : undefined;
+    const opRate = from === "rep" ? cleanChatOpRate(p.opRate) : undefined;
+    if (!text && !image && !device && !audio && !deleteOf && !file && !op && !opRate) return null;
     return {
       id: p.id,
       conv, // whichever channel it came on - never what the document claims
@@ -206,6 +227,8 @@ export function parseChatPayload(json: string, conv: string): ChatMessage | null
       ...(deleteOf ? { deleteOf } : {}),
       ...(file ? { file } : {}),
       ...(statementAsk ? { statementAsk: true as const } : {}),
+      ...(op ? { op } : {}),
+      ...(opRate ? { opRate } : {}),
       at: typeof p.at === "number" && Number.isFinite(p.at) ? p.at : Date.now(),
     };
   } catch {
@@ -235,7 +258,7 @@ export function visibleMessages(store: ChatStore, conv: string): ChatMessage[] {
   const all = messagesOf(store, conv);
   const controls = all.filter((m) => m.deleteOf);
   return all
-    .filter((m) => !m.deleteOf)
+    .filter((m) => !m.deleteOf && !m.opRate)
     .map((m) => {
       const gone = m.deleted || controls.some((c) => c.deleteOf === m.id && sameSender(c, m));
       if (!gone) return m;
