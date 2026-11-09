@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeptState } from "@/lib/dataReload";
 import { rowDeviceEmail, rowHasPhoto, rowProofPlan } from "@/lib/repRowExtras";
 import { loadOpLog, type OpLogStore } from "@/lib/repOpLog";
 import { getProof, listProofIds } from "@/lib/paymentProofStore";
@@ -180,11 +181,11 @@ export default function RepresentativesPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [showAddForm, setShowAddForm] = useState(false);
   // 📊 On a rep's phone this page is «تقاريري»: his own account only, nothing to change.
-  const [repView, setRepView] = useState(false);
+  const [repView, setRepView] = useKeptState("reps.view", false);
   const [editingRepId, setEditingRepId] = useState<string | null>(null);
   // Opened from "إقفال الشهر" (reports): ?rep=<id>&month=yyyy-mm opens that rep's statement for
   // that month, ready for its PDF.
-  const [focus, setFocus] = useState<{ repId: string; month: string } | null>(null);
+  const [focus, setFocus] = useKeptState<{ repId: string; month: string } | null>("reps.focus", null);
   // ☁️ The live link brought a rep's customer / device link (lib/liveSync.ts).
   useEffect(() => {
     const reload = () => {
@@ -786,14 +787,14 @@ function RepCard({
 }: RepCardProps) {
   // 🔒 His customers stay with him: no customer list here, only what he owes.
   const customersHidden = Boolean(rep.customersHidden);
-  const [panel, setPanel] = useState<RepPanel>(null);
+  const [panel, setPanel] = useKeptState<RepPanel>("reps.panel", null);
   const [sheet, setSheet] = useState<RepSheet>(null);
   // 📂 «حساباته»: the full page of his accounts (his Oct 12 2026 ask).
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [opLogOpen, setOpLogOpen] = useState(false);
-  const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
-  const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
+  const [periodKind, setPeriodKind] = useKeptState<RepPeriodKind>("reps.periodKind", "all");
+  const [customPeriod, setCustomPeriod] = useKeptState<RepPeriod>("reps.customPeriod", { from: "", to: "" });
   const thisMonth = todayDateInputValue().slice(0, 7);
   const [periodMonth, setPeriodMonth] = useState(thisMonth);
   const monthChoices = useMemo(() => {

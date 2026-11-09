@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeptState } from "@/lib/dataReload";
 import { isRepDevice } from "@/lib/repSeparation";
 import { isRepWorkspace, repCan } from "@/lib/repMode";
 import { deviceTwins, mergeDevices, notDuplicatePatches } from "@/lib/deviceMerge";
@@ -452,15 +453,15 @@ export function HomeView({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useKeptState("home.query", "");
   // 🕘 His Oct 18 2026 ask: every search is kept (lib/searchHistory.ts), shown under the empty bar.
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
+  const [selectedDay, setSelectedDay] = useKeptState<DayKey | null>("home.day", null);
   // 🕘 The home opens on «آخر جهاز» (his Oct 2026 choice); the desk's devices page shows all.
-  const [statFilter, setStatFilter] = useState<StatFilterKind | null>(deskPage === "devices" ? null : "recent");
+  const [statFilter, setStatFilter] = useKeptState<StatFilterKind | null>(`home.statFilter.${deskPage ?? ""}`, deskPage === "devices" ? null : "recent");
   // 🤝 Which rep's circle is open (statFilter "rep").
-  const [repRingId, setRepRingId] = useState<string | null>(null);
+  const [repRingId, setRepRingId] = useKeptState<string | null>("home.repRing", null);
   // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
   const [deviceNotes, setDeviceNotes] = useState<DeviceNotesStore>({});
   // ⏰ the reminders set in devices' browsers (his Oct 30 2026 ask), re-read when the app comes back.
@@ -510,17 +511,17 @@ export function HomeView({
   /** 🛂 After a registration price became a debt: «💬 أرسل له كشفه» (the device id). */
   const [travelFeeSent, setTravelFeeSent] = useState<{ accountId: string; text: string } | null>(null);
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
-  const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
+  const [faultFilter, setFaultFilter] = useKeptState<DeviceFaultReason | null>("home.fault", null);
   /** «بدون زبون»: all of them, mine, or one representative's. */
-  const [noClientGroup, setNoClientGroup] = useState<NoClientGroup>("all");
+  const [noClientGroup, setNoClientGroup] = useKeptState<NoClientGroup>("home.noClient", "all");
   /** 🛂 Which «✅ تم توثيقها» circle is open (lib/travelBook.ts). */
-  const [travelGroup, setTravelGroup] = useState<TravelGroup>("all");
+  const [travelGroup, setTravelGroup] = useKeptState<TravelGroup>("home.travel", "all");
 
   function toggleStatFilter(kind: StatFilterKind) {
     setStatFilter((current) => (current === kind ? null : kind));
     setSelectedDay(null);
   }
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useKeptState("home.showAll", false);
   useEffect(() => {
     if (deskPage !== "devices") return;
     setShowAll(true);
@@ -710,11 +711,11 @@ export function HomeView({
   const [clientStore, setClientStore] = useState<ClientStore>({});
   useEffect(() => setClientStore(loadClientStore()), []);
   const clients = useMemo(() => listClients(clientStore), [clientStore]);
-  const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const [openClientId, setOpenClientId] = useKeptState<string | null>("home.openClient", null);
   // 👤 A customer tapped in the search: his options (ClientSearchSheet), and the list narrowed to him.
   const [clientMenuId, setClientMenuId] = useState<string | null>(null);
-  const [clientFocus, setClientFocus] = useState<string | null>(null);
-  const [showClientsOverview, setShowClientsOverview] = useState(false);
+  const [clientFocus, setClientFocus] = useKeptState<string | null>("home.clientFocus", null);
+  const [showClientsOverview, setShowClientsOverview] = useKeptState("home.clientsOverview", false);
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);

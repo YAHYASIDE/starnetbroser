@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeptState } from "@/lib/dataReload";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -88,7 +89,7 @@ export default function ChatPage() {
   const [read, setRead] = useState<Record<string, number>>({});
   const [seen, setSeen] = useState<ChatSeen>({});
   const [unsent, setUnsent] = useState<string[]>([]);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useKeptState<string | null>("chat.open", null);
   const [customers, setCustomers] = useState(false);
   const [memberId, setMemberId] = useState("");
   const [live, setLive] = useState<Record<string, boolean>>({});
@@ -286,7 +287,7 @@ function Conversation({
   onBack: (() => void) | null;
   onOpenDevice: (name: string) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useKeptState(`chat.text.${target.conv}`, "");
   const [device, setDevice] = useState<{ id: string; name: string } | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [picking, setPicking] = useState(false);

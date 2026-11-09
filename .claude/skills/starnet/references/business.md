@@ -3216,6 +3216,26 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 👥 Working together without being thrown out (Nov 9 2026)
+
+- His «ما زال المسؤول عندما يعمل التطبيق وأنا أعمله، يُخرجه مرات ويُخرجني مرات» → all three of: «جهاز Starlink يخرج من
+  حسابه», «التطبيق يُغلق أو يرجع للرئيسية», «ما أكتبه يضيع أو يتغيّر», on any device at any time.
+- App side - cause: a link round that brought the other member's changes remounted the open page
+  (`requestDataReload`), and the idle check only looked for an open dialog / a focused field: an open conversation,
+  an opened customer, the chosen tab, the search typed, a draft - all reset. Now (DeviceLinkRunner): a full round only
+  after QUIET_MS = 15 s without touch / typing (pointerdown, keydown, input, touchstart) and nothing open
+  (`[data-keep-view]`, `.chat-conversation`, the call card, the picture editor); meanwhile his own saves still go out
+  at once (send-only rounds). After a round the remount stays immediate (a screen holding old data could write it back
+  over the team's change) - and `useKeptState` (lib/dataReload.ts, `markDataRemount`) gives back what was open: chat
+  (the open conversation, each conversation's draft), clients (opened customer), money (tab, statement), reports (tab),
+  reps (view, focus, panel, period), home (search, day, ring filters, opened customer…). A normal visit starts fresh.
+- Starlink side - likely cause: when one phone renews a device's sign-in, Starlink may end the copy the other phone
+  holds; that phone still had the cookie (looked signed in), so `sessionsToTake` never gave it the newer one. Now the
+  team's newest session of a device is taken by every phone whose own is older (newer than what it took / sent); a
+  device signed out here as before. With the immediate send on a new ticket and the live session pulse (Nov 8), the
+  newest sign-in reaches every phone in seconds. Not proven - Starlink's rules aren't visible; told him to report a
+  device that still signs out.
+
 ## 📲 The update banner after installing (Nov 8 2026)
 
 - His «ثبّتّه ولكن يقول اضغط لتنزيل الأحدث - هذه المشكلة دائمًا فيه». Why: `starnet.updateFound` kept the build an

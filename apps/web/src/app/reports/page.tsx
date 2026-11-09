@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeptState } from "@/lib/dataReload";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ADD_EXPENSE_ROUTE, parseAddExpense, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
@@ -117,7 +118,7 @@ export default function ReportsPage() {
       // A per-phone convenience only.
     }
   }
-  const [tab, setTab] = useState<ReportTab>("net");
+  const [tab, setTab] = useKeptState<ReportTab>("reports.tab", "net");
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   // 🔎 «ابحث عن أي شيء في STAR NET...»: typed text, and the debounced query actually searched.
   const [searchText, setSearchText] = useState("");

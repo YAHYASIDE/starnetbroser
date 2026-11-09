@@ -47,7 +47,7 @@ import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, type ProfitReset } from "@/lib/profitReset";
 import { loadWipeUndo, undoWipe, wipeAllTransactions, type WipeUndo } from "@/lib/wipeTransactions";
-import { requestDataReload } from "@/lib/dataReload";
+import { requestDataReload, useKeptState } from "@/lib/dataReload";
 import { listClients, loadClientStore } from "@/lib/clientStore";
 import { drainBankNotices, notificationReaderStatus, openKastNotificationAccess, restartNotificationReader } from "@/lib/localBrowser";
 import { lastSeenText, readerProblem, type ReaderStatus } from "@/lib/notificationReader";
@@ -164,7 +164,7 @@ export default function MoneyPage() {
   const [period, setPeriod] = useState<MoneyPeriod>(() => monthPeriod(today().slice(0, 7)));
   const [pickingDay, setPickingDay] = useState(false);
   const month = period.from.slice(0, 7);
-  const [tab, setTab] = useState<MoneyTab>("income");
+  const [tab, setTab] = useKeptState<MoneyTab>("money.tab", "income");
   const [incomes, setIncomes] = useState<IncomeList>([]);
   const [incomeCats, setIncomeCats] = useState<ExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<PersonalExpenseList>([]);
@@ -176,7 +176,7 @@ export default function MoneyPage() {
   const [book, setBook] = useState<AccountsBook>({ accounts: [], adjustments: [] });
   const [openLine, setOpenLine] = useState<WealthLine | null>(null);
   /** 📄 The place whose «كشف حساب» is open (an account id, or الكاش). */
-  const [statementOf, setStatementOf] = useState<string | null>(null);
+  const [statementOf, setStatementOf] = useKeptState<string | null>("money.statementOf", null);
   // Bumped whenever الكاش changes, so «كل ما تملك» is recomputed.
   const [cashVersion, setCashVersion] = useState(0);
   const [newRecord, setNewRecord] = useState(false);

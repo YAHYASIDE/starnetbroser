@@ -101,21 +101,24 @@ export function newestSessions(indexes: { member: string; index: Record<string, 
   return out;
 }
 
-/** What to take: newer than what I took, and - unless he asked («📥 خذ جلسات الفريق») - only where this phone is not
- * signed in. A device signed out here takes the team's whatever this phone sent before (an older build sent empty
- * sessions as its own). */
+/**
+ * What to take: the newest of each device - newer than what I took and than what I sent. Since his Nov 9 2026 report
+ * («يخرجه مرات ويخرجني مرات», on any device) a phone that still holds a session takes a newer one too: when one phone
+ * renews a device's sign-in, Starlink may end the copy the other phone holds - which still LOOKS signed in here (the
+ * cookie is there), so it never took the new one and stayed on the sign-in page. The newest sign-in now follows to
+ * every phone. A device signed out here takes the team's whatever this phone sent before (an older build sent empty
+ * sessions as its own). `force` («📥 خذ جلسات الفريق») is the same rule, asked now.
+ */
 export function sessionsToTake(
   newest: Record<string, { member: string; at: number }>,
   taken: TakenSessions,
   local: SessionsByAccount,
   sent: SentSessions,
-  force: boolean,
+  _force: boolean,
 ): { id: string; member: string; at: number }[] {
   return Object.entries(newest)
     .filter(([id, n]) => {
-      const signedIn = isSignedInSession(local[id]);
-      if (!force && signedIn) return false;
-      if (!signedIn) return n.at > (taken[id] ?? 0);
+      if (!isSignedInSession(local[id])) return n.at > (taken[id] ?? 0);
       return n.at > (taken[id] ?? 0) && n.at > (sent[id]?.at ?? 0);
     })
     .map(([id, n]) => ({ id, ...n }));

@@ -67,14 +67,16 @@ describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
     expect(ticketFingerprint(OUT)).toBe("");
   });
 
-  it("takes a newer session only where this phone has none - unless asked", () => {
+  it("takes the team's newest session - also over an older one held here (his Nov 9 2026 «يخرجه مرات ويخرجني مرات»)", () => {
     const newest = { d1: { member: "m1", at: 10 }, d2: { member: "m1", at: 10 } };
     const local = { d1: IN("mine"), d2: OUT };
-    expect(sessionsToTake(newest, {}, local, {}, false).map((t) => t.id)).toEqual(["d2"]);
+    expect(sessionsToTake(newest, {}, local, {}, false).map((t) => t.id)).toEqual(["d1", "d2"]);
+    // mine is newer than theirs: kept
+    expect(sessionsToTake(newest, {}, local, { d1: { h: "x", at: 20 } }, false).map((t) => t.id)).toEqual(["d2"]);
     // signed out here: what this phone sent before (an older build sent the empty one) doesn't stop it
-    expect(sessionsToTake(newest, {}, local, { d2: { h: "x", at: 99 } }, false).map((t) => t.id)).toEqual(["d2"]);
+    expect(sessionsToTake(newest, {}, local, { d1: { h: "x", at: 20 }, d2: { h: "x", at: 99 } }, false).map((t) => t.id)).toEqual(["d2"]);
     expect(sessionsToTake(newest, {}, local, {}, true).map((t) => t.id)).toEqual(["d1", "d2"]);
-    expect(sessionsToTake(newest, { d2: 10 }, local, {}, false)).toEqual([]);
+    expect(sessionsToTake(newest, { d1: 10, d2: 10 }, local, {}, false)).toEqual([]);
   });
 
   it("a device signed in on the phone opens signed in on «المسؤول 2», and is not sent back", async () => {

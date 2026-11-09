@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { DATA_RELOAD_EVENT } from "@/lib/dataReload";
+import { DATA_RELOAD_EVENT, markDataRemount } from "@/lib/dataReload";
 
 /** 🔄 The open page, remounted when the data changed underneath it (lib/dataReload.ts) - its scroll kept. The bars
  * outside it hear a «storage» event and read again too. */
@@ -10,6 +10,7 @@ export function DataReloadBoundary({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onReload = () => {
       const y = window.scrollY;
+      markDataRemount();
       setVersion((v) => v + 1);
       window.dispatchEvent(new Event("storage"));
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));

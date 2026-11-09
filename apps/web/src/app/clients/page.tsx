@@ -1,5 +1,6 @@
 "use client";
 
+import { useKeptState } from "@/lib/dataReload";
 import { methodLabel } from "@/lib/payCurrency";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { ClientImport } from "@/components/ClientImport";
@@ -83,7 +84,7 @@ export default function ClientsPage() {
   const [allocationStore, setAllocationStore] = useState<AllocationsByAccount>({});
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
-  const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const [openClientId, setOpenClientId] = useKeptState<string | null>("clients.open", null);
   const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
   const [picking, setPicking] = useState(false);
   // ⋮ «استيراد الزبائن» and the rarely used tools, out of the way (his Oct 19 2026 design).

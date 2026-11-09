@@ -36,10 +36,17 @@ const SEND_AFTER_MS = 800;
 /** How often «is he still in the middle of something?» is asked once a full round waits for it. */
 const IDLE_CHECK_MS = 1_500;
 
-/** He isn't in the middle of something: no open sheet / dialog and no field being typed in. A round
- * that brings changes reloads the page, so it waits for this. */
+/** No touch / typing this long = he paused (his Nov 9 2026 «يرجع للرئيسية، وما أكتبه يضيع» while another member worked:
+ * the page was rebuilt in the middle of his work). */
+const QUIET_MS = 15_000;
+let lastTouch = 0;
+
+/** He isn't in the middle of something: no open sheet / dialog, no field being typed in, no conversation open, and
+ * he hasn't touched or typed for QUIET_MS. A round that brings changes rebuilds the page, so it waits for this. */
 function isIdle(): boolean {
   if (document.visibilityState !== "visible") return false;
+  if (Date.now() - lastTouch < QUIET_MS) return false;
+  if (document.querySelector("[data-keep-view], .chat-conversation, .call-card, .img-editor")) return false;
   if (document.querySelector('[role="dialog"], .party-sheet-backdrop, .dialog-backdrop')) return false;
   const active = document.activeElement;
   return !(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement);
@@ -53,6 +60,9 @@ function isIdle(): boolean {
  */
 export function DeviceLinkRunner() {
   useEffect(() => {
+    const touched = () => (lastTouch = Date.now());
+    const touchEvents = ["pointerdown", "keydown", "input", "touchstart"] as const;
+    for (const e of touchEvents) document.addEventListener(e, touched, { capture: true, passive: true });
     let running = false;
     /** Asked again while a round ran (another phone wrote, or a save here): one more round right after. */
     let again = false;
@@ -82,7 +92,9 @@ export function DeviceLinkRunner() {
         if (text) await notifyPhone(text);
         // 🗑️ on YAHYA: another member deleted something - it waits for him
         if (result.pending) await notifyPhone(`🗑️ حذف من الفريق بانتظار موافقتك (${result.pending}) - الإعدادات ← 🔗 ربط الأجهزة`);
-        // 🔄 the open page reads again in place - never a reload (it opened the home page under another page)
+        // 🔄 the open page reads again in place - never a reload (it opened the home page under another page). At
+        // once: a screen holding the old data could write it back over the team's change (what was open comes back -
+        // useKeptState; the round itself only starts once he paused).
         if (result.changedKeys.length > 0) requestDataReload();
       } finally {
         running = false;
@@ -189,6 +201,7 @@ export function DeviceLinkRunner() {
       window.clearTimeout(first);
       window.clearInterval(timer);
       window.clearInterval(idleTimer);
+      for (const e of touchEvents) document.removeEventListener(e, touched, { capture: true });
       window.clearTimeout(sendTimer);
       window.removeEventListener(DEVICE_LINK_EVENT, onLinkEvent);
       stopPulse?.();
