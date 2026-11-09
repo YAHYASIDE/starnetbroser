@@ -20630,3 +20630,6 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .chat-filter.is-on { border-color: var(--wa-accent); background: color-mix(in srgb, var(--wa-accent) 18%, transparent); color: var(--wa-accent); }
 .chat-list-marks { flex-shrink: 0; font-size: 0.78rem; }
 .chat-badge.is-muted { background: var(--text-muted); }
+/* 🤖 the assistant */
+.assistant-text { white-space: pre-wrap; }
+.assistant-ticket { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.9rem; }

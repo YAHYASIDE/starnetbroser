@@ -123,6 +123,7 @@ import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { CustomerMessagesSection } from "@/components/CustomerMessagesSection";
 import { CallServerSection } from "@/components/CallServerSection";
+import { ClaudeSection } from "@/components/ClaudeSection";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -478,6 +479,7 @@ export default function SettingsPage() {
           <>
             <SettingsFold id="telegram"><TelegramSection /></SettingsFold>
             <SettingsFold id="rep-bots"><TelegramRepsSection /></SettingsFold>
+            <SettingsFold id="claude"><ClaudeSection /></SettingsFold>
             <SettingsFold id="activation-costs"><ActivationCostsSection /></SettingsFold>
             <SettingsFold id="instant-replies"><TelegramInstantSection /></SettingsFold>
           </>

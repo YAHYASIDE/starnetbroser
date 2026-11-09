@@ -13,6 +13,7 @@ import { deleteChatMedia, getChatMedia } from "@/lib/chatMediaStore";
 import { deleteProof, getProof } from "@/lib/paymentProofStore";
 import { ChatImageEditor } from "@/components/ChatImageEditor";
 import { ChatOpCard } from "@/components/ChatOpCard";
+import { AssistantChat } from "@/components/AssistantChat";
 import { opStatusOf } from "@/lib/chatOps";
 import { CHAT_FILTERS, CHAT_PREFS_EVENT, chatRows, EMPTY_PREFS, loadChatListPrefs, saveChatListPrefs, togglePref, type ChatFilter, type ChatListPrefs } from "@/lib/chatList";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
@@ -154,6 +155,8 @@ export default function ChatPage() {
   const side = useMemo(() => ({ rep, memberId }), [rep, memberId]);
   const target = targets.find((t) => t.conv === open) ?? null;
 
+  if (open === "assistant" && !rep) return <AssistantChat onBack={() => setOpen(null)} />;
+
   if (target) {
     return (
       <Conversation
@@ -178,6 +181,25 @@ export default function ChatPage() {
         </Link>
         <h1 className="section-title">💬 الدردشة</h1>
       </div>
+      {!rep && (
+        <ul className="chat-list chat-list-assistant">
+          <li>
+            <button type="button" className="chat-list-item" data-tour="chat-assistant" onClick={() => setOpen("assistant")}>
+              <span className="chat-avatar" aria-hidden="true">
+                🤖
+              </span>
+              <span className="chat-list-body">
+                <span className="chat-list-top">
+                  <span className="chat-list-title">🤖 المساعد (Claude)</span>
+                </span>
+                <span className="chat-list-bottom">
+                  <span className="chat-list-last">اسأله عن أجهزتك وزبائنك، أو اكتب تذكرة دعم Starlink</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        </ul>
+      )}
       {targets.length === 0 ? (
         <p className="party-empty">
           {rep

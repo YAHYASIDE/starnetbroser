@@ -24,7 +24,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   // 🔄 Every kind of sync in one place (his Oct 17 2026 ask «كل أنواع المزامنة في الإعدادات في مكان اسمه المزامنة التلقائية»).
   { id: "sync", icon: "🔄", title: "المزامنة التلقائية", short: "المزامنة", subtitle: "ستارلينك، الخلفية، المندوبون", tone: "brand", anchors: ["sync", "scheduled-syncs", "auto-sync", "background-sync", "live-sync"] },
   { id: "devices", icon: "🛰️", title: "الأجهزة", short: "الأجهزة", subtitle: "الجلسات، تثبيت يوم التجديد", tone: "mint", anchors: ["devices", "sessions", "customer-messages"] },
-  { id: "bots", icon: "✈️", title: "البوتات", short: "البوتات", subtitle: "بوتك، بوتات المندوبين", tone: "violet", anchors: ["bots", "telegram"] },
+  { id: "bots", icon: "✈️", title: "البوتات", short: "البوتات", subtitle: "بوتك، بوتات المندوبين", tone: "violet", anchors: ["bots", "telegram", "claude"] },
   { id: "backup", icon: "💾", title: "النسخ الاحتياطي", short: "النسخ", subtitle: "نسخة كاملة، يومية، Google Drive", tone: "green", anchors: ["backup", "drive", "device-link", "call-server"] },
   { id: "security", icon: "🔒", title: "الأمان والتطبيق", short: "الأمان", subtitle: "القفل، التحديث، التخزين", tone: "red", anchors: ["security", "lock", "update"] },
 ];
@@ -65,7 +65,7 @@ export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "mail-domain" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
   | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock" | "customer-messages"
-  | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
+  | "telegram" | "rep-bots" | "claude" | "live-sync" | "activation-costs" | "instant-replies"
   | "device-link" | "call-server" | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "storage" | "server";
 
@@ -101,6 +101,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
   { id: "rep-bots", group: "bots", icon: "🤝", title: "بوتات المندوبين", summary: "ربط كل مندوب ببوته", keywords: ["مندوب", "مندوبين", "بوت"] },
+  { id: "claude", group: "bots", icon: "🤖", title: "مساعد Claude", summary: "المساعد في الدردشة، كتابة تذاكر الدعم وردودها", keywords: ["claude", "كلود", "ذكاء", "مساعد", "دعم", "تذكرة", "ترجمة", "ai", "chatgpt"] },
   { id: "live-sync", group: "sync", icon: "☁️", title: "الربط الحيّ مع المندوبين", summary: "زبائن المندوب عندك وعنده تلقائيًا (Firebase)", keywords: ["فايربيس", "firebase", "ربط", "مزامنة", "مندوب", "زبائن", "حي"] },
   { id: "activation-costs", group: "bots", icon: "⚡", title: "تكلفة باقات التفعيل", summary: "أسعار التفعيل في البوت", keywords: ["تفعيل", "باقة", "تكلفة"] },
   { id: "instant-replies", group: "bots", icon: "⚡", title: "رد البوت والتطبيق مغلق", summary: "خدمة الرد في الخلفية", keywords: ["رد", "مغلق", "خلفية"] },

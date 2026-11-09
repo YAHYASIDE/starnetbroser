@@ -3375,3 +3375,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   file to fetch. A row with a photo shows 📸; «العملية» shows the photo at once (fetched from Telegram when not kept),
   tap = full size. Every statement table of the rep card (24 h blocks and the period tables).
 
+
+## 🤖 Claude assistant · support tickets · auto-reply to Starlink support (Nov 9 2026)
+
+- His «كيف أجعل في التطبيق الكلام مع دعم تلقائي ولو بربطه بك أو بشات جي بي تي» (a screenshot of a French Starlink
+  support ticket) → service: **Claude**; places: **a chat assistant + the support page only + writing a new support
+  ticket**; mode: **«يرد وحده تلقائيًا»**.
+- 🔑 His own Anthropic API key (console.anthropic.com), set in الإعدادات ← البوتات ← «🤖 مساعد Claude» (save / test /
+  remove). Phone-only `starnet.claudeKey`: never in the backup, the team link or a rep's copy. The app calls the API
+  straight from the phone (no server of ours). Model `claude-opus-5-5` with Anthropic's server-side fallbacks
+  ("default") on, so a busy model falls back instead of failing.
+- 🤖 «المساعد» (owner only) at the top of the chat list (`components/AssistantChat.tsx`): Arabic questions answered from
+  the app's own data through read-only tools (`lib/assistantTools.ts`: search devices, devices overview, find a
+  customer, a rep's statement). It never changes data and never sees passwords. Its conversation is phone-only
+  (`starnet.assistantChat`, last 60 turns).
+- 🎫 New ticket (🎫 inside the assistant): pick the device, write the problem in Arabic → subject + body in French or
+  English with the device's facts, plus an Arabic translation to check, then «نسخ» (`lib/claudeAssist.ts` TICKET_*).
+- 💬 Auto-reply on the support page (next step, needs a «🧪 لقطة تشخيص» of the Starlink ticket page): Claude reads the
+  ticket, writes the reply in the ticket's language + an Arabic translation, and marks `safe_to_send`. **Guardrail
+  (told to him):** it sends alone only when the reply is safe (no payment, no cancellation, no new commitment, no
+  personal data beyond the device); otherwise it shows him the translation and the reply to send or edit.
