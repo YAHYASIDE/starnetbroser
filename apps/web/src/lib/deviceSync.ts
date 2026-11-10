@@ -153,17 +153,48 @@ export function hashText(text: string): string {
   return (h >>> 0).toString(16).padStart(8, "0") + text.length.toString(36);
 }
 
+/* ⚡ His Nov 10 2026 report «التطبيق صار يعمل دائمًا ببطء شديد» (every phone, every page): each link round (every
+ * 8-30 s) cut ALL the stored data into records, sorted every object's keys and hashed every record again - most of a
+ * mid phone's time with a few thousand operations, though almost nothing had changed. Now a store whose text is the
+ * same as last round keeps its records (FLAT_CACHE), and a records object keeps its hashes (HASHES). Both are only
+ * read, never changed in place: merge() copies a store before touching it. */
+const FLAT_CACHE = new Map<string, { raw: string; prefer?: Shape; flat: FlatKey }>();
+const HASHES = new WeakMap<FlatKey, Record<string, string>>();
+/** A records object already found equal to a baseline entry (both are never changed in place). */
+const IN_STEP = new WeakMap<FlatKey, Baseline[string]>();
+
+/** A store's record hashes (kept with that records object). */
+export function hashesOf(flat: FlatKey): Record<string, string> {
+  let h = HASHES.get(flat);
+  if (!h) {
+    h = {};
+    for (const [r, v] of Object.entries(flat.records)) h[r] = hashText(v);
+    HASHES.set(flat, h);
+  }
+  return h;
+}
+
+/** Every store cut into records - a store unchanged since the last call keeps the same (read-only) records object. */
 export function flattenAll(storage: Record<string, string>, baseline: Baseline = {}): FlatData {
   const out: FlatData = {};
-  for (const [key, raw] of Object.entries(storage)) out[key] = flattenKey(raw, baseline[key]?.shape);
+  for (const [key, raw] of Object.entries(storage)) {
+    const prefer = baseline[key]?.shape;
+    const hit = FLAT_CACHE.get(key);
+    if (hit && hit.raw === raw && hit.prefer === prefer) {
+      out[key] = hit.flat;
+      continue;
+    }
+    const flat = flattenKey(raw, prefer);
+    FLAT_CACHE.set(key, { raw, prefer, flat });
+    out[key] = flat;
+  }
+  for (const key of FLAT_CACHE.keys()) if (!(key in storage)) FLAT_CACHE.delete(key);
   return out;
 }
 
 export function baselineOf(data: FlatData): Baseline {
   const out: Baseline = {};
-  for (const [key, flat] of Object.entries(data)) {
-    out[key] = { shape: flat.shape, hashes: Object.fromEntries(Object.entries(flat.records).map(([r, v]) => [r, hashText(v)])) };
-  }
+  for (const [key, flat] of Object.entries(data)) out[key] = { shape: flat.shape, hashes: { ...hashesOf(flat) } };
   return out;
 }
 
@@ -187,8 +218,12 @@ export function diff(baseline: Baseline, current: FlatData, at: string, confirme
     const base = baseline[k];
     const flat = current[k];
     const shape = flat?.shape ?? base?.shape ?? "single";
+    // ⚡ this very records object was already found equal to this very baseline entry: nothing to look at
+    if (base && flat && IN_STEP.get(flat) === base) continue;
+    const hashes = flat ? hashesOf(flat) : {};
+    const before = ops.length;
     for (const [r, v] of Object.entries(flat?.records ?? {})) {
-      if (base?.hashes[r] !== hashText(v)) ops.push({ k, s: shape, r, v, at });
+      if (base?.hashes[r] !== hashes[r]) ops.push({ k, s: shape, r, v, at });
     }
     const gone = Object.keys(base?.hashes ?? {}).filter((r) => !(flat && r in flat.records));
     const total = Object.keys(base?.hashes ?? {}).length;
@@ -197,6 +232,7 @@ export function diff(baseline: Baseline, current: FlatData, at: string, confirme
       continue;
     }
     for (const r of gone) ops.push({ k, s: shape, r, v: null, at });
+    if (base && flat && ops.length === before && gone.length === 0) IN_STEP.set(flat, base);
   }
   return { ops, held };
 }
@@ -222,7 +258,21 @@ export interface MergeRules {
 }
 
 export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[], rules: MergeRules = {}): MergeResult {
-  const data: FlatData = Object.fromEntries(Object.entries(current).map(([k, f]) => [k, { shape: f.shape, records: { ...f.records }, order: [...f.order] }]));
+  // copy-on-write: a store is copied only when an op changes it (the others keep their records - and cached hashes)
+  const data: FlatData = { ...current };
+  const copied = new Set<string>();
+  const writable = (k: string, shape: Shape): FlatKey => {
+    const f = data[k];
+    if (!f) {
+      copied.add(k);
+      return (data[k] = { shape, records: {}, order: [] });
+    }
+    if (!copied.has(k)) {
+      copied.add(k);
+      data[k] = { shape: f.shape, records: { ...f.records }, order: [...f.order] };
+    }
+    return data[k]!;
+  };
   const local = new Map(localOps.map((op) => [`${op.k}\u0000${op.r}`, op]));
   const dropped = new Set<string>();
   const conflicts: SyncConflict[] = [];
@@ -243,13 +293,13 @@ export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]
       conflicts.push({ k: op.k, r: op.r, kept: "remote", lost: mine.v, at: mine.at });
       dropped.add(id);
     }
-    const flat = data[op.k] ?? (data[op.k] = { shape: op.s, records: {}, order: [] });
+    const seen = data[op.k];
     if (op.v === null) {
-      if (!(op.r in flat.records)) continue;
-      delete flat.records[op.r];
+      if (!seen || !(op.r in seen.records)) continue;
+      delete writable(op.k, op.s).records[op.r];
     } else {
-      if (flat.records[op.r] === op.v) continue;
-      flat.records[op.r] = op.v;
+      if (seen?.records[op.r] === op.v) continue;
+      writable(op.k, op.s).records[op.r] = op.v;
     }
     changed.add(op.k);
   }

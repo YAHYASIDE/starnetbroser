@@ -3418,3 +3418,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   to «Montant» > printed twice (Montant + Total) > next to «Total»; next to «solde / balance / الرصيد» never; else the
   first. `READER_VERSION` (2) on each read: pending requests read by an older reader are read again once (the rep is
   not told about a duplicate twice).
+
+## ⚡ «التطبيق صار يعمل دائمًا ببطء شديد» (Nov 10 2026)
+
+- His report: every page, every phone, not sure since when. Measured with a big FAKE dataset (300 devices, 12,000
+  operations, 4 reps, 3,000 messages) on a production build at 4× CPU slowdown, the team link answered by a fake empty
+  Firebase: 11.7 s of blocked main thread per 2 minutes (freezes up to 0.78 s), ~90 % in the team-link round - every
+  8-30 s it re-cut ALL stores into records (key-sorted JSON per record), re-hashed every record, rebuilt and rewrote
+  the whole baseline, though nothing had changed.
+- Fix (`deviceSync.ts` / `deviceLink.ts`): a store whose text is unchanged keeps its records (`FLAT_CACHE`), records
+  keep their hashes (`hashesOf`, WeakMap), `merge` copies only the stores it changes, a store already equal to its
+  baseline entry is skipped (`IN_STEP`), the baseline is parsed once and not rewritten when nothing moved. The chat's
+  op cards (`chatOpsSend`) rebuild the reps' statements only when the business data's size changed. Result: 0.6 s per
+  2 minutes (~20× less), longest freeze 0.35 s.
+- Rule: anything on a timer must do nothing when nothing changed - measure with `scratchpad/perf.js`-style profiling
+  (big fake data, `next build` + `next start`, CPU throttle 4) before adding another background job.

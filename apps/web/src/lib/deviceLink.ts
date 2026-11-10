@@ -409,6 +409,8 @@ export interface RoundResult {
   pending?: number;
 }
 
+const parsedBase: { raw: string | null; value: Baseline } = { raw: null, value: {} };
+
 /** One round of the link. Never throws: a network / Firebase problem is the round's message. `sendOnly`: only
  * what changed here goes out (he is in the middle of something - nothing is written into his screens); the other
  * members' changes come in on the next full round. */
@@ -418,7 +420,11 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   if (!config || !config.enabled) return fail("الربط غير مفعّل");
   const state = loadLinkState(s);
   const at = now.toISOString();
-  const baseline = parse<Baseline>(s.getSetting(BASE), {});
+  const baselineRaw = s.getSetting(BASE);
+  // ⚡ the baseline (every record's hash) is parsed once, again only when its text changed
+  const baseline: Baseline = baselineRaw !== null && parsedBase.raw === baselineRaw ? parsedBase.value : parse<Baseline>(baselineRaw, {});
+  parsedBase.raw = baselineRaw;
+  parsedBase.value = baseline;
   const snapshot = s.readAll();
   const flat = flattenAll(snapshot, baseline);
   const confirmed = new Set(state.confirmed);
@@ -531,16 +537,19 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     if (!headWritten.ok && !sendError) sendError = headWritten.message;
   }
 
-  // 4. Remember: everything now agreed, except what is still to send or still held.
-  const base = nextBaseline(merged.data, baseline, held);
-  for (const op of unsent) {
-    const prev = baseline[op.k]?.hashes[op.r];
-    const entry = base[op.k];
-    if (!entry) continue;
-    if (prev === undefined) delete entry.hashes[op.r];
-    else entry.hashes[op.r] = prev;
+  // 4. Remember: everything now agreed, except what is still to send or still held. (⚡ a round where nothing moved
+  // either way leaves it as it was - not rebuilt and rewritten every few seconds.)
+  if (localOps.length > 0 || merged.changedKeys.length > 0 || held.length > 0 || baselineRaw === null) {
+    const base = nextBaseline(merged.data, baseline, held);
+    for (const op of unsent) {
+      const prev = baseline[op.k]?.hashes[op.r];
+      const entry = base[op.k];
+      if (!entry) continue;
+      if (prev === undefined) delete entry.hashes[op.r];
+      else entry.hashes[op.r] = prev;
+    }
+    s.setSetting(BASE, JSON.stringify(base));
   }
-  s.setSetting(BASE, JSON.stringify(base));
   if (merged.conflicts.length > 0) {
     const all = [...merged.conflicts.map((c) => ({ ...c, seenAt: at })), ...loadConflicts(s)].slice(0, 200);
     s.setSetting(CONFLICTS, JSON.stringify(all));

@@ -110,3 +110,24 @@ describe("merge", () => {
     expect(unflattenKey(flattenKey(JSON.stringify({ d: [] })))).toBe('{"d":[]}');
   });
 });
+
+describe("⚡ rounds don't redo unchanged stores (his Nov 10 2026 «بطء شديد»)", () => {
+  it("an unchanged store keeps its records object; a changed one is cut again", async () => {
+    const { flattenAll, hashesOf, merge, diff, baselineOf } = await import("./deviceSync");
+    const a = flattenAll({ starnet_x_v1: JSON.stringify([{ id: "1", n: 1 }]), starnet_y_v1: "{}" });
+    const b = flattenAll({ starnet_x_v1: JSON.stringify([{ id: "1", n: 1 }]), starnet_y_v1: "{}" });
+    expect(b.starnet_x_v1).toBe(a.starnet_x_v1);
+    const c = flattenAll({ starnet_x_v1: JSON.stringify([{ id: "1", n: 2 }]), starnet_y_v1: "{}" });
+    expect(c.starnet_x_v1).not.toBe(a.starnet_x_v1);
+    expect(JSON.parse(c.starnet_x_v1!.records["1"]!)).toEqual({ id: "1", n: 2 });
+    // a merge never changes the shared records: the touched store is a copy, the others are the same objects
+    const before = JSON.stringify(c);
+    const m = merge(c, [], [{ k: "starnet_x_v1", s: "array", r: "2", v: '{"id":"2"}', at: "2026-11-10T10:00:00Z" }]);
+    expect(JSON.stringify(c)).toBe(before);
+    expect(m.data.starnet_y_v1).toBe(c.starnet_y_v1);
+    expect(Object.keys(m.data.starnet_x_v1!.records)).toEqual(["1", "2"]);
+    expect(Object.keys(hashesOf(m.data.starnet_x_v1!))).toEqual(["1", "2"]);
+    // nothing changed since the baseline → nothing to send
+    expect(diff(baselineOf(c), flattenAll({ starnet_x_v1: JSON.stringify([{ id: "1", n: 2 }]), starnet_y_v1: "{}" }), "t").ops).toEqual([]);
+  });
+});
