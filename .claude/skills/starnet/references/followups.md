@@ -12,11 +12,17 @@ into the working session) and whenever a task closes - short, the open lines onl
    later Billing → Add credits (5$) with an international card (KAST) → API Keys → Create Key → paste in
    الإعدادات ← البوتات ← «🤖 مساعد Claude» ← حفظ ← 🧪 اختبار. Never send the key in chat.
 2. 🧪 «لقطة تشخيص» of a Starlink support-ticket page (unblocks the auto-reply).
-3. 📧 Gmail filter for his domain mail (postponed during the «بريد على نطاقي» setup): To `@starnet-om.com` →
+3. 🧾 «لقطة تشخيص» of a device's Starlink **Billing** page with a balance due (his example: 282.62 BBD) - unblocks
+   «كشف الفوترة» below.
+4. 📧 Gmail filter for his domain mail (postponed during the «بريد على نطاقي» setup): To `@starnet-om.com` →
    Create filter → ✓ Never send it to Spam.
 
 ## 🛠️ لم يكتمل في التطبيق
 
+0. 🧾 «كشف الفوترة» (his Nov 10 2026 ask: «أريد منك فهم هذه الفوترة وكيفية الدفع عنها، لكي تضع لي زر اسمه كشف
+   الفوترة… مثال: هذا الجهاز عليه 282.62 BBD»): read the Billing page's invoice list (date, description, amount,
+   status) per device, explain what makes up the balance and how to pay it. Waits for the Billing snapshot + his
+   answers on what the statement shows.
 1. 💬 Auto-reply on the Starlink support page (#89) - waits for 1 + 2 above. Auto-send only when `safe_to_send`.
 2. 🔴 Unread count on «💬 الدردشة» in «المزيد» (said «لم يُبنَ بعد» when the chat shipped; only inside the chat page).
 3. Chat brief (SADAGHA, in his order): 🧾 rep statement period/type + Excel · ⚖️ disputes centre · 👥 member-to-member
