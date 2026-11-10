@@ -20633,3 +20633,18 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 /* 🤖 the assistant */
 .assistant-text { white-space: pre-wrap; }
 .assistant-ticket { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.9rem; }
+
+/* 📋 قائمة المتابعة (reminders page) */
+.follow-group { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.follow-group-title { margin: 0; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); }
+.follow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.follow-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); min-width: 0; }
+.follow-row.is-done .follow-title { text-decoration: line-through; color: var(--text-muted); }
+.follow-check { flex: none; width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--border); background: transparent; color: var(--brand); font-weight: 800; display: grid; place-items: center; cursor: pointer; }
+.follow-row.is-done .follow-check { border-color: var(--brand); }
+.follow-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: start; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.follow-title { font-size: 0.92rem; overflow-wrap: anywhere; }
+.follow-waits { color: var(--text-muted); font-size: 0.76rem; }
+.follow-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+.follow-steps { margin: 0 0 8px; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.6; overflow-wrap: anywhere; }
+.follow-group-toggle { background: none; border: 0; padding: 4px 0; text-align: start; font: inherit; font-size: 0.82rem; font-weight: 700; color: var(--brand); cursor: pointer; }

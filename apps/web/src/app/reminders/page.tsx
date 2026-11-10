@@ -33,6 +33,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { bucketPromises, loadPromises, type PaymentPromise } from "@/lib/paymentPromises";
 import { DebtAgingSection } from "@/components/DebtAgingSection";
+import { FollowUpsSection } from "@/components/FollowUpsSection";
 import { computeDebtAging } from "@/lib/debtAging";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -152,6 +153,8 @@ export default function RemindersPage() {
         </Link>
         <h1 className="section-title">التذكيرات</h1>
       </div>
+
+      <FollowUpsSection />
 
       {deviceReminders.length > 0 && (
         <section className="section" data-tour="device-reminders">

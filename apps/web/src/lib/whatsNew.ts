@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-10-follow-ups",
+    date: "2026-11-10",
+    title: "📋 قائمة المتابعة في التذكيرات",
+    steps: [
+      {
+        path: "/reminders",
+        target: "follow-ups",
+        title: "📋 ما بقي مفتوحًا",
+        after: "في أعلى «التذكيرات»: «عليك أنت» (خطوات تفعيل Claude، لقطة التشخيص لصفحة الدعم) و«لم يكتمل في التطبيق» (كل ميزة متفق عليها ولم تُبنَ بعد). اضغط أي سطر لترى خطواته، والمربع ليصير «تمّت». وتستطيع إضافة ملاحظتك الخاصة.",
+      },
+    ],
+  },
+  {
     id: "2026-11-09-claude-assistant",
     date: "2026-11-09",
     title: "🤖 مساعد Claude: أسئلة عن بياناتك وتذاكر دعم Starlink",

@@ -3395,3 +3395,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ticket, writes the reply in the ticket's language + an Arabic translation, and marks `safe_to_send`. **Guardrail
   (told to him):** it sends alone only when the reply is safe (no payment, no cancellation, no new commitment, no
   personal data beyond the device); otherwise it shows him the translation and the reply to send or edit.
+
+## 📋 «قائمة المتابعة» on the reminders page (Nov 10 2026)
+
+- His «أضف هذه الخطوات إلى قائمة التذكيرات لاحقًا، وأضف لها كل الأشياء التي لم نكمل تطبيقها، واضح» (after the
+  Claude payment page refused «Vos informations n'ont pas pu être enregistrées» - a made-up tax number «Mrt001» was
+  typed; advice: leave the tax field empty → «Carte» → «Ignorer pour le moment» and add credits later with an
+  international card such as KAST).
+- Top of «التذكيرات» (owner only, `components/FollowUpsSection.tsx`, `lib/followUps.ts`): «👤 عليك أنت» (his own steps:
+  Claude key, the support-ticket «🧪 لقطة تشخيص») and «🛠️ لم يكتمل في التطبيق» (agreed / asked-for features not built
+  yet). Tap a line → its steps in a sheet; the box ticks it «تمّت»; «＋ أضف ملاحظة» for his own lines.
+- **Rule for every future update:** the open items ship in `FOLLOW_BUILT_IN`; when a feature on it is built, remove its
+  item in the same commit, and add any new agreed-but-not-built item there. His ticks and own lines are
+  `starnet_followups_v1` (backed up, team link, never in a rep's copy).

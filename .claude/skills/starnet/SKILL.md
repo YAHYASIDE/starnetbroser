@@ -83,6 +83,10 @@ normal, run it as its own command).
   he installs the update; Settings → «🆕 ما الجديد» replays it. Several commits before one APK can
   share one release (extend its steps). Check it with Playwright like any screen.
 
+- **📋 Keep «قائمة المتابعة» true** (his Nov 2026 rule): `FOLLOW_BUILT_IN` in `apps/web/src/lib/followUps.ts`
+  lists what is still open (his own steps + agreed features not built). Building one → remove its item in the same
+  commit; agreeing to something not built now, or giving him steps to do → add an item.
+
 - Commit on the working branch (`git branch --show-current`; at the time of writing
   `claude/local-isolated-browser`, PR #3). Message: an emoji + Arabic title line, then short Arabic
   bullets of what the operator will see; end with the attribution trailer lines the session gives.
