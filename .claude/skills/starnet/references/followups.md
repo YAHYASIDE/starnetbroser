@@ -21,8 +21,10 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 0. 🧾 «كشف الفوترة» (his Nov 10 2026 ask: «أريد منك فهم هذه الفوترة وكيفية الدفع عنها، لكي تضع لي زر اسمه كشف
    الفوترة… مثال: هذا الجهاز عليه 282.62 BBD»): read the Billing page's invoice list (date, description, amount,
-   status) per device, explain what makes up the balance and how to pay it. Waits for the Billing snapshot + his
-   answers on what the statement shows.
+   status) per device, explain what makes up the balance and how to pay it. He left the choices to me («لا تفضيل»)
+   → defaults: the invoices (date, subscription / order, amount, paid or not) + the balance in Starlink's currency and
+   in USD / سيفا, a «💳 ادفع الآن» that opens the device's payment page with his card filled; the button on the device
+   card (sheet). Waits only for the Billing snapshot.
 1. 💬 Auto-reply on the Starlink support page (#89) - waits for 1 + 2 above. Auto-send only when `safe_to_send`.
 2. 🔴 Unread count on «💬 الدردشة» in «المزيد» (said «لم يُبنَ بعد» when the chat shipped; only inside the chat page).
 3. Chat brief (SADAGHA, in his order): 🧾 rep statement period/type + Excel · ⚖️ disputes centre · 👥 member-to-member
