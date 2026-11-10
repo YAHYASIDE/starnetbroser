@@ -15,6 +15,16 @@ describe("🧾 reading a transfer receipt (his Nov 7 2026 ask)", () => {
     expect(parseReceipt("تم التحويل\nالمبلغ 1500 أوقية\nرقم العملية: TX99887766\n٠٢/١١/٢٠٢٦")).toEqual({ ref: "TX99887766", amount: 1500, unit: "MRU", at: "2026-11-02" });
   });
 
+  it("a receipt sheet over the wallet: the balance above it is never the amount (his Nov 10 2026 report)", () => {
+    // the phone reads the wallet's balance first, then the sheet's labels column, then its values column
+    const overWallet = ["Simple", "72 ** ** 36", "111 163 CFA", "Transfert d'argent réussi !", "Bénéficiaire", "Montant", "Total", "@shop.example", "67 500 CFA", "67 500 CFA", "Expéditeur", "70000002", "Date", "10 11 2026 à 13:14", "Référence", "PP261110.1314.B00001", "Nouveau solde"].join("\n");
+    expect(parseReceipt(overWallet)).toMatchObject({ amount: 67500, unit: "CFA", ref: "PP261110.1314.B00001" });
+    expect(checkReceiptAmount(parseReceipt(overWallet), 13500, "SIFA")).toBe("ok");
+    // one value only, and a «Nouveau solde» amount printed: the solde is skipped
+    expect(parseReceipt("Montant\nNouveau solde 43 663 CFA\n20 000 CFA").amount).toBe(20000);
+    expect(parseReceipt("Solde: 90 000 CFA\nTransfert 15 000 CFA")).toMatchObject({ amount: 15000 });
+  });
+
   it("a phone number, a date or a year is never taken for the reference; nothing readable → nothing", () => {
     expect(parseReceipt("Bénéficiaire 70000001\nDate 01 11 2026\nMontant 5 000 CFA").ref).toBeUndefined();
     expect(parseReceipt("photo floue")).toEqual({});

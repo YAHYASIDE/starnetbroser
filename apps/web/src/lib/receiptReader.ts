@@ -24,10 +24,19 @@ export interface ReceiptReaderDeps {
 }
 
 const MAX_TRIES = 3;
+/** Raised when the reading improves: a pending request read by an older one is read again (v2, Nov 10 2026: the
+ * wallet's balance above a receipt sheet was taken for the amount). */
+export const READER_VERSION = 2;
 
 /** The requests whose photo is still to read. */
 export function receiptsToRead(list: RepRequestList): RepRequest[] {
-  return list.filter((r) => r.status === "pending" && (r.kind === "payment" || r.kind === "handover") && r.proofFileId && (!r.receipt || (r.receipt.error && (r.receipt.tries ?? 0) < MAX_TRIES)));
+  return list.filter(
+    (r) =>
+      r.status === "pending" &&
+      (r.kind === "payment" || r.kind === "handover") &&
+      r.proofFileId &&
+      (!r.receipt || (r.receipt.error ? (r.receipt.tries ?? 0) < MAX_TRIES : (r.receipt.v ?? 1) < READER_VERSION)),
+  );
 }
 
 /** What the rep is told when he sends a receipt already used. */
@@ -64,11 +73,12 @@ export async function readPendingReceipts(d: ReceiptReaderDeps): Promise<number>
       d.save(
         d.load().map((r) => {
           if (r.id !== request.id) return r;
-          const { error: _e, tries: _t, ...was } = r.receipt ?? { readAt: "" };
-          return { ...r, receipt: { ...was, ...read, hash, readAt: now.toISOString() }, ...(dup ? { receiptDup: dup } : {}) };
+          const { error: _e, tries: _t, amount: _a, unit: _u, ref: _r, at: _at, ...was } = r.receipt ?? { readAt: "" };
+          return { ...r, receipt: { ...was, ...read, hash, readAt: now.toISOString(), v: READER_VERSION }, ...(dup ? { receiptDup: dup } : {}) };
         }),
       );
-      if (dup) await d.tellRep(request.repId, duplicateReceiptMessage(dup, read), bot).catch(() => undefined);
+      // (a re-read by a newer reader never tells him twice)
+      if (dup && !request.receiptDup) await d.tellRep(request.repId, duplicateReceiptMessage(dup, read), bot).catch(() => undefined);
       done += 1;
     } catch {
       // the next run tries again

@@ -77,17 +77,30 @@ function readRef(lines: string[]): string | undefined {
   return ref.toUpperCase().replace(/\s+/g, "");
 }
 
+const TOTAL_LABEL = /^\s*total\b|الإجمالي|المجموع/i;
+const BALANCE_LABEL = /(solde|balance|الرصيد|رصيدك)/i;
+
+/** The transferred amount. His Nov 10 2026 report: a Max it receipt sheet over the wallet screen - the wallet's balance
+ * «111 163 CFA» sat above it and was taken (the first amount) instead of «Montant / Total 67 500 CFA», read by the phone
+ * as two columns (labels, then values). So: a value next to «Montant» wins; then one printed twice (Montant + Total);
+ * then one next to «Total»; a value next to «solde / balance» (the wallet's own) never counts; else the first. */
 function readAmount(lines: string[]): { amount: number; unit: "CFA" | "MRU" } | undefined {
-  const found: { amount: number; unit: "CFA" | "MRU"; labelled: boolean }[] = [];
+  const found: { amount: number; unit: "CFA" | "MRU"; score: number; at: number }[] = [];
+  const near = (re: RegExp, i: number) => re.test(lines[i]!) || (i > 0 && re.test(lines[i - 1]!) && !new RegExp(AMOUNT_RE.source, "i").test(lines[i - 1]!));
   lines.forEach((line, i) => {
-    const labelled = AMOUNT_LABEL.test(line) || (i > 0 && AMOUNT_LABEL.test(lines[i - 1]!) && !AMOUNT_RE.test(lines[i - 1]!));
-    AMOUNT_RE.lastIndex = 0;
-    for (const m of line.matchAll(AMOUNT_RE)) found.push({ amount: numberOf(m[1]!), unit: unitOf(m[3]!), labelled });
-    for (const m of line.matchAll(UNIT_FIRST_RE)) found.push({ amount: numberOf(m[2]!), unit: unitOf(m[1]!), labelled });
+    let score = 0;
+    if (near(AMOUNT_LABEL, i)) score += 100;
+    else if (near(TOTAL_LABEL, i)) score += 40;
+    if (near(BALANCE_LABEL, i)) score -= 1000;
+    for (const m of line.matchAll(new RegExp(AMOUNT_RE.source, "gi"))) found.push({ amount: numberOf(m[1]!), unit: unitOf(m[3]!), score, at: found.length });
+    for (const m of line.matchAll(new RegExp(UNIT_FIRST_RE.source, "gi"))) found.push({ amount: numberOf(m[2]!), unit: unitOf(m[1]!), score, at: found.length });
   });
-  const ok = found.filter((f) => f.amount > 0);
-  const pick = ok.find((f) => f.labelled) ?? ok[0];
-  return pick ? { amount: pick.amount, unit: pick.unit } : undefined;
+  const ok = found.filter((f) => f.amount > 0 && f.score > -1000);
+  if (!ok.length) return undefined;
+  const times = (f: (typeof ok)[number]) => ok.filter((g) => g.amount === f.amount && g.unit === f.unit).length;
+  const rank = (f: (typeof ok)[number]) => f.score + (times(f) > 1 ? 60 : 0);
+  const pick = [...ok].sort((a, b) => rank(b) - rank(a) || a.at - b.at)[0]!;
+  return { amount: pick.amount, unit: pick.unit };
 }
 
 function readDate(text: string): string | undefined {

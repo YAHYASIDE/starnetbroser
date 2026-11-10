@@ -61,4 +61,14 @@ describe("🧾 reading the reps' receipts as they arrive", () => {
     expect(w.list()[0]!.receipt).toMatchObject({ error: "download", tries: 3 });
     expect(w.list()[1]!.receipt).toBeUndefined();
   });
+
+  it("a request read by an older reader is read again once, correcting its amount; the rep is not told twice", async () => {
+    const old = req("r1", "f1", { receipt: { ref: "PP261101.0930.B12345", amount: 111163, unit: "CFA", readAt: "2026-11-07T09:55:00Z", hash: "h-img1" }, receiptDup: { requestId: "r0", repId: "rep1", at: "2026-11-06T09:00:00Z", by: "ref" } });
+    const w = world([old], { f1: "img1" }, { img1: RECEIPT });
+    expect(receiptsToRead(w.list())).toHaveLength(1);
+    expect(await readPendingReceipts(w.deps)).toBe(1);
+    expect(w.list()[0]!.receipt).toMatchObject({ amount: 50000, v: 2 });
+    expect(w.told).toEqual([]);
+    expect(receiptsToRead(w.list())).toHaveLength(0);
+  });
 });

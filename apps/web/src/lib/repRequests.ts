@@ -43,7 +43,7 @@ export interface RepRequest {
   proofBot?: "reps" | "money";
   /** 🧾 What was read from that photo when it arrived (receiptCheck.ts): its reference, amount, date, and the
    * picture's fingerprint. `error` = it couldn't be downloaded yet (tried again later). */
-  receipt?: { ref?: string; amount?: number; unit?: "CFA" | "MRU"; at?: string; hash?: string; readAt: string; tries?: number; error?: string };
+  receipt?: { ref?: string; amount?: number; unit?: "CFA" | "MRU"; at?: string; hash?: string; readAt: string; tries?: number; error?: string; /** the reader's version (receiptReader.ts READER_VERSION) */ v?: number };
   /** ⛔ The same reference / picture as an earlier request still standing - the approval is locked (his Nov 7 2026
    * choice) until he taps «أعرف، سجّله مع ذلك» (`receiptOverride`). */
   receiptDup?: { requestId: string; repId: string; at: string; by: "ref" | "img" };

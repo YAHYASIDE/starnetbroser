@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-10-receipt-amount",
+    date: "2026-11-10",
+    title: "🧾 قراءة مبلغ الوصل",
+    steps: [
+      {
+        path: "/representatives",
+        title: "🧾 المبلغ الصحيح من وصل Max it",
+        before: "وصل التحويل فوق شاشة المحفظة: قرأ رصيد المحفظة (111,163 CFA) بدل المبلغ المحوَّل، فظهر «⚠️ لا يطابق ما كتبه».",
+        after: "يأخذ المبلغ بجانب «Montant» أو المكرَّر في Montant و Total، ولا يأخذ رصيد المحفظة أبدًا. والطلبات المنتظرة تُقرأ من جديد وحدها.",
+      },
+    ],
+  },
+  {
     id: "2026-11-10-rep-profit-24h",
     date: "2026-11-10",
     title: "📈 ربح المندوب في آخر 24 ساعة",

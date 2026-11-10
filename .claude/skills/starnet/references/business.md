@@ -3409,3 +3409,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   Cause: a device share sits on the day Starlink was paid (`shipmentProfitDate`) but its row time was the shipment's
   `createdAt` (days earlier) → the 24 h filter dropped it. Now the row time is `shipmentProfitMoment` (the
   `settledAt`), so a share appears in the 24 h list from the moment it became real (`repStore.buildRepDailyStatement`).
+
+## 🧾 Receipt amount: never the wallet's balance (Nov 10 2026)
+
+- His «خطأ كبير، فهي فعلًا 13500 سيفا»: a Max it «Transfert d'argent réussi» sheet over the wallet screen - the reader
+  took the wallet's balance above it (111,163 CFA → «⚠️ لا يطابق») instead of «Montant / Total 67,500 CFA» (= 13,500
+  سيفا), because the phone reads the labels column then the values column. `receiptCheck.readAmount` now scores: next
+  to «Montant» > printed twice (Montant + Total) > next to «Total»; next to «solde / balance / الرصيد» never; else the
+  first. `READER_VERSION` (2) on each read: pending requests read by an older reader are read again once (the rep is
+  not told about a duplicate twice).
