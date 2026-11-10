@@ -77,7 +77,9 @@ export interface StatementData {
 
 export function statementKindLabel(row: PartyStatementRow, isClient: boolean): string {
   const adjustment = row.adjustment;
-  return row.type === "return"
+  return row.type === "deleted"
+    ? "🗑️ عملية محذوفة"
+    : row.type === "return"
     ? "↩ مرتجع"
     : row.type === "adjustment" && adjustment
       ? adjustment.direction === "owesUs"
@@ -122,7 +124,7 @@ export function buildStatementData(
       date: row.date,
       label: statementKindLabel(row, isClient),
       note: row.note?.trim() || undefined,
-      amount: `${row.delta < 0 ? "-" : "+"}${formatAmount(row.amount)} ${currencyLabel(row.currencyCode)}`,
+      amount: row.type === "deleted" ? `🗑️ ${formatAmount(row.amount)} ${currencyLabel(row.currencyCode)}` : `${row.delta < 0 ? "-" : "+"}${formatAmount(row.amount)} ${currencyLabel(row.currencyCode)}`,
       balance: `${formatAmount(row.balanceAfter)} ${currencyLabel(row.currencyCode)}`,
       due: row.balanceAfter > EPSILON,
     })),

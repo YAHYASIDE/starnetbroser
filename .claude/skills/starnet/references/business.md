@@ -3433,3 +3433,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   2 minutes (~20× less), longest freeze 0.35 s.
 - Rule: anything on a timer must do nothing when nothing changed - measure with `scratchpad/perf.js`-style profiling
   (big fake data, `next build` + `next start`, CPU throttle 4) before adding another background job.
+
+## 🗑️ Deleted operations stay in the statements (Nov 10 2026)
+
+- His «في كشف حساب أي زبون أو مندوب، عندما نحذف أي عملية أو مبلغ تظهر في كشف حسابه». His answers: it shows **as the
+  newest operation at the moment it was deleted** («لا تظهر فوق، كأنها آخر عملية، وعندما أضيف عملية أخرى تظهر فوقها»),
+  in **every** statement (app, PDF, bot, chat), with **«↩️ استرجاع»**.
+- `lib/deletedOps.ts`: the ledger / rep-settlement / له-عليه saves log what disappeared (`starnet_deleted_ops_v1`, backed
+  up, team link, not in a rep's copy). Not logged: a record posted with another (`invoiceId` / `sourceId`), an entry
+  moved to another device (still in the ledger), a clean-up of more than 20 at once. A record back in its store no
+  longer shows (derived). Rows: customer `PartyStatementRow` type "deleted" (`clientDeletedRows`, delta 0); rep
+  `RepStatementRow` type "deleted" (`repDeletedRows`: his settlements, his devices' shipments → «ربحه», his
+  customers' devices → «ما عليه»; after his reset only) in the table, the PDF, `repWallets` (bot «كشفي», chat
+  statement). Restore: `deletedOpsStore.restoreDeletedOp` (then the page remounts).

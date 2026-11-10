@@ -11,6 +11,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { loadCashEntries } from "./cashStore";
 import { buildClientCombinedStatement, computeClientCombinedTotals } from "./clientAccount";
+import { deletedNow } from "./deletedOpsStore";
 import { clientDevicesWithHistory, loadClientMoves } from "./clientMoves";
 import { listClients, loadClientStore } from "./clientStore";
 import { loadDemoAccounts } from "./demoAccountStore";
@@ -216,7 +217,7 @@ async function answerStatement(query: string): Promise<void> {
       party,
       true,
       totals,
-      buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore, moves),
+      buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore, moves, deletedNow()),
       devices.map((d) => d.name.trim()).filter(Boolean),
       net,
     );

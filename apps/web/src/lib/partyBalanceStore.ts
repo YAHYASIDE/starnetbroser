@@ -6,6 +6,7 @@
  */
 
 import type { PaymentMethod } from "./ledgerStore";
+import { adjustmentDeletions, noteDeletions } from "./deletedOps";
 
 export type PartyKind = "client" | "supplier";
 
@@ -52,7 +53,10 @@ export function loadPartyAdjustments(): PartyAdjustmentList {
 
 export function savePartyAdjustments(list: PartyAdjustmentList): void {
   if (typeof window === "undefined") return;
+  const before = loadPartyAdjustments();
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  // 🗑️ a deleted له / عليه amount stays in the statement (lib/deletedOps.ts)
+  noteDeletions(adjustmentDeletions(before, list, new Date().toISOString()));
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----

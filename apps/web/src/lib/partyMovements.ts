@@ -36,9 +36,9 @@ export interface MovementView {
   before: number;
   /** Always positive; its label says which way. */
   middle: number;
-  middleLabel: "المضاف للدين" | "المسدَّد" | "المخصوم";
-  /** debt = red (adds to what he owes), pay = green. */
-  tone: "debt" | "pay";
+  middleLabel: "المضاف للدين" | "المسدَّد" | "المخصوم" | "المحذوف";
+  /** debt = red (adds to what he owes), pay = green, deleted = 🗑️ (counts for nothing). */
+  tone: "debt" | "pay" | "deleted";
   after: number;
   /** A shipment's profit: computed, expected (its D still unpaid - his Oct 20 2026 ask), not computable
    * yet, or none (not a shipment). */
@@ -101,6 +101,10 @@ export function movementView(row: PartyStatementRow, ctx: MovementContext): Move
     tone: (adds ? "debt" : "pay") as MovementView["tone"],
     ...(row.note?.trim() ? { note: row.note.trim() } : {}),
   };
+  if (row.type === "deleted") {
+    // 🗑️ shown where it was deleted, the balance unchanged (lib/deletedOps.ts)
+    return { ...base, filter: "adjust", icon: "🗑️", title: "عملية محذوفة", middle: row.amount, middleLabel: "المحذوف", tone: "deleted", ...(row.deviceName ? { device: row.deviceName } : {}) };
+  }
   if (row.type === "device-charge" || row.type === "device-payment") {
     const name = row.deviceName?.trim() ?? "";
     const email = (row.accountId ? ctx.emailOf?.(row.accountId)?.trim() : undefined) || (EMAIL.test(name) ? name : undefined);

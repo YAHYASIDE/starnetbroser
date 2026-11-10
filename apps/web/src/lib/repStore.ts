@@ -10,6 +10,7 @@
  */
 
 import { Invoice, invoiceRepCommission } from "./invoiceStore";
+import { deletedDay, noteDeletions, settlementDeletions, type DeletedOp } from "./deletedOps";
 import { LedgerByAccount, LedgerCurrency, LedgerEntry } from "./ledgerStore";
 import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, shipmentProfitMoment, ShipmentProfit } from "./accountingStore";
 import { repCostFactor, repCostUsd, repProfitUsd, type RepRatePlan } from "./repRates";
@@ -320,7 +321,10 @@ export function loadRepSettlements(): RepSettlementList {
 
 export function saveRepSettlements(settlements: RepSettlementList): void {
   if (typeof window === "undefined") return;
+  const before = loadRepSettlements();
   window.localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(settlements));
+  // 🗑️ a deleted rep operation stays in his statement (lib/deletedOps.ts)
+  noteDeletions(settlementDeletions(before, settlements, new Date().toISOString()));
 }
 
 export interface RecordRepSettlementInput {
@@ -689,7 +693,35 @@ export type RepStatementRow =
   | { type: "device"; id: string; date: string; createdAt: string; row: RepDeviceCommissionRow }
   | { type: "customer"; id: string; date: string; createdAt: string; op: RepCustomerOp }
   | { type: "invoice"; id: string; date: string; createdAt: string; row: RepInvoiceCommissionRow }
-  | { type: "settlement"; id: string; date: string; createdAt: string; settlement: RepSettlement };
+  | { type: "settlement"; id: string; date: string; createdAt: string; settlement: RepSettlement }
+  /** 🗑️ An operation of his deleted at that moment (lib/deletedOps.ts) - shown in its account, never counted. */
+  | { type: "deleted"; id: string; date: string; createdAt: string; deleted: DeletedOp; account: "debt" | "profit"; amount: number; currency: string };
+
+export type RepDeletedRow = Extract<RepStatementRow, { type: "deleted" }>;
+
+const PROFIT_KINDS: ReadonlySet<string> = new Set(["commissionPayout", "profitTransfer", "profitCredit"]);
+
+/** 🗑️ His deleted operations as statement rows: his settlements, his devices' shipments (his share → «ربحه») and
+ * the operations on his customers' devices (`customerAccounts` → «ما عليه»). After his reset only (`resetAt`). */
+export function repDeletedRows(repId: string, deleted: DeletedOp[], customerAccounts: ReadonlySet<string>, resetAt?: string): RepDeletedRow[] {
+  const rows: RepDeletedRow[] = [];
+  for (const d of deleted) {
+    if (resetAt && d.at <= resetAt) continue;
+    let account: "debt" | "profit";
+    if (d.store === "settlement") {
+      if (d.record.representativeId !== repId) continue;
+      account = PROFIT_KINDS.has(d.record.kind) ? "profit" : "debt";
+    } else if (d.store === "ledger") {
+      if (d.record.kind === "debit" && d.record.representativeId === repId) account = "profit";
+      else if (customerAccounts.has(d.accountId)) account = "debt";
+      else continue;
+    } else continue;
+    const amount = d.record.amount;
+    const currency = d.store === "ledger" ? d.record.currency : d.record.currencyCode;
+    rows.push({ type: "deleted", id: d.id, date: deletedDay(d), createdAt: d.at, deleted: d, account, amount, currency });
+  }
+  return rows;
+}
 
 export interface RepStatementDay {
   date: string;
@@ -710,8 +742,10 @@ export function buildRepDailyStatement(
   invoices: Invoice[],
   settlements: RepSettlementList,
   customerOps: RepCustomerOp[] = [],
+  deleted: RepDeletedRow[] = [],
 ): RepStatementDay[] {
   const rows: RepStatementRow[] = [
+    ...deleted,
     ...customerOps.map((op) => ({ type: "customer" as const, id: op.entryId, date: op.date, createdAt: op.at, op })),
     // A shipment's share lands on the day Starlink was paid (its profit became real), not the
     // day it was sold; a still-D shipment sits on its own date as "expected".

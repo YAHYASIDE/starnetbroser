@@ -44,6 +44,12 @@ export function repWallets(allDays: RepStatementDay[], profitConvert: RepConvert
   for (const day of allDays) {
     for (const row of day.rows) {
       const key = repRowKey(row);
+      if (row.type === "deleted") {
+        // 🗑️ shown in its account where it was deleted, changing nothing (lib/deletedOps.ts)
+        const wallet = row.account === "profit" ? profit : money.find((w) => w.id === row.currency);
+        if (wallet) wallet.lines.push({ key, date: day.date, row, amount: {}, after: row.account === "profit" ? (shown.profit.after[key] ?? {}) : { [wallet.id]: native.debt.after[key]?.[wallet.id] ?? 0 } });
+        continue;
+      }
       const debt = repRowSplit(row, keepCurrency).debt;
       for (const wallet of money) {
         const amount = debt[wallet.id];

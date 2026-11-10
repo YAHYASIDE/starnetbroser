@@ -407,7 +407,8 @@ export function computePartyStoreTotals(
   return result;
 }
 
-export type PartyStatementRowType = "invoice" | "return" | "adjustment" | "device-charge" | "device-payment";
+/** "deleted" (🗑️ lib/deletedOps.ts): an operation deleted at that moment - shown, never counted (delta 0). */
+export type PartyStatementRowType = "invoice" | "return" | "adjustment" | "device-charge" | "device-payment" | "deleted";
 
 export interface PartyStatementRow {
   id: string;

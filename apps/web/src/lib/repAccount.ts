@@ -124,6 +124,7 @@ const SETTLEMENT_SIGN: Record<RepSettlementKind, 1 | -1> = {
 /** What one statement row does to his balance, per currency (positive = we owe him more) - in
  * each record's own currency, or in the chosen display currencies through `convert`. */
 export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurrency): Record<string, number> {
+  if (row.type === "deleted") return {}; // 🗑️ shown, never counted
   if (row.type === "device") {
     const share = row.row.repShareUsd;
     return share !== undefined && Math.abs(share) > EPSILON ? convert(share, "USD", row.row.entry.profitCurrencyRates) : {};
@@ -148,6 +149,7 @@ export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurr
  * - profit «ربحه»: his share of each shipment, his store commissions, minus what you paid him in cash.
  * debt + profit = the old single balance (`repRowDelta`), shown only as «الصافي». Positive = له. */
 export function repRowSplit(row: RepStatementRow, convert: RepConvert = keepCurrency): { debt: Record<string, number>; profit: Record<string, number> } {
+  if (row.type === "deleted") return { debt: {}, profit: {} };
   if (row.type === "device") return { debt: {}, profit: repRowDelta(row, convert) };
   if (row.type === "customer") return { debt: repRowDelta(row, convert), profit: {} };
   if (row.type === "invoice") {
@@ -168,6 +170,7 @@ export function repRowSplit(row: RepStatementRow, convert: RepConvert = keepCurr
 
 /** Which of his two accounts a row moves (an invoice moves both - shown under «ما عليه»). */
 export function repRowAccount(row: RepStatementRow): "debt" | "profit" {
+  if (row.type === "deleted") return row.account;
   if (row.type === "device") return "profit";
   if (row.type === "settlement" && (row.settlement.kind === "commissionPayout" || row.settlement.kind === "profitTransfer" || row.settlement.kind === "profitCredit")) return "profit";
   return "debt";
@@ -312,7 +315,7 @@ export function buildRepPeriodStatement(
         const code = row.row.invoice.currencyCode;
         add(totals.commissions, convert(row.row.commissionAmount, code));
         if (row.row.invoice.paidAmount > 0) add(totals.cashCollected, convert(row.row.invoice.paidAmount, code));
-      } else {
+      } else if (row.type === "settlement") {
         const st = row.settlement;
         add(totals.settled[st.kind], convert(st.amount, st.currencyCode, st.rates));
       }

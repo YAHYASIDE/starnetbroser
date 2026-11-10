@@ -1,4 +1,5 @@
 import { noteChanges, storedBefore } from "./changeLogStore";
+import { ledgerDeletions, noteDeletions } from "./deletedOps";
 /**
  * A separate, purely local bookkeeping ledger: what a CUSTOMER owes the operator, or has paid in
  * credit toward - not to be confused with account.balanceDue, which is the Starlink SUBSCRIPTION's
@@ -238,6 +239,8 @@ export function saveLedgerStore(store: LedgerByAccount): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   // 🔔 a deleted / edited operation is a notice (his Oct 14 2026 ask)
   noteChanges("ledger", before, store);
+  // 🗑️ a deleted payment / charge stays in its statements (lib/deletedOps.ts)
+  noteDeletions(ledgerDeletions(before, store, new Date().toISOString()));
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----

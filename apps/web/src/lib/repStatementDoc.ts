@@ -24,8 +24,10 @@ import {
   type RepPeriodStatement,
 } from "./repAccount";
 import { replayRepClients, repOperations, type RepBookEntry } from "./repClients";
-import { customerOpLabel, SETTLEMENT_LABELS } from "./repRowText";
-import { buildRepDailyStatement, listRepDeviceCommissions, type Representative, type RepSettlementList, type RepStatementRow } from "./repStore";
+import { customerOpLabel, repRowText, SETTLEMENT_LABELS } from "./repRowText";
+import { buildRepDailyStatement, listRepDeviceCommissions, repDeletedRows, type Representative, type RepSettlementList, type RepStatementRow } from "./repStore";
+import type { DeletedOp } from "./deletedOps";
+import { deletedNow } from "./deletedOpsStore";
 import { getStoreItem, type StoreItemRegistry } from "./storeStore";
 
 const EPSILON = 0.0001;
@@ -117,6 +119,7 @@ export function repRowCells(
     const paid = invoice.paidAmount > 0 ? ` · قبض ${formatAmount(invoice.paidAmount)}` : "";
     return [row.date, `🧾 فاتورة متجر${names ? ` · ${names}` : ""}`, `عمولته ${formatAmount(commissionAmount)} ${currencyLabel(invoice.currencyCode)}${paid}`, delta, balance];
   }
+  if (row.type === "deleted") return [row.date, repRowText(row, accountName), `🗑️ ${formatAmount(row.amount)} ${currencyLabel(row.currency)} - لا تُحسب`, delta, balance];
   const s = row.settlement;
   return [row.date, s.expenseId ? "📉 نصيبه من مصروف" : SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
 }
@@ -194,6 +197,8 @@ export interface RepStatementSources {
   repBook: RepBookEntry[];
   invoices: InvoiceList;
   settlements: RepSettlementList;
+  /** 🗑️ Still-deleted operations (default: this phone's, lib/deletedOpsStore.ts). */
+  deleted?: DeletedOp[];
 }
 
 /** His whole current account (after his reset) - the reps page's «الكل» statement - in `convert` and in each
@@ -204,7 +209,9 @@ export function repCurrentStatement(rep: Representative, src: RepStatementSource
   const ledgerNow = ledgerAfterRepReset(rep.resetFrom, src.ledger);
   const replays = replayRepClients(src.clients, src.accounts, ledgerNow, rep.resetFrom ? bookAfterRepReset(rep.resetFrom, src.repBook) : src.repBook);
   const operations = repOperations(rep.id, replays, src.accounts, ledgerNow, { allHisDevices: Boolean(rep.customersHidden) });
-  const days = buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations);
+  // 🗑️ his deleted operations, where they were deleted (his Nov 10 2026 ask - in every statement he gets)
+  const deleted = repDeletedRows(rep.id, src.deleted ?? deletedNow(), new Set(operations.map((o) => o.accountId)), rep.resetFrom?.at);
+  const days = buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations, deleted);
   return { statement: buildRepPeriodStatement(days, {}, convert), native: buildRepPeriodStatement(days, {}, keepCurrency) };
 }
 
@@ -375,6 +382,14 @@ export function repStatementTable(
   for (const day of statement.days) {
     for (const row of day.rows) {
       if (since && row.createdAt < since) continue;
+      if (row.type === "deleted") {
+        // 🗑️ in its own account, at the balance it found (it changes nothing)
+        if (row.account !== account) continue;
+        const key = repRowKey(row);
+        const after = source[account].after[key] ?? {};
+        lines.push({ key, row, before: after, delta: {}, after });
+        continue;
+      }
       const delta = Object.fromEntries(
         Object.entries(repRowSplit(row, account === "debt" ? keepCurrency : convert)[account]).filter(([, v]) => Math.abs(v) > EPSILON),
       );
@@ -400,10 +415,11 @@ export function splitTableByCurrency(lines: RepTableLine[], closing: Record<stri
   const codes: string[] = [];
   for (const [code, v] of Object.entries(closing)) if (Math.abs(v) > EPSILON && !codes.includes(code)) codes.push(code);
   for (const l of lines) for (const code of Object.keys(l.delta)) if (!codes.includes(code)) codes.push(code);
+  for (const l of lines) if (l.row.type === "deleted" && !codes.includes(l.row.currency)) codes.push(l.row.currency);
   const pick = (r: Record<string, number>, code: string) => (code in r ? { [code]: r[code]! } : {});
   return codes.map((code) => ({
     code,
     values: { [code]: closing[code] ?? 0 },
-    lines: lines.filter((l) => code in l.delta).map((l) => ({ ...l, before: pick(l.before, code), delta: pick(l.delta, code), after: pick(l.after, code) })),
+    lines: lines.filter((l) => code in l.delta || (l.row.type === "deleted" && l.row.currency === code)).map((l) => ({ ...l, before: pick(l.before, code), delta: pick(l.delta, code), after: pick(l.after, code) })),
   }));
 }

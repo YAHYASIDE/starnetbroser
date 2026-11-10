@@ -18,6 +18,7 @@ import {
 } from "./invoiceStore";
 import { PartyAdjustment } from "./partyBalanceStore";
 import { entriesOfClient, type ClientMove } from "./clientMoves";
+import { deletedAmount, deletedDay, deletedText, type DeletedOp } from "./deletedOps";
 
 type DeviceRef = Pick<StarlinkAccountSummary, "id" | "name"> & { deletedAt?: string | null; clientId?: string | null };
 
@@ -67,6 +68,8 @@ export function buildClientCombinedStatement(
   devices: DeviceRef[],
   ledgerStore: LedgerByAccount,
   moves: ClientMove[] = [],
+  /** 🗑️ Still-deleted operations (lib/deletedOps.ts stillDeleted) - his own show at the moment they were deleted. */
+  deleted: DeletedOp[] = [],
 ): PartyStatementRow[] {
   const deviceRows: PartyStatementRowInput[] = live(devices).flatMap((device) =>
     clientEntries(ledgerStore, device, clientId, moves).map(
@@ -85,5 +88,37 @@ export function buildClientCombinedStatement(
       }),
     ),
   );
-  return withRunningBalance([...buildPartyStatementRows(invoices, "sale", clientId, adjustments), ...deviceRows]);
+  return withRunningBalance([...buildPartyStatementRows(invoices, "sale", clientId, adjustments), ...deviceRows, ...clientDeletedRows(deleted, clientId, devices, moves)]);
+}
+
+/** 🗑️ The deleted operations that were this customer's: a device operation he had (the device his then), or one of
+ * his له / عليه amounts. Each sits at the moment it was deleted and changes nothing. */
+export function clientDeletedRows(deleted: DeletedOp[], clientId: string, devices: DeviceRef[], moves: ClientMove[] = []): PartyStatementRowInput[] {
+  const byId = new Map(live(devices).map((d) => [d.id, d]));
+  const rows: PartyStatementRowInput[] = [];
+  for (const d of deleted) {
+    let deviceName: string | undefined;
+    if (d.store === "ledger") {
+      const device = byId.get(d.accountId);
+      if (!device || clientEntries({ [d.accountId]: [d.record] }, device, clientId, moves).length === 0) continue;
+      deviceName = device.name;
+    } else if (d.store === "adjustment") {
+      if (d.record.partyKind !== "client" || d.record.partyId !== clientId) continue;
+    } else continue;
+    const { amount, currency } = deletedAmount(d);
+    rows.push({
+      id: d.id,
+      type: "deleted",
+      date: deletedDay(d),
+      createdAt: d.at,
+      currencyCode: currency,
+      ...(deviceName ? { deviceName } : {}),
+      ...(d.store === "ledger" ? { accountId: d.accountId } : {}),
+      note: deletedText(d, () => deviceName),
+      amount,
+      paid: 0,
+      delta: 0,
+    });
+  }
+  return rows;
 }

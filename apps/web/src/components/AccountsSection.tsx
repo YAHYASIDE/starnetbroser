@@ -73,6 +73,8 @@ import { autoCurrencyOf } from "@/lib/partyCurrency";
 import { foreignRateFromQuote, mruQuoteFor, partyNetIn, partyStanding, type PairQuote, type PartyNet } from "@/lib/partyNet";
 import { getCurrency, loadCurrencyStore, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
+import { deletedNow, restoreDeletedOp } from "@/lib/deletedOpsStore";
+import { requestDataReload } from "@/lib/dataReload";
 
 const EPSILON = 0.0001;
 /** 🏷️ A new customer as his Oct 19 2026 form gives it: his categories, his rep, and «حفظ وإضافة جهاز». */
@@ -866,8 +868,15 @@ function PartyCard({
         ? { className: "party-status-credit", label: "🤝 عند المندوب" }
         : { className: "party-status-clear", label: "مسدَّد ✓" };
 
+  // 🗑️ his deleted operations show where they were deleted (lib/deletedOps.ts)
   const fullStatement = () =>
-    isClient ? buildClientCombinedStatement(invoices, adjustments, party.id, statementDevices ?? devices, ledgerStore, clientMoves) : buildPartyStatement(invoices, kind, party.id, adjustments);
+    isClient
+      ? buildClientCombinedStatement(invoices, adjustments, party.id, statementDevices ?? devices, ledgerStore, clientMoves, deletedNow())
+      : buildPartyStatement(invoices, kind, party.id, adjustments);
+  function restoreRow(id: string) {
+    if (!window.confirm("استرجاع هذه العملية كما كانت؟")) return;
+    if (restoreDeletedOp(id)) requestDataReload();
+  }
   const statement = panel !== "statement" ? [] : fullStatement();
   // 📄 His Oct 19 2026 design: each movement in three fixed columns, filtered and searchable (lib/partyMovements.ts).
   const [moveFilter, setMoveFilter] = useState<MovementFilter>("all");
@@ -1158,7 +1167,7 @@ function PartyCard({
                         <div className="party-move-mid">
                           <span>{m.middleLabel}</span>
                           <strong dir="ltr">
-                            {m.tone === "debt" ? "+" : ""}
+                            {m.tone === "debt" ? "+" : m.tone === "deleted" ? "🗑️ " : ""}
                             {formatAmount(m.middle)}
                           </strong>
                         </div>
@@ -1169,6 +1178,11 @@ function PartyCard({
                       </div>
                       <div className="party-move-foot">
                         <span className="party-move-cur">{cur}</span>
+                        {row.type === "deleted" && (
+                          <button type="button" className="party-move-edit" onClick={() => restoreRow(row.id)}>
+                            ↩️ استرجاع
+                          </button>
+                        )}
                         {(() => {
                           const edit = editAction(row);
                           return edit ? (

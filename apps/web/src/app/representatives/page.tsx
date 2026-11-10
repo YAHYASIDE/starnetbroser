@@ -17,6 +17,9 @@ import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
 import { setRepAutoStatement, setRepCustomersHidden, setRepCustomersStay, setRepRates } from "@/lib/repStore";
+import { repDeletedRows } from "@/lib/repStore";
+import { deletedNow, restoreDeletedOp } from "@/lib/deletedOpsStore";
+import { requestDataReload } from "@/lib/dataReload";
 import { shipmentProfitMoment } from "@/lib/accountingStore";
 import { loadProfitReset } from "@/lib/profitReset";
 import { applyRepReset, inRepVersion, pickRepReset, repResetPoints, repVersions, seedRepResetHistory, undoRepReset, type RepVersion } from "@/lib/repResets";
@@ -891,7 +894,9 @@ function RepCard({
     const customerOps = archive
       ? repOperations(rep.id, allReplays, accounts, ledgerStore, { allHisDevices: customersHidden }).filter((op) => inRepVersion(version, { date: op.date, createdAt: op.at }))
       : operations;
-    return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements, customerOps);
+    // 🗑️ his deleted operations, where they were deleted (not in an archived version)
+    const deleted = archive ? [] : repDeletedRows(rep.id, deletedNow(), new Set(operations.map((o) => o.accountId)), rep.resetFrom?.at);
+    return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements, customerOps, deleted);
   }, [panel, sheet, showArchive, version, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1277,11 +1282,30 @@ function RepCard({
               <div><span>الإيميل</span><strong dir="ltr">{rowDeviceEmail(rowSheet.row, accounts)}</strong></div>
             )}
             <div><span>قبل العملية</span><strong>{balanceText(rowSheet.before)}</strong></div>
-            <div><span>الحركة</span><strong><bdi dir="ltr">{signedList(rowSheet.delta)}</bdi></strong></div>
+            <div><span>الحركة</span><strong><bdi dir="ltr">{rowSheet.row.type === "deleted" ? `🗑️ ${formatAmount(rowSheet.row.amount)} ${currencyLabel(rowSheet.row.currency)} - لا تُحسب` : signedList(rowSheet.delta)}</bdi></strong></div>
             <div><span>بعد العملية</span><strong>{balanceText(rowSheet.after)}</strong></div>
           </div>
           <RowPhoto plan={rowProofPlan(rowSheet.row, opLog, rep.id, keptProofs)} />
-          {rowSheet.row.type === "invoice" ? (
+          {rowSheet.row.type === "deleted" ? (
+            <div className="party-sheet-options">
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  const row = rowSheet.row;
+                  if (row.type !== "deleted" || !window.confirm("استرجاع هذه العملية كما كانت؟")) return;
+                  setRowSheet(null);
+                  if (restoreDeletedOp(row.id)) requestDataReload();
+                }}
+              >
+                <span aria-hidden="true">↩️</span>
+                <span>
+                  <strong>استرجاع العملية</strong>
+                  <small>ترجع كما كانت، ويعود أثرها على حسابه</small>
+                </span>
+              </button>
+            </div>
+          ) : rowSheet.row.type === "invoice" ? (
             <p className="settings-hint">🧾 فاتورة متجر - تُعدّل أو تُحذف من المتجر.</p>
           ) : (
             <div className="party-sheet-options">
@@ -2890,7 +2914,13 @@ function RepStatementTable({
                 })()}
               </td>
               <td><BalanceCell values={line.before} /></td>
-              <td className={`rep-table-move ${fillOf(line.delta)}`}>
+              <td className={`rep-table-move ${line.row.type === "deleted" ? "rep-table-deleted" : fillOf(line.delta)}`}>
+                {line.row.type === "deleted" && (
+                  <span>
+                    <bdi dir="ltr">🗑️ {formatAmount(line.row.amount)}</bdi>
+                    <small>{currencyLabel(line.row.currency)}</small>
+                  </span>
+                )}
                 {nonZero(line.delta).map(([code, v]) => (
                   <span key={code}>
                     <bdi dir="ltr">{`${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))}`}</bdi>

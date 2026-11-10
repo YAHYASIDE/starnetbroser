@@ -5,6 +5,8 @@
 
 import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "./ledgerStore";
 import type { RepSettlement, RepSettlementKind, RepStatementRow } from "./repStore";
+import { deletedText } from "./deletedOps";
+import { formatAmount } from "./formatAmount";
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
@@ -31,6 +33,11 @@ export function settlementText(s: RepSettlement): string {
   return SETTLEMENT_LABELS[s.kind];
 }
 
+/** «10,000 سيفا» */
+function formatDeletedAmount(amount: number, currency: string): string {
+  return `${formatAmount(amount)} ${LEDGER_CURRENCY_LABELS[currency as LedgerCurrency] ?? currency}`;
+}
+
 export function customerOpLabel(op: { amount: number; byRep: boolean }): string {
   if (op.amount > 0) return "📡 تجديد عليه";
   return op.byRep ? "💵 سلّمك" : "💵 دفع زبونه لك";
@@ -42,6 +49,7 @@ export function repRowLabel(row: RepStatementRow): string {
   if (row.type === "device") return "📈 حصته من الربح";
   if (row.type === "customer") return customerOpLabel(row.op);
   if (row.type === "invoice") return "🧾 فاتورة متجر";
+  if (row.type === "deleted") return "🗑️ عملية محذوفة";
   return settlementText(row.settlement);
 }
 
@@ -49,6 +57,7 @@ export function repRowLabel(row: RepStatementRow): string {
 export function repRowAccountId(row: RepStatementRow): string | undefined {
   if (row.type === "device") return row.row.accountId;
   if (row.type === "customer") return row.op.accountId;
+  if (row.type === "deleted" && row.deleted.store === "ledger") return row.deleted.accountId;
   return undefined;
 }
 
@@ -64,6 +73,7 @@ export function repRowText(row: RepStatementRow, accountName: (accountId: string
   if (row.type === "device") return `📈 حصته · ${accountName(row.row.accountId)}`;
   if (row.type === "customer") return `${customerOpLabel(row.op)} · ${accountName(row.op.accountId)}`;
   if (row.type === "invoice") return "🧾 فاتورة متجر";
+  if (row.type === "deleted") return `${deletedText(row.deleted, accountName, settlementText)} · ${formatDeletedAmount(row.amount, row.currency)}`;
   const label = settlementText(row.settlement);
   // the note «🧹 تصفير الربح» is the label itself - never twice
   const note = row.settlement.note && row.settlement.note !== label ? row.settlement.note : "";

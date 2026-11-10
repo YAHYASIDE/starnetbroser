@@ -33,11 +33,14 @@ import {
 import {
   buildRepDailyStatement,
   listRepDeviceCommissions,
+  repDeletedRows,
   totalRepDeviceCommissions,
   type Representative,
   type RepSettlementList,
 } from "./repStore";
 import { repWallets, type RepWallet } from "./repWallets";
+import type { DeletedOp } from "./deletedOps";
+import { deletedNow } from "./deletedOpsStore";
 
 export interface RepPositionInput {
   rep: Representative;
@@ -49,6 +52,8 @@ export interface RepPositionInput {
   settlements: RepSettlementList;
   /** Into the currencies the operator shows his reps in (أوقية / سيفا). */
   convert: RepConvert;
+  /** 🗑️ Still-deleted operations (default: this phone's). */
+  deleted?: DeletedOp[];
 }
 
 export interface RepPosition {
@@ -93,7 +98,9 @@ export function repPosition(input: RepPositionInput): RepPosition {
   const active = splitRepRecords(rep, { deviceRows: listRepDeviceCommissions(rep.id, input.ledgerStore), invoices: input.invoices, settlements: input.settlements }, "active");
   const account = buildRepPeriodStatement(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements), {}, convert);
   const totals = totalRepDeviceCommissions(active.deviceRows);
-  const wallets = repWallets(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations), convert);
+  // 🗑️ his deleted operations show in his accounts' pages (the money bot's «كشفي», the chat statement)
+  const deleted = repDeletedRows(rep.id, input.deleted ?? deletedNow(), new Set(operations.map((o) => o.accountId)), rep.resetFrom?.at);
+  const wallets = repWallets(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations, deleted), convert);
   return {
     ...(rep.resetFrom ? { since: rep.resetFrom.date } : {}),
     customers: rows.filter((r) => r.current),
