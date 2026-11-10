@@ -11,7 +11,7 @@
 
 import { Invoice, invoiceRepCommission } from "./invoiceStore";
 import { LedgerByAccount, LedgerCurrency, LedgerEntry } from "./ledgerStore";
-import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, ShipmentProfit } from "./accountingStore";
+import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, shipmentProfitMoment, ShipmentProfit } from "./accountingStore";
 import { repCostFactor, repCostUsd, repProfitUsd, type RepRatePlan } from "./repRates";
 
 export interface Representative {
@@ -719,7 +719,9 @@ export function buildRepDailyStatement(
       type: "device" as const,
       id: row.entry.id,
       date: shipmentProfitDate(row.entry),
-      createdAt: row.entry.createdAt,
+      // 🕒 when the share became real (Starlink paid), not when the shipment was recorded - a renewal recorded
+      // days ago and paid today belongs in «ربحه · آخر 24 ساعة» (his Nov 10 2026 report: 0 lines, profit moved)
+      createdAt: shipmentProfitMoment(row.entry).createdAt,
       row,
     })),
     ...listRepInvoiceCommissions(representativeId, invoices).map((row) => ({
