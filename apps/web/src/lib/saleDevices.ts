@@ -81,7 +81,7 @@ export function kitClashMessage(clash: KitClash, clientName?: (id: string) => st
   return `رقم KIT ${clash.kit} مسجّل مسبقًا للجهاز «${clash.accountName ?? ""}»${owner ? ` (${owner})` : ""} - افتحه من الأجهزة بدل إنشاء نسخة ثانية`;
 }
 
-function blankDevice(id: string, now: string): StarlinkAccountSummary {
+export function blankDevice(id: string, now: string): StarlinkAccountSummary {
   return {
     id,
     customerId: `customer-${id}`,

@@ -3464,3 +3464,21 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ⏳ window): it opens with the device's **last charge** - its amount and currency (`lib/chargeDefault.ts`
   `lastChargePrice`, a previous owner's debt / another currency skipped), passed as `chargeDefault` when the browser
   opens (`EXTRA_CHARGE_DEFAULT`). No charge yet → empty, the currency he used last (as before). He can change both.
+
+## 💬 WhatsApp Business ↔ the app (Nov 12 2026)
+
+- His «أريد اقتران التطبيق مع الواتساب، لأن بعض الزبائن يرسلون لي الإيميلات… أحتاج تثبيتها تلقائيًا… وأحتاج أن يسأل الزبون عن
+  جهاز أن يعطيه معلومات عنه هناك». His answers: an API connected to WhatsApp - then, offered the Meta Cloud API (Meta
+  Business verification + a webhook server on Firebase Blaze) vs. the phone's notifications: **«من الإشعارات أولًا»**
+  (the API later if needed); an email **creates a new device by itself**; a question is **answered by itself**;
+  he uses **WhatsApp Business**.
+- Native: `KastNotificationListener.handleWhatsApp` (same «Notification access» as KAST / banks) reads
+  `com.whatsapp.w4b` / `com.whatsapp`: never a group (`@g.us`), a summary or his own message; the sender's number from
+  the chat's shortcut id. An email → `WhatsAppStore` pending → the app (`lib/whatsappLink.ts drainWhatsApp`) makes a
+  «غير مفعّل» device with `expectedEmail` on the customer of that number (a new customer with the WhatsApp name when
+  none); an email already on a device makes nothing. A question (`WhatsAppMessage.asksAboutDevice`: جهاز، اشتراك،
+  ينتهي، متى، تجديد، حالة، رصيد، كم علي، دين، انترنت، ستارلينك…) from a **registered number** → his ready answer
+  (`whatsappDesk.customerAnswer`: each device's state + renewal, what he owes, «— رد آلي من STAR NET») sent through the
+  notification's «رد», **at most once per 30 min per customer**. Answers are prepared by the app and pushed to the
+  phone only when the data changed (`pushWhatsAppAnswers`). Switch: الإعدادات ← البوتات ← «💬 واتساب بزنس»
+  (`starnet.whatsappAnswer`, on by default - his choice), with the last answers sent.

@@ -1097,6 +1097,50 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 💬 WhatsApp Business (WhatsAppMessage / WhatsAppStore) ----
+
+    /** The customers' messages with an email the app hasn't made devices of yet, oldest first. */
+    @PluginMethod
+    public void whatsappPending(PluginCall call) {
+        KastNotificationListener.ensureConnected(getContext());
+        JSObject ret = new JSObject();
+        try {
+            ret.put("messages", new com.getcapacitor.JSArray(WhatsAppStore.pending(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("messages", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void whatsappAck(PluginCall call) {
+        java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
+        WhatsAppStore.ack(getContext(), ids);
+        call.resolve();
+    }
+
+    /** Each registered customer's ready answer ({"20000001": "…"}) and whether answering is on. */
+    @PluginMethod
+    public void whatsappSetup(PluginCall call) {
+        String answers = call.getString("answers");
+        WhatsAppStore.setup(getContext(), answers, Boolean.TRUE.equals(call.getBoolean("enabled", false)));
+        call.resolve();
+    }
+
+    /** Reading on, answering on, and the last answers sent. */
+    @PluginMethod
+    public void whatsappStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("access", KastNotificationListener.isEnabled(getContext()));
+        ret.put("enabled", WhatsAppStore.enabled(getContext()));
+        try {
+            ret.put("log", new com.getcapacitor.JSArray(WhatsAppStore.log(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("log", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
     /** The devices whose mailbox (📧 البريد) is signed in on this phone - id, email, since when. */
     @PluginMethod
     public void listMailSessions(PluginCall call) {

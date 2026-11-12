@@ -855,6 +855,18 @@ export interface LocalBrowserPlugin {
   /** The app saved these as suggestions - forget them on the native side. */
   bankAckNotices(options: { ids: string[] }): Promise<void>;
 
+  /** 💬 WhatsApp Business messages with an email (read from their notifications), oldest first. */
+  whatsappPending(): Promise<{ messages: WhatsAppMessageRaw[] }>;
+
+  /** The app made devices of these - forget them on the native side. */
+  whatsappAck(options: { ids: string[] }): Promise<void>;
+
+  /** Each registered customer's ready answer as JSON {"<last 8 digits>": "…"}, and whether answering is on. */
+  whatsappSetup(options: { answers?: string; enabled: boolean }): Promise<void>;
+
+  /** «Notification access» on, answering on, and the last answers sent. */
+  whatsappStatus(): Promise<{ access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] }>;
+
   /** 💳 The operator's payment cards for filling Starlink's card form in a device's browser
    * (replaces the list; [] removes them all). Kept on this phone only. */
   setFillCards(options: { cards: FillCardItem[] }): Promise<void>;
@@ -940,4 +952,13 @@ export interface DeviceReminder {
   note: string;
   /** Its notification already went out. */
   fired: boolean;
+}
+
+/** 💬 One customer message kept by the phone's WhatsApp reader (it carried an email). */
+export interface WhatsAppMessageRaw {
+  id: string;
+  phone?: string;
+  name: string;
+  text: string;
+  at: number;
 }

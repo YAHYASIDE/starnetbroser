@@ -21,6 +21,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 🛠️ لم يكتمل في التطبيق
 
+- 💬 WhatsApp: confirm on his phone that WhatsApp Business notifications are read and the «رد» works (native, only CI
+  compiled it); later, if needed, the official Meta Cloud API (he chose notifications first).
+
 0. 🧾 «كشف الفوترة» (his Nov 10 2026 ask: «أريد منك فهم هذه الفوترة وكيفية الدفع عنها، لكي تضع لي زر اسمه كشف
    الفوترة… مثال: هذا الجهاز عليه 282.62 BBD»): read the Billing page's invoice list (date, description, amount,
    status) per device, explain what makes up the balance and how to pay it. He left the choices to me («لا تفضيل»)

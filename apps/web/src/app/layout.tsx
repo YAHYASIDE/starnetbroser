@@ -16,6 +16,7 @@ import { DataReloadBoundary } from "@/components/DataReloadBoundary";
 import { RouteRepair } from "@/components/RouteRepair";
 import { BrowserActionsRunner } from "@/components/BrowserActionsRunner";
 import { ChatRunner } from "@/components/ChatRunner";
+import { WhatsAppRunner } from "@/components/WhatsAppRunner";
 import { CallManager } from "@/components/CallManager";
 import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <TeamSyncLine />
             <RepCopyAutoRunner />
             <RepAutoStatementRunner />
+            <WhatsAppRunner />
             <RepOpFlagsBanner />
             <RepFlagsBanner />
             <RepFlagRunner />

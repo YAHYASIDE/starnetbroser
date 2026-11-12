@@ -39,6 +39,11 @@ public class KastNotificationListener extends NotificationListenerService {
         if (sbn == null) return;
         connected = this;
         markSeen(System.currentTimeMillis());
+        // 💬 WhatsApp Business (WhatsAppMessage): read for his customers' emails and questions only
+        if (WhatsAppMessage.isWhatsApp(sbn.getPackageName())) {
+            handleWhatsApp(sbn);
+            return;
+        }
         if (isKast(sbn.getPackageName())) {
             handleKast(sbn);
         } else {
@@ -208,6 +213,84 @@ public class KastNotificationListener extends NotificationListenerService {
         final long at = sbn.getPostTime();
         if (now) BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at);
         else WORK.execute(() -> BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at));
+    }
+
+    /** Messages already handled (WhatsApp re-posts a chat's notification with every new message). */
+    private static final java.util.Set<String> WHATSAPP_SEEN = java.util.Collections.newSetFromMap(new java.util.LinkedHashMap<String, Boolean>() {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, Boolean> eldest) {
+            return size() > 300;
+        }
+    });
+
+    /**
+     * 💬 A customer's WhatsApp message (his Nov 12 2026 ask): an email in it → kept for the app (a new device); a
+     * question about his device from a registered number → his ready answer sent from the notification's «رد»,
+     * at most once every 30 minutes. A group, his own message or a summary is never read.
+     */
+    private void handleWhatsApp(StatusBarNotification sbn) {
+        Notification n = sbn.getNotification();
+        if (n == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+        Bundle extras = n.extras;
+        if (extras == null) return;
+        String conversation = Build.VERSION.SDK_INT >= 26 ? n.getShortcutId() : null;
+        if (WhatsAppMessage.isGroup(conversation, extras.getBoolean("android.isGroupConversation", false))) return;
+        CharSequence titleCs = extras.getCharSequence(Notification.EXTRA_TITLE);
+        String title = titleCs == null ? "" : titleCs.toString();
+        String text = null;
+        long at = n.when > 0 ? n.when : sbn.getPostTime();
+        android.os.Parcelable[] messages = extras.getParcelableArray("android.messages");
+        if (messages != null && messages.length > 0 && messages[messages.length - 1] instanceof Bundle) {
+            Bundle lastMessage = (Bundle) messages[messages.length - 1];
+            // his own message (no sender) - never answered
+            if (lastMessage.getCharSequence("sender") == null && lastMessage.getParcelable("sender_person") == null) return;
+            CharSequence line = lastMessage.getCharSequence("text");
+            text = line == null ? null : line.toString();
+            long time = lastMessage.getLong("time", 0L);
+            if (time > 0) at = time;
+        } else {
+            CharSequence line = extras.getCharSequence(Notification.EXTRA_TEXT);
+            text = line == null ? null : line.toString();
+        }
+        if (text == null || text.trim().isEmpty()) return;
+        final String phone = WhatsAppMessage.phoneOf(conversation, title);
+        final String id = WhatsAppMessage.id(sbn.getPackageName(), phone, title, text, at);
+        synchronized (WHATSAPP_SEEN) {
+            if (!WHATSAPP_SEEN.add(id)) return;
+        }
+        final Context context = getApplicationContext();
+        final String name = title;
+        final String body = text;
+        final long when = at;
+        if (!WhatsAppMessage.emails(text).isEmpty()) WORK.execute(() -> WhatsAppStore.addMessage(context, id, phone, name, body, when));
+        String key = WhatsAppMessage.key(phone);
+        if (key == null || !WhatsAppStore.enabled(context) || !WhatsAppMessage.asksAboutDevice(text)) return;
+        String answer = WhatsAppStore.answerFor(context, key);
+        long now = System.currentTimeMillis();
+        if (answer == null || !WhatsAppMessage.mayAnswer(WhatsAppStore.lastAnsweredAt(context, key), now)) return;
+        if (replyFrom(n, answer)) WhatsAppStore.noteAnswered(context, key, name, body, now);
+    }
+
+    /** Sends `text` through the notification's own «رد» (its RemoteInput) - false when it has none. */
+    private boolean replyFrom(Notification n, String text) {
+        Notification.Action[] actions = n.actions;
+        if (actions == null) return false;
+        for (Notification.Action action : actions) {
+            if (action == null || action.actionIntent == null) continue;
+            android.app.RemoteInput[] inputs = action.getRemoteInputs();
+            if (inputs == null || inputs.length == 0) continue;
+            android.content.Intent intent = new android.content.Intent();
+            Bundle results = new Bundle();
+            for (android.app.RemoteInput input : inputs) results.putCharSequence(input.getResultKey(), text);
+            android.app.RemoteInput.addResultsToIntent(inputs, intent, results);
+            try {
+                action.actionIntent.send(this, 0, intent);
+                return true;
+            } catch (android.app.PendingIntent.CanceledException e) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private void handleKast(StatusBarNotification sbn) {
