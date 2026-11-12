@@ -103,6 +103,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_AUTO_SYNC_HOME_ONLY = "com.starnetbroser.localbrowser.AUTO_SYNC_HOME_ONLY";
     /** 💱 The app's rates as JSON {"MRU":460,"SIFA":600,"ARS":1400,…} (rateFromUsd) - the balance strip's أوقية / سيفا. */
     public static final String EXTRA_BALANCE_RATES = "com.starnetbroser.localbrowser.BALANCE_RATES";
+    /** ⏳ {"amount":8000,"currency":"SIFA"}: the device's last charge, filled into «شحن بانتظار الفاتورة». */
+    public static final String EXTRA_CHARGE_DEFAULT = "com.starnetbroser.localbrowser.CHARGE_DEFAULT";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -1436,10 +1438,26 @@ public class AccountBrowserActivity extends AppCompatActivity {
         android.widget.EditText amountInput = new android.widget.EditText(this);
         amountInput.setHint("سعر الزبون");
         amountInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        // ⏳ his Nov 12 2026 ask: the customer's usual price and currency come by themselves (the device's last charge)
+        String usualCurrency = null;
+        try {
+            String json = getIntent().getStringExtra(EXTRA_CHARGE_DEFAULT);
+            if (json != null && !json.isEmpty()) {
+                org.json.JSONObject usual = new org.json.JSONObject(json);
+                double usualAmount = usual.optDouble("amount", 0);
+                if (usualAmount > 0) {
+                    amountInput.setText(PinRequest.amountText(usualAmount));
+                    amountInput.setSelection(amountInput.getText().length());
+                }
+                usualCurrency = usual.optString("currency", null);
+            }
+        } catch (org.json.JSONException ignored) {
+            // nothing to fill in - typed by hand as before
+        }
         box.addView(amountInput);
         android.widget.RadioGroup currencies = new android.widget.RadioGroup(this);
         currencies.setOrientation(android.widget.RadioGroup.HORIZONTAL);
-        int chosen = PinRequest.currencyIndex(prefs.getString("currency", null));
+        int chosen = PinRequest.currencyIndex(usualCurrency != null && !usualCurrency.isEmpty() ? usualCurrency : prefs.getString("currency", null));
         for (int i = 0; i < PinRequest.CURRENCIES.length; i++) {
             android.widget.RadioButton option = new android.widget.RadioButton(this);
             option.setId(View.generateViewId());

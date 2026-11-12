@@ -32,4 +32,11 @@ public class PinRequestTest {
         assertEquals(0, PinRequest.currencyIndex(null));
         assertEquals("MRU", PinRequest.CURRENCIES[0]);
     }
+
+    @Test
+    public void usualPriceIsTypedBackPlainly() {
+        assertEquals("8000", PinRequest.amountText(8000.0));
+        assertEquals("12.5", PinRequest.amountText(12.5));
+        assertEquals("0.75", PinRequest.amountText(0.75));
+    }
 }

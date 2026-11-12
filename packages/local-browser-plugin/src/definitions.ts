@@ -18,6 +18,8 @@ export interface OpenAccountBrowserOptions {
   /** 💱 The app's rates as JSON {"MRU":460,"SIFA":600,"ARS":1400} (rateFromUsd per code) - the balance
    * strip under the bar shows the bill in أوقية / سيفا with them. */
   balanceRates?: string;
+  /** ⏳ The device's last charge as JSON {"amount":8000,"currency":"SIFA"} - «شحن بانتظار الفاتورة» opens filled with it. */
+  chargeDefault?: string;
   /** Typed into the Starlink login form's empty email field (never submitted by itself). */
   loginEmail?: string;
   /** Typed into the Starlink login form's empty password field (never submitted by itself). */

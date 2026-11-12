@@ -3457,3 +3457,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   خطأ على الأغلب» under a currency outside its band; a card payment moves a rate only by ≤ 10 % and never into an
   impossible band (`rateStepIsBelievable`), otherwise the toast says «⚠️ لم أغيّر سعر …». His rate itself is his to
   correct (rate «1 USD = 0.86 €»); past records keep their locked rates unless he decides otherwise.
+
+## ⏳ «شحن بانتظار الفاتورة» filled with the customer's usual price (Nov 12 2026)
+
+- His «اجعل دائمًا السعر يأتي تلقائيًا، مثلًا الزبون كان يدفع بسيفا أن يأتي تلقائيًا بسيفا» (on the device browser's
+  ⏳ window): it opens with the device's **last charge** - its amount and currency (`lib/chargeDefault.ts`
+  `lastChargePrice`, a previous owner's debt / another currency skipped), passed as `chargeDefault` when the browser
+  opens (`EXTRA_CHARGE_DEFAULT`). No charge yet → empty, the currency he used last (as before). He can change both.

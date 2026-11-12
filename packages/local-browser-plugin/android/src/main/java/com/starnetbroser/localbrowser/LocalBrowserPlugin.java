@@ -899,6 +899,9 @@ public class LocalBrowserPlugin extends Plugin {
         // 💱 the app's rates for the balance strip's أوقية / سيفا (numbers only, nothing secret)
         String balanceRates = options.getString("balanceRates");
         if (balanceRates != null && !balanceRates.isEmpty() && balanceRates.length() < 4000) intent.putExtra(AccountBrowserActivity.EXTRA_BALANCE_RATES, balanceRates);
+        // ⏳ the device's last charge (price + currency) for «شحن بانتظار الفاتورة»
+        String chargeDefault = options.getString("chargeDefault");
+        if (chargeDefault != null && !chargeDefault.isEmpty() && chargeDefault.length() < 200) intent.putExtra(AccountBrowserActivity.EXTRA_CHARGE_DEFAULT, chargeDefault);
         // 📸 the device's customer, for the ready messages with a screenshot (his name and number only)
         String customerName = options.getString("customerName");
         String customerPhone = options.getString("customerPhone");

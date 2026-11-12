@@ -40,6 +40,12 @@ final class PinRequest {
         }
     }
 
+    /** A price as typed back into the field: «8000», «12.5» (no «.0»). */
+    static String amountText(double value) {
+        if (value == Math.rint(value) && Math.abs(value) < 1e15) return String.valueOf((long) value);
+        return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
     /** A remembered currency, else the first (أوقية). */
     static int currencyIndex(String code) {
         for (int i = 0; i < CURRENCIES.length; i++) if (CURRENCIES[i].equals(code)) return i;

@@ -25,6 +25,8 @@ import { forgetUnreadSeen, ingestBankNotices, loadBankInbox, saveBankInbox, type
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 import { loadCurrencyStore } from "./currencyStore";
+import { getAccountEntries, loadLedgerStore } from "./ledgerStore";
+import { lastChargePrice } from "./chargeDefault";
 import { DESKTOP_SYNC_LATER_MESSAGE, desktopBridge } from "./desktop";
 
 export interface AutoSyncAccountRef {
@@ -201,7 +203,7 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     // The device browser is its own Activity - STAR NET going to the background for it must not
     // count as "left the app" for the PIN re-lock.
     markInternalLeave();
-    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login, ...balanceRatesOption(), ...customerMessagesOption() });
+    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login, ...balanceRatesOption(), ...customerMessagesOption(), ...chargeDefaultOption(accountId) });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
@@ -212,6 +214,16 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
 export function customerMessagesOption(): { customerMessages?: string } {
   try {
     return { customerMessages: messagesForBrowser(customerMessages(loadMessageEdits())) };
+  } catch {
+    return {};
+  }
+}
+
+/** ⏳ The device's last charge (price + currency) - «شحن بانتظار الفاتورة» opens filled with it (lib/chargeDefault.ts). */
+export function chargeDefaultOption(accountId: string): { chargeDefault?: string } {
+  try {
+    const last = lastChargePrice(getAccountEntries(loadLedgerStore(), accountId));
+    return last ? { chargeDefault: JSON.stringify(last) } : {};
   } catch {
     return {};
   }
