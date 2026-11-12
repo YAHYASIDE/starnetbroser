@@ -3446,3 +3446,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `RepStatementRow` type "deleted" (`repDeletedRows`: his settlements, his devices' shipments → «ربحه», his
   customers' devices → «ما عليه»; after his reset only) in the table, the PDF, `repWallets` (bot «كشفي», chat
   statement). Restore: `deletedOpsStore.restoreDeletedOp` (then the page remounts).
+
+## 🛑 The euro at ~1.01 per dollar (Nov 12 2026)
+
+- His «كل العمليات الحسابية لليورو خاسرة» + a device browser showing «عليه EUR 86.29 · 85.38 $ · 37,566 أوقية · 10,386
+  سيفا»: the registry's EUR rate was ~1.0107 per USD (real ~0.86), so every euro bill turned ~15 % cheaper in $ /
+  أوقية / سيفا than it is - customers charged under the cost. Most likely learned from a card payment of a D
+  (`starlink/page.tsx recordRealRate`: foreign paid ÷ dollars typed) with a dollar figure close to the euro amount.
+- Fix: `currencyStore.RATE_BANDS` (EUR 0.75-0.98, GBP, CHF, CAD, AUD per $) → «💱 العملات» shows a red «⚠️ هذا السعر
+  خطأ على الأغلب» under a currency outside its band; a card payment moves a rate only by ≤ 10 % and never into an
+  impossible band (`rateStepIsBelievable`), otherwise the toast says «⚠️ لم أغيّر سعر …». His rate itself is his to
+  correct (rate «1 USD = 0.86 €»); past records keep their locked rates unless he decides otherwise.

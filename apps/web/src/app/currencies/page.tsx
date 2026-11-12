@@ -9,6 +9,7 @@ import {
   convertAmount,
   devicesInCurrency,
   getCurrency,
+  implausibleRate,
   listCurrencies,
   loadCurrencyStore,
   parseTypedAmount,
@@ -463,6 +464,15 @@ export default function CurrenciesPage() {
               ) : (
                 <div className="currency-row-info">
                   <span dir="ltr">{formatRate(currency)}</span>
+                  {(() => {
+                    // 🛑 a stable currency at an impossible rate (his Nov 12 2026 euro at ~1.01 per dollar)
+                    const band = implausibleRate(currency.code, currency.rateFromUsd);
+                    return band ? (
+                      <span className="currency-rate-wrong">
+                        ⚠️ هذا السعر خطأ على الأغلب: الدولار الواحد يساوي عادة بين <bdi dir="ltr">{band[0]}</bdi> و <bdi dir="ltr">{band[1]}</bdi> {currency.name}. صحّحه من «تعديل السعر» - كل فاتورة بهذه العملة تُحسب به.
+                      </span>
+                    ) : null;
+                  })()}
                   {(() => {
                     const q = mruQuoteFor(currency.code, currency.rateFromUsd, store.MRU?.rateFromUsd);
                     return q ? (

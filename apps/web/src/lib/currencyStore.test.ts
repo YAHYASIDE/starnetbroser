@@ -246,3 +246,22 @@ describe("rate from «amount = USD»", () => {
     expect(devicesInCurrency([{ currency: "ARS" }, { currency: "ars " }, { currency: "USD" }, {}], "ARS")).toBe(2);
   });
 });
+
+describe("🛑 an impossible rate (his Nov 12 2026 euro at ~1.01 per dollar)", () => {
+  it("a stable currency outside its band is flagged; others are not checked", async () => {
+    const { implausibleRate } = await import("./currencyStore");
+    expect(implausibleRate("EUR", 1.0107)).toEqual([0.75, 0.98]);
+    expect(implausibleRate("EUR", 0.8613)).toBeNull();
+    expect(implausibleRate("ARS", 1450)).toBeNull();
+  });
+
+  it("a card payment moves the rate only by a believable step", async () => {
+    const { rateStepIsBelievable } = await import("./currencyStore");
+    // 86.29 € typed against 85.38 $ → 1.0107: not learned
+    expect(rateStepIsBelievable("EUR", 0.8613, 1.0107)).toBe(false);
+    expect(rateStepIsBelievable("EUR", 0.8613, 0.87)).toBe(true);
+    expect(rateStepIsBelievable("HNL", 26.1, 26.84)).toBe(true);
+    expect(rateStepIsBelievable("HNL", 26.1, 35)).toBe(false);
+    expect(rateStepIsBelievable("XYZ", undefined, 3)).toBe(true);
+  });
+});

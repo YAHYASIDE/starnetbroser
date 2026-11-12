@@ -150,6 +150,36 @@ export function setCurrencyRate(store: CurrencyStore, code: string, rateFromUsd:
   return { ...store, [code]: { ...existing, rateFromUsd, updatedAt: nowIso() } };
 }
 
+/**
+ * 💱 Stable currencies whose rate can be checked (units per 1 USD, a wide band). His Nov 12 2026 report «كل العمليات
+ * الحسابية لليورو خاسرة»: the euro sat at ~1.01 per dollar (86.29 € shown as 85.38 $) - every euro bill became ~15 %
+ * cheaper than it is, and customers were charged under the cost. A rate outside its band is shown as wrong.
+ */
+export const RATE_BANDS: Readonly<Record<string, readonly [number, number]>> = {
+  EUR: [0.75, 0.98],
+  GBP: [0.65, 0.88],
+  CHF: [0.7, 1.0],
+  CAD: [1.2, 1.6],
+  AUD: [1.3, 1.75],
+};
+
+/** The band a stable currency's rate must be in, when it is outside it (null = fine / not checked). */
+export function implausibleRate(code: string, rateFromUsd: number | undefined): readonly [number, number] | null {
+  const band = RATE_BANDS[code];
+  if (!band || rateFromUsd === undefined || !(rateFromUsd > 0)) return null;
+  return rateFromUsd < band[0] || rateFromUsd > band[1] ? band : null;
+}
+
+/** A card payment moves the current rate only by a believable step: more than MAX_AUTO_RATE_JUMP away from it
+ * (or into an impossible band) is most likely a typo in the dollars paid - not learned, he is told instead. */
+export const MAX_AUTO_RATE_JUMP = 0.1;
+
+export function rateStepIsBelievable(code: string, current: number | undefined, next: number): boolean {
+  if (implausibleRate(code, next)) return false;
+  if (current === undefined || !(current > 0)) return true;
+  return Math.abs(next / current - 1) <= MAX_AUTO_RATE_JUMP;
+}
+
 /** The real rateFromUsd a Starlink card payment reveals: the foreign amount actually paid divided
  * by the dollars that actually left the card, rounded to 4 decimals (e.g. 2700 HNL ÷ 100.61 $ =
  * 26.84). Null when either side is missing or non-positive - then the registered rate is left as is.

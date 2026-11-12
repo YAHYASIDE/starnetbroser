@@ -29,7 +29,7 @@ import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { binanceForCard, cardFromBinance, defaultCardTopUpAccountId, isBinanceAccount, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { shipmentRepId } from "@/lib/repClients";
-import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
+import { CurrencyStore, getCurrency, loadCurrencyStore, rateStepIsBelievable, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -195,6 +195,7 @@ export default function StarlinkPage() {
   // `?pay=<entryId>` opens this very payment form for that D; once paid or closed he goes back.
   const deepPay = useRef<string | null>(null);
   const fromCardD = useRef(false);
+  const rejectedRate = useRef<{ code: string; rate: number; current: number } | null>(null);
   useEffect(() => {
     // Read once: the hand-off is cleared on reading, and React may run this effect twice.
     if (deepPay.current === null) deepPay.current = takePayTarget(window.location.search);
@@ -382,6 +383,11 @@ export default function StarlinkPage() {
     if (rate === null) return null;
     const current = getCurrency(currencyStore, code)?.rateFromUsd;
     if (current === undefined || Math.abs(current - rate) < 1e-6) return null;
+    // 🛑 a typo in the dollars paid must not move the rate (his Nov 12 2026 euro at ~1.01 per dollar)
+    if (!rateStepIsBelievable(code, current, rate)) {
+      rejectedRate.current = { code, rate, current };
+      return null;
+    }
     const next = setCurrencyRate(currencyStore, code, rate);
     setCurrencyStore(next);
     saveCurrencyStore(next);
@@ -408,8 +414,10 @@ export default function StarlinkPage() {
     // 💱 what left the card against the foreign amount is the currency's new rate (his rule); kept
     // as recorded = nothing new learned (and an old D must not pull today's rate back).
     const newRate = single && actual ? recordRealRate(costCode, actual.amount, actual.usd) : null;
+    const rejected = rejectedRate.current;
+    rejectedRate.current = null;
     setToast(
-      `✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}${newRate !== null && costCode ? ` · حُدّث سعر ${costCode} الحالي إلى ${formatAmount(newRate)}` : ""}`,
+      `✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}${newRate !== null && costCode ? ` · حُدّث سعر ${costCode} الحالي إلى ${formatAmount(newRate)}` : ""}${rejected ? ` · ⚠️ لم أغيّر سعر ${rejected.code}: هذه الدفعة تعطي ${formatAmount(rejected.rate)} وهو بعيد عن ${formatAmount(rejected.current)} - تأكد من المبلغ بالدولار` : ""}`,
     );
     backToCard(1500);
   }

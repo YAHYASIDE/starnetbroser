@@ -20640,3 +20640,4 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .party-move-deleted .party-move-mid strong { color: var(--text-muted); text-decoration: line-through; }
 .rep-table-deleted { color: var(--text-muted); }
 .rep-table-deleted bdi { text-decoration: line-through; }
+.currency-rate-wrong { display: block; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: var(--red-bg); color: var(--red); font-size: 0.8rem; font-weight: 700; line-height: 1.5; }
