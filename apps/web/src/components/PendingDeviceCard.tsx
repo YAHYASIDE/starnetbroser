@@ -19,11 +19,14 @@ export function PendingDeviceCard({
   clientName,
   onActivate,
   onEdit,
+  onDelete,
 }: {
   account: StarlinkAccountSummary;
   clientName?: string;
   onActivate?: (account: StarlinkAccountSummary) => void;
   onEdit?: (account: StarlinkAccountSummary) => void;
+  /** 🗑️ to the trash (his Nov 13 2026 ask) - restorable from «سلة المحذوفات». */
+  onDelete?: (account: StarlinkAccountSummary) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const kit = (account.kitNumber || account.serialNumber || "").trim();
@@ -78,6 +81,17 @@ export function PendingDeviceCard({
         {onEdit && (
           <button type="button" className="dialog-secondary" onClick={() => onEdit(account)}>
             ✎ تعديل
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            className="dialog-secondary pending-device-delete"
+            onClick={() => {
+              if (window.confirm(`حذف «${account.name || "الجهاز"}»؟\nيذهب إلى سلة المحذوفات ويمكن استرجاعه.`)) onDelete(account);
+            }}
+          >
+            🗑️ حذف
           </button>
         )}
       </div>

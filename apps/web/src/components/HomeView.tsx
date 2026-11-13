@@ -2903,6 +2903,7 @@ export function HomeView({
         clientName={visibleClientOf(account)?.name}
         onActivate={(target) => setDialog({ mode: "edit", account: target, activating: true })}
         onEdit={(target) => setDialog({ mode: "edit", account: target })}
+        onDelete={ownerView ? handleSoftDelete : undefined}
       />
     ) : (
     <AccountCard
