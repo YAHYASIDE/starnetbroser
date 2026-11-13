@@ -3489,3 +3489,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   messages from a rep's number make nothing; the card says «💬 من واتساب» instead of «بِيع».
 - His «أضف الحذف لهذا النوع من الأجهزة» (Nov 13 2026): the «غير مفعّل» card (`PendingDeviceCard`) has «🗑️ حذف» beside
   «شحن / تفعيل» and «تعديل» - after a confirm, to the trash (`handleSoftDelete`, restorable), owner only.
+
+## 🔎 Search: an archived device found and said so (Nov 13 2026)
+
+- His «الجهاز يظهر أنه موجود ولكن لا يظهر أنه موجود أيضًا» (a screenshot: the suggestion «Ibrahi kit4m…@gmail.com»
+  above «لا نتيجة لـ …»): the suggestions read every device not in the trash, archived ones included, while the list
+  holds active devices only. Now an archived suggestion says «· 🗄️ في الأرشيف», and under the search every archived /
+  trashed device matching the query shows («🗄️ في الأرشيف» / «🗑️ في المحذوفات») with «↩️ أعده إلى الأجهزة»
+  (`HomeView hiddenMatches`, owner only).

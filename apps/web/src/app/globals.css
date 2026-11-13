@@ -20643,3 +20643,9 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .currency-rate-wrong { display: block; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: var(--red-bg); color: var(--red); font-size: 0.8rem; font-weight: 700; line-height: 1.5; }
 .pending-device-actions:has(.pending-device-delete) { grid-template-columns: 2fr 1fr 1fr; }
 .pending-device-delete { color: var(--red); }
+/* 🗄️ a search hit outside the list (archived / in the trash) */
+.search-hidden-matches { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.search-hidden-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-alt); }
+.search-hidden-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.86rem; overflow-wrap: anywhere; }
+.search-hidden-text small { color: var(--text-muted); }
+.search-hidden-row .dialog-secondary { flex: none; min-height: 40px; }

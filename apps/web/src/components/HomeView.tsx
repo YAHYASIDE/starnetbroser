@@ -2698,6 +2698,16 @@ export function HomeView({
     return { list, fuzzy: false };
   }, [activeAccounts, clientFocus, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId, travelInRepLedger, flagged, lastAdded]);
 
+  // 🗄️ / 🗑️ what the search finds outside the list (archived or in the trash) - shown under it with «أعده»
+  const hiddenMatches = useMemo(
+    () =>
+      viewMode === "active" && query.trim()
+        ? accounts.filter((a) => (a.archivedAt || a.deletedAt) && deviceMatchesQuery(query, a, visibleClientOf(a), false)).slice(0, 5)
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [viewMode, query, accounts, clientStore],
+  );
+
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
@@ -2821,7 +2831,8 @@ export function HomeView({
         .map((a) => ({
           kind: "device" as const,
           id: a.id,
-          title: a.name || a.expectedEmail || "جهاز",
+          // 🗄️ an archived device is found too - and says so (his Nov 13 2026 «يظهر أنه موجود ولكن لا يظهر»)
+          title: `${a.name || a.expectedEmail || "جهاز"}${a.archivedAt ? " · 🗄️ في الأرشيف" : ""}`,
           fields: [a.expectedEmail, a.starlinkAccountEmail, a.kitNumber, visibleClientOf(a)?.name, visibleClientOf(a)?.phone, a.serialNumber],
         })),
       ...visibleClients(Object.values(clientStore), hiddenReps).map((c) => ({ kind: "client" as const, id: c.id, title: c.name, fields: [c.phone] })),
@@ -3757,6 +3768,24 @@ export function HomeView({
         <p className="search-fuzzy-note" role="status">
           {filtered.length > 0 ? <>🔤 لا شيء يطابق «<bdi>{query.trim()}</bdi>» تمامًا - هذه أقرب النتائج (ربما خطأ في الكتابة)</> : <>لا نتيجة لـ «<bdi>{query.trim()}</bdi>»</>}
         </p>
+      )}
+
+      {hiddenMatches.length > 0 && (
+        <section className="search-hidden-matches" aria-label="خارج القائمة">
+          {hiddenMatches.map((a) => (
+            <div key={a.id} className="search-hidden-row">
+              <span className="search-hidden-text">
+                <strong>{a.deletedAt ? "🗑️ في المحذوفات" : "🗄️ في الأرشيف"}</strong> · {a.name || "جهاز"}
+                {(a.expectedEmail || a.starlinkAccountEmail) && <small dir="ltr">{a.expectedEmail || a.starlinkAccountEmail}</small>}
+              </span>
+              {ownerView && (
+                <button type="button" className="dialog-secondary" onClick={() => handleRestore(a)}>
+                  ↩️ أعده إلى الأجهزة
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
       )}
 
       {searchResults.length > 0 && (
