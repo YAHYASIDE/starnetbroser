@@ -3482,3 +3482,8 @@ is never pressed while a field is empty - it refills and saves on the next try (
   notification's «رد», **at most once per 30 min per customer**. Answers are prepared by the app and pushed to the
   phone only when the data changed (`pushWhatsAppAnswers`). Switch: الإعدادات ← البوتات ← «💬 واتساب بزنس»
   (`starnet.whatsappAnswer`, on by default - his choice), with the last answers sent.
+- **Twins (his Nov 13 2026 report «حسابان على هذه الحالة، واحد ثبّته المندوب وواحد ثبّته أنا»)**: an email came on
+  WhatsApp before the account was added by hand → a «غير مفعّل» device («🧾 بِيع» today, KIT ناقص) next to the real
+  one. Now: WhatsApp devices carry `fromWhatsApp`; `trashWhatsAppTwins` (every runner minute) moves one whose email is
+  on a hand-added device to the trash (one made the day before the mark: «غير مفعّل» with no sale invoice since Nov 12);
+  messages from a rep's number make nothing; the card says «💬 من واتساب» instead of «بِيع».

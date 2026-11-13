@@ -16,7 +16,8 @@ import { computeClientCombinedTotals } from "./clientAccount";
 import { businessDataSize } from "./chatOpsSend";
 import { addLocalEvent } from "./eventLog";
 import { requestDataReload } from "./dataReload";
-import { devicesFromWhatsApp, whatsappAnswers } from "./whatsappDesk";
+import { devicesFromWhatsApp, trashWhatsAppTwins, whatsappAnswers } from "./whatsappDesk";
+import { listRepresentatives, loadRepresentativeStore } from "./repStore";
 
 /** «يرد وحده تلقائيًا» on this phone (his choice: on). Phone-only setting. */
 export const WHATSAPP_ANSWER_KEY = "starnet.whatsappAnswer";
@@ -40,18 +41,38 @@ export function setWhatsappAnswerOn(on: boolean): void {
   window.dispatchEvent(new Event(WHATSAPP_EVENT));
 }
 
-/** 📧 Kept messages with an email → new devices (and customers); returns how many devices were made. */
+/** 📧 Kept messages with an email → new devices (and customers); a WhatsApp device whose email was then added by
+ * hand goes to the trash. Returns how many devices were made. */
 export async function drainWhatsApp(): Promise<number> {
-  const { messages } = await LocalBrowser.whatsappPending();
-  if (!messages.length) return 0;
   const now = new Date().toISOString();
-  const result = devicesFromWhatsApp(loadDemoAccounts(demoAccounts), loadClientStore(), messages, now, () => crypto.randomUUID());
-  if (result.newClients.length) saveClientStore(result.clients);
-  if (result.created.length) saveDemoAccounts(result.accounts);
-  await LocalBrowser.whatsappAck({ ids: messages.map((m) => m.id) });
-  for (const d of result.created) addLocalEvent(`📧 جهاز جديد من واتساب: ${d.expectedEmail} - ${d.name} («غير مفعّل»)`, "/");
-  if (result.created.length || result.newClients.length) requestDataReload();
-  return result.created.length;
+  const { messages } = await LocalBrowser.whatsappPending();
+  let accounts = loadDemoAccounts(demoAccounts);
+  let changed = false;
+  let made = 0;
+  if (messages.length) {
+    const repPhones = listRepresentatives(loadRepresentativeStore()).map((r) => r.phone);
+    const result = devicesFromWhatsApp(accounts, loadClientStore(), messages, now, () => crypto.randomUUID(), repPhones);
+    if (result.newClients.length) saveClientStore(result.clients);
+    if (result.created.length) {
+      accounts = result.accounts;
+      changed = true;
+    }
+    await LocalBrowser.whatsappAck({ ids: messages.map((m) => m.id) });
+    for (const d of result.created) addLocalEvent(`📧 جهاز جديد من واتساب: ${d.expectedEmail} - ${d.name} («غير مفعّل»)`, "/");
+    made = result.created.length;
+    if (result.newClients.length) changed = true;
+  }
+  const twins = trashWhatsAppTwins(accounts, now);
+  if (twins.trashed.length) {
+    accounts = twins.accounts;
+    changed = true;
+    for (const d of twins.trashed) addLocalEvent(`🗑️ جهاز واتساب مكرّر نُقل إلى المحذوفات: ${d.expectedEmail} (أُضيف الحساب نفسه يدويًا)`, "/trash");
+  }
+  if (changed) {
+    saveDemoAccounts(accounts);
+    requestDataReload();
+  }
+  return made;
 }
 
 let lastPushed = "";

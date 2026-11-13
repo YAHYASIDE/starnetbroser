@@ -257,6 +257,9 @@ export interface StarlinkAccountSummary {
   pendingActivation?: { soldAt: string } | null;
   /** When «شحن / تفعيل» made a sold device active. */
   activatedAt?: string;
+  /** 💬 Made by itself from an email in a WhatsApp message (ISO, apps/web lib/whatsappDesk.ts) - a duplicate of a
+   * device added by hand with the same email goes to the trash by itself. */
+  fromWhatsApp?: string;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */

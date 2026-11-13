@@ -47,3 +47,24 @@ describe("💬 WhatsApp Business (his Nov 12 2026 ask)", () => {
     expect(answers["20000001"]).toContain("لا شيء عليك");
   });
 });
+
+describe("🗑️ WhatsApp twins (his Nov 13 2026 report)", () => {
+  it("a WhatsApp device whose email was then added by hand goes to the trash; the hand-added one stays", async () => {
+    const { trashWhatsAppTwins } = await import("./whatsappDesk");
+    const wa = { id: "w1", name: "x", expectedEmail: "same@example.com", pendingActivation: { soldAt: "2026-11-13" }, fromWhatsApp: "2026-11-13T08:00:00Z" } as StarlinkAccountSummary;
+    const legacy = { id: "w2", name: "y", expectedEmail: "two@example.com", pendingActivation: { soldAt: "2026-11-12" }, addedAt: "2026-11-12T20:00:00Z" } as StarlinkAccountSummary;
+    const sold = { id: "s1", name: "z", expectedEmail: "same@example.com", pendingActivation: { soldAt: "2026-11-13" }, storeInvoiceId: "inv", addedAt: "2026-11-13T09:00:00Z" } as StarlinkAccountSummary;
+    const hand = { id: "h1", name: "real", expectedEmail: "Same@Example.com" } as StarlinkAccountSummary;
+    const hand2 = { id: "h2", name: "real2", starlinkAccountEmail: "two@example.com" } as StarlinkAccountSummary;
+    const r = trashWhatsAppTwins([wa, legacy, sold, hand, hand2], "2026-11-13T10:00:00Z");
+    expect(r.trashed.map((a) => a.id)).toEqual(["w1", "w2"]);
+    expect(r.accounts.find((a) => a.id === "s1")!.deletedAt).toBeUndefined();
+    expect(trashWhatsAppTwins([wa], "now").trashed).toEqual([]);
+  });
+
+  it("a rep's message makes no device", () => {
+    const r = devicesFromWhatsApp([], clients, [{ id: "m1", phone: "22240000004", name: "المندوب", text: "rep@example.com", at: 1 }], NOW, newId, ["+222 4000 0004"]);
+    expect(r.created).toEqual([]);
+    expect(r.newClients).toEqual([]);
+  });
+});

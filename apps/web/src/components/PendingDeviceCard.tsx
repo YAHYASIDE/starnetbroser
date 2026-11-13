@@ -62,7 +62,12 @@ export function PendingDeviceCard({
             <bdi dir="ltr">{kit}</bdi> <span aria-hidden="true">{copied ? "✓" : "📋"}</span>
           </button>
         )}
-        {account.pendingActivation?.soldAt && <span>🧾 بِيع {saleDateLabel(account.pendingActivation.soldAt)}</span>}
+        {account.pendingActivation?.soldAt &&
+          (account.fromWhatsApp || !account.storeInvoiceId ? (
+            <span>💬 من واتساب {saleDateLabel(account.pendingActivation.soldAt)}</span>
+          ) : (
+            <span>🧾 بِيع {saleDateLabel(account.pendingActivation.soldAt)}</span>
+          ))}
       </div>
       <div className="pending-device-actions">
         {onActivate && (

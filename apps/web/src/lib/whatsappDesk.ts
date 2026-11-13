@@ -71,7 +71,10 @@ export function devicesFromWhatsApp(
   messages: WhatsAppMessage[],
   now: string,
   newId: () => string,
+  /** The reps' numbers: their messages are not customers' (his Nov 13 2026 report - a rep's email made a device). */
+  repPhones: (string | undefined)[] = [],
 ): WhatsAppDevicesResult {
+  const reps = new Set(repPhones.map(phoneKey).filter((k): k is string => !!k));
   const known = new Set(
     accounts.filter((a) => !a.deletedAt).flatMap((a) => [a.expectedEmail, a.starlinkAccountEmail].map((e) => e?.trim().toLowerCase()).filter((e): e is string => !!e)),
   );
@@ -80,6 +83,8 @@ export function devicesFromWhatsApp(
   const created: StarlinkAccountSummary[] = [];
   const newClients: Client[] = [];
   for (const m of messages) {
+    const sender = phoneKey(m.phone);
+    if (sender && reps.has(sender)) continue;
     for (const email of emailsIn(m.text)) {
       if (known.has(email)) continue;
       known.add(email);
@@ -97,6 +102,7 @@ export function devicesFromWhatsApp(
         expectedEmail: email,
         ...(client ? { clientId: client.id } : {}),
         pendingActivation: { soldAt: now.slice(0, 10) },
+        fromWhatsApp: now,
       };
       created.push(device);
       nextAccounts = [device, ...nextAccounts];
@@ -152,4 +158,31 @@ export function whatsappAnswers(
     out[key] = customerAnswer(client, devices, owedOf(client.id, devices));
   }
   return out;
+}
+
+/** The day WhatsApp devices began (one made before the mark existed: «غير مفعّل», no sale invoice, added since). */
+const WHATSAPP_SINCE = "2026-11-12";
+
+function madeFromWhatsApp(a: StarlinkAccountSummary): boolean {
+  if (a.fromWhatsApp) return true;
+  return Boolean(a.pendingActivation) && !a.storeInvoiceId && (a.addedAt ?? "") >= WHATSAPP_SINCE;
+}
+
+/**
+ * 🗑️ A device made from a WhatsApp email whose email is now on another device (added by hand, by him or a rep - his
+ * Nov 13 2026 report: two such twins) goes to the trash (restorable); the hand-added one stays.
+ */
+export function trashWhatsAppTwins(accounts: StarlinkAccountSummary[], now: string): { accounts: StarlinkAccountSummary[]; trashed: StarlinkAccountSummary[] } {
+  const emailOf = (a: StarlinkAccountSummary) => [a.expectedEmail, a.starlinkAccountEmail].map((e) => e?.trim().toLowerCase()).filter((e): e is string => !!e);
+  const live = accounts.filter((a) => !a.deletedAt);
+  const handEmails = new Set(live.filter((a) => !madeFromWhatsApp(a)).flatMap(emailOf));
+  const trashed: StarlinkAccountSummary[] = [];
+  const next = accounts.map((a) => {
+    if (a.deletedAt || !a.pendingActivation || !madeFromWhatsApp(a)) return a;
+    if (!emailOf(a).some((e) => handEmails.has(e))) return a;
+    const out = { ...a, deletedAt: now };
+    trashed.push(out);
+    return out;
+  });
+  return { accounts: trashed.length ? next : accounts, trashed };
 }
