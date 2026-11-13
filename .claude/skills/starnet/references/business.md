@@ -3497,3 +3497,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   holds active devices only. Now an archived suggestion says «· 🗄️ في الأرشيف», and under the search every archived /
   trashed device matching the query shows («🗄️ في الأرشيف» / «🗑️ في المحذوفات») with «↩️ أعده إلى الأجهزة»
   (`HomeView hiddenMatches`, owner only).
+
+## ⚠️ A rep's device with two shares in one month (Nov 13 2026)
+
+- His «ربح المندوب لا ينزل للجهاز في شهر مرتين… لاحظت أن عدة أجهزة ينزل لها ربح مرتين». The cause: every charge
+  (debit) on a rep's device gives the rep his share once its Starlink cost lands - a renewal plus a ROM / 100G / a
+  second month paid the same month = two shares.
+- His choices: «لا تغيير، نبّهني فقط» (the share math stays; nothing is merged or removed by itself) and for the
+  past ones «اعرضها عليّ أولًا».
+- `lib/repDoubleShares.ts` `doubleShareGroups`: the rep's landed shares grouped by device + the month the profit
+  landed (`shipmentProfitDate`), groups of 2+. The rep's statement shows a banner «⚠️ N أجهزة لها حصتان في نفس
+  الشهر - راجعها» (owner only) → a sheet listing each device and its shares (the first 1️⃣, the others ⚠️); each
+  opens the shipment sheet to edit or delete it (a deletion shows in the statement as «🗑️ حُذفت» with restore).
+  The second share's statement line ends « · ⚠️ حصة ثانية لهذا الجهاز في نفس الشهر».

@@ -20649,3 +20649,7 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .search-hidden-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.86rem; overflow-wrap: anywhere; }
 .search-hidden-text small { color: var(--text-muted); }
 .search-hidden-row .dialog-secondary { flex: none; min-height: 40px; }
+/* ⚠️ two shares for one device in a month */
+.rep-double-banner { width: 100%; margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--yellow); border-radius: 12px; background: var(--yellow-bg); color: var(--yellow); font: inherit; font-weight: 800; text-align: start; cursor: pointer; }
+.rep-double-list { display: flex; flex-direction: column; gap: 12px; }
+.rep-double-group { display: flex; flex-direction: column; gap: 6px; }

@@ -18,6 +18,7 @@ import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
 import { setRepAutoStatement, setRepCustomersHidden, setRepCustomersStay, setRepRates } from "@/lib/repStore";
 import { repDeletedRows } from "@/lib/repStore";
+import { doubleShareGroups } from "@/lib/repDoubleShares";
 import { deletedNow, restoreDeletedOp } from "@/lib/deletedOpsStore";
 import { requestDataReload } from "@/lib/dataReload";
 import { shipmentProfitMoment } from "@/lib/accountingStore";
@@ -754,6 +755,7 @@ type RepSheet =
   | { kind: "customerOp"; op: RepCustomerOp }
   | { kind: "repClient"; clientId: string }
   | { kind: "transfer" }
+  | { kind: "doubles" }
   | null;
 
 function RepCard({
@@ -835,6 +837,9 @@ function RepCard({
   // A device operation opened for editing - a shipment, or a customer's renewal / payment (✎).
   const [editingShipment, setEditingShipment] = useState<{ accountId: string; entry: LedgerEntry } | null>(null);
   const allDeviceRows = useMemo(() => listRepDeviceCommissions(rep.id, ledgerStore), [rep.id, ledgerStore]);
+  // ⚠️ a device with two shares in one month (his Nov 13 2026 report) - told, never changed by itself
+  const doubleShares = useMemo(() => doubleShareGroups(allDeviceRows), [allDeviceRows]);
+  const secondShares = useMemo(() => new Set(doubleShares.flatMap((g) => g.rows.slice(1).map((r) => r.entry.id))), [doubleShares]);
   // Only records after his reset (تصفير) count; older ones are the archive.
   const active = useMemo(
     () => splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "active"),
@@ -961,7 +966,8 @@ function RepCard({
   );
 
   function describeRow(row: RepStatementRow): string {
-    return repRowText(row, accountName);
+    const text = repRowText(row, accountName);
+    return row.type === "device" && secondShares.has(row.row.entry.id) ? `${text} · ⚠️ حصة ثانية لهذا الجهاز في نفس الشهر` : text;
   }
 
   function clientNameFor(accountId: string): string | undefined {
@@ -1142,6 +1148,11 @@ function RepCard({
 
       {panel === "statement" && (
         <div className="party-panel rep-statement">
+          {doubleShares.length > 0 && !readOnly && (
+            <button type="button" className="rep-double-banner" data-tour="rep-double-shares" onClick={() => setSheet({ kind: "doubles" })}>
+              ⚠️ {doubleShares.length === 1 ? "جهاز له" : `${doubleShares.length} أجهزة لها`} حصتان في نفس الشهر - راجعها
+            </button>
+          )}
           {/* 🧾 His Oct 29 2026 design: only what's on him / his profit now, each with the last 24 hours as a
               small statement (before · movement · after); older periods folded below. */}
           {/* 💱 one block per currency (his Nov 2 2026 ask: a أوقية loan sat among his سيفا renewals) */}
@@ -1553,6 +1564,35 @@ function RepCard({
               return error;
             }}
           />
+        </PartySheet>
+      )}
+
+      {sheet?.kind === "doubles" && (
+        <PartySheet title="⚠️ حصتان لنفس الجهاز في شهر" onClose={() => setSheet(null)}>
+          <p className="settings-hint">كل شحن على جهاز المندوب يعطيه حصته. هذه الأجهزة نزلت لها حصتان أو أكثر في نفس الشهر - افتح ما لا يجب أن يُحسب وعدّله أو احذفه.</p>
+          <div className="rep-double-list">
+            {doubleShares.map((g) => (
+              <section key={`${g.accountId}-${g.month}`} className="rep-double-group">
+                <strong>
+                  📡 {accountName(g.accountId)} · <bdi dir="ltr">{g.month}</bdi>
+                </strong>
+                {g.rows.map((r, i) => (
+                  <button key={r.entry.id} type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "shipment", row: r })}>
+                    <span aria-hidden="true">{i === 0 ? "1️⃣" : "⚠️"}</span>
+                    <span>
+                      <strong>
+                        حصته {fx.usd(r.repShareUsd ?? 0, r.entry)} · شحن <bdi dir="ltr">{formatAmount(r.entry.amount)}</bdi> {currencyLabel(r.entry.currency)}
+                      </strong>
+                      <small>
+                        سُجّل <bdi dir="ltr">{r.entry.date}</bdi>
+                        {r.entry.note ? ` · ${r.entry.note}` : ""} · اضغط للتعديل أو الحذف
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </section>
+            ))}
+          </div>
         </PartySheet>
       )}
 

@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-13-double-shares",
+    date: "2026-11-13",
+    title: "⚠️ حصتان لنفس الجهاز في شهر",
+    steps: [
+      {
+        path: "/representatives",
+        target: "rep-double-shares",
+        title: "⚠️ تنبيه الحصة الثانية",
+        before: "كل شحن على جهاز المندوب يعطيه حصة، فإذا شُحن الجهاز مرتين في نفس الشهر نزلت له حصتان دون أن تنتبه.",
+        after: "في كشف المندوب يظهر «⚠️ N أجهزة لها حصتان في نفس الشهر - راجعها». اضغطه: كل جهاز وحصصه، واضغط أي حصة لتعدّلها أو تحذفها. لا يتغيّر شيء وحده، والحصة الثانية في الكشف عليها «⚠️».",
+      },
+    ],
+  },
+  {
     id: "2026-11-13-search-archived",
     date: "2026-11-13",
     title: "🔎 البحث يجد الجهاز المؤرشف",
