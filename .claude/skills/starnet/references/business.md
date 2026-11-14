@@ -3493,6 +3493,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «مندوب» beside it allowed - «الحسين» = «حسين»); his number is then saved on his card if it had none
   (`repNumbers`). `trashRepWhatsAppDevices` (every drain) moves a WhatsApp «غير مفعّل» device whose customer is a rep
   to the trash, and removes the customer made with it at the same moment when no other device is his.
+- **Nothing is added by itself any more (his Nov 14 2026 ask «اجعل التثبيت من واتساب إشعارات فقط: إن أضفتها تُضاف وإن
+  لم أضفها لا تُضاف»)** - this replaces «يُنشئ جهازًا جديدًا وحده». An email (not on a device, not already waiting, not
+  from a rep) becomes a suggestion (`suggestionsFromWhatsApp`, phone-only `starnet.whatsappSuggestions`) + a phone
+  notification «📧 إيميل من واتساب - هل أضيفه؟» (`notifyPhone`, opens the app). A badge «📧 N إيميل من واتساب»
+  on every page (owner only, `WhatsAppSuggestionsBadge`) opens the list: «➕ أضف» makes the «غير مفعّل» device (and
+  the customer of that number when new) exactly as before (`addWhatsAppSuggestion`); «✕ لا تضف» forgets it. One
+  added meanwhile by hand / a rep leaves the list (`liveSuggestions`). The notification comes when the app drains
+  (open or in memory); a closed app shows them on its next open.
 - His «أضف الحذف لهذا النوع من الأجهزة» (Nov 13 2026): the «غير مفعّل» card (`PendingDeviceCard`) has «🗑️ حذف» beside
   «شحن / تفعيل» and «تعديل» - after a confirm, to the trash (`handleSoftDelete`, restorable), owner only.
 

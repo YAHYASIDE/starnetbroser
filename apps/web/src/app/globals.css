@@ -20653,3 +20653,57 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .rep-double-banner { width: 100%; margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--yellow); border-radius: 12px; background: var(--yellow-bg); color: var(--yellow); font: inherit; font-weight: 800; text-align: start; cursor: pointer; }
 .rep-double-list { display: flex; flex-direction: column; gap: 12px; }
 .rep-double-group { display: flex; flex-direction: column; gap: 6px; }
+
+/* 📧 WhatsApp emails waiting for «➕ أضف» (WhatsAppSuggestionsBadge): above the «غير جيد» badge, never on top of it. */
+.wa-suggest-badge {
+  position: fixed;
+  z-index: 94;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 66px);
+  transform: translateX(-50%);
+  max-width: calc(100% - 170px);
+  padding: 8px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 2px solid var(--green);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+.wa-suggest-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wa-suggest {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2, var(--surface));
+}
+.wa-suggest-who {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.wa-suggest-email {
+  margin: 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.wa-suggest-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}

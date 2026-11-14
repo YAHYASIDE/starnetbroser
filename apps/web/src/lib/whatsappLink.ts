@@ -16,7 +16,17 @@ import { computeClientCombinedTotals } from "./clientAccount";
 import { businessDataSize } from "./chatOpsSend";
 import { addLocalEvent } from "./eventLog";
 import { requestDataReload } from "./dataReload";
-import { devicesFromWhatsApp, trashRepWhatsAppDevices, trashWhatsAppTwins, whatsappAnswers } from "./whatsappDesk";
+import {
+  addWhatsAppSuggestion,
+  liveSuggestions,
+  suggestionNotice,
+  suggestionsFromWhatsApp,
+  trashRepWhatsAppDevices,
+  trashWhatsAppTwins,
+  whatsappAnswers,
+  type WhatsAppSuggestion,
+} from "./whatsappDesk";
+import { notifyPhone } from "./appEvents";
 import { listRepresentatives, loadRepresentativeStore, saveRepresentativeStore } from "./repStore";
 
 /** «يرد وحده تلقائيًا» on this phone (his choice: on). Phone-only setting. */
@@ -41,8 +51,53 @@ export function setWhatsappAnswerOn(on: boolean): void {
   window.dispatchEvent(new Event(WHATSAPP_EVENT));
 }
 
-/** 📧 Kept messages with an email → new devices (and customers); a WhatsApp device whose email was then added by
- * hand goes to the trash. Returns how many devices were made. */
+/** 📧 The emails waiting for «➕ أضف» (phone-only: each phone reads its own WhatsApp). */
+const SUGGESTIONS_KEY = "starnet.whatsappSuggestions";
+export const WHATSAPP_SUGGESTIONS_EVENT = "starnet:whatsapp-suggestions";
+
+export function loadWhatsAppSuggestions(): WhatsAppSuggestion[] {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(SUGGESTIONS_KEY) ?? "[]") as unknown;
+    return Array.isArray(raw) ? raw.filter((x): x is WhatsAppSuggestion => !!x && typeof x.id === "string" && typeof x.email === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveWhatsAppSuggestions(list: WhatsAppSuggestion[]): void {
+  try {
+    window.localStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(list.slice(0, 200)));
+  } catch {
+    // full storage: they come back with the next messages
+  }
+  window.dispatchEvent(new Event(WHATSAPP_SUGGESTIONS_EVENT));
+}
+
+/** ➕ «أضف»: the device (and the customer when new) is made now - never before he taps it. */
+export function acceptWhatsAppSuggestion(id: string): boolean {
+  const list = loadWhatsAppSuggestions();
+  const s = list.find((x) => x.id === id);
+  if (!s) return false;
+  const now = new Date().toISOString();
+  const result = addWhatsAppSuggestion(loadDemoAccounts(demoAccounts), loadClientStore(), s, now, () => crypto.randomUUID());
+  if (result.newClients.length) saveClientStore(result.clients);
+  if (result.created.length) {
+    saveDemoAccounts(result.accounts);
+    for (const d of result.created) addLocalEvent(`📧 أُضيف جهاز من واتساب: ${d.expectedEmail} - ${d.name} («غير مفعّل»)`, "/");
+    requestDataReload();
+  }
+  saveWhatsAppSuggestions(list.filter((x) => x.id !== id));
+  return result.created.length > 0;
+}
+
+/** ✕ «لا تضف»: forgotten, nothing made. */
+export function dismissWhatsAppSuggestion(id: string): void {
+  saveWhatsAppSuggestions(loadWhatsAppSuggestions().filter((x) => x.id !== id));
+}
+
+/** 📧 Kept messages with an email → suggestions + a phone notification each (nothing is added by itself - his
+ * Nov 14 2026 choice); a WhatsApp device made earlier from a rep's message or added by hand since goes to the trash.
+ * Returns how many emails are newly waiting. */
 export async function drainWhatsApp(): Promise<number> {
   const now = new Date().toISOString();
   const { messages } = await LocalBrowser.whatsappPending();
@@ -51,9 +106,9 @@ export async function drainWhatsApp(): Promise<number> {
   let made = 0;
   const repStore = loadRepresentativeStore();
   const reps = listRepresentatives(repStore);
+  const waiting = liveSuggestions(loadWhatsAppSuggestions(), accounts);
   if (messages.length) {
-    const result = devicesFromWhatsApp(accounts, loadClientStore(), messages, now, () => crypto.randomUUID(), reps);
-    if (result.newClients.length) saveClientStore(result.clients);
+    const result = suggestionsFromWhatsApp(accounts, waiting, messages, reps);
     // 🤝 a rep known by his name: his WhatsApp number saved on his card (his messages are then known by it)
     if (result.repNumbers.length) {
       const nextReps = { ...repStore };
@@ -66,14 +121,12 @@ export async function drainWhatsApp(): Promise<number> {
       }
       saveRepresentativeStore(nextReps);
     }
-    if (result.created.length) {
-      accounts = result.accounts;
-      changed = true;
-    }
+    saveWhatsAppSuggestions(result.suggestions);
     await LocalBrowser.whatsappAck({ ids: messages.map((m) => m.id) });
-    for (const d of result.created) addLocalEvent(`📧 جهاز جديد من واتساب: ${d.expectedEmail} - ${d.name} («غير مفعّل»)`, "/");
-    made = result.created.length;
-    if (result.newClients.length) changed = true;
+    for (const s of result.added) void notifyPhone(suggestionNotice(s), "/");
+    made = result.added.length;
+  } else if (waiting.length !== loadWhatsAppSuggestions().length) {
+    saveWhatsAppSuggestions(waiting);
   }
   const fromReps = trashRepWhatsAppDevices(accounts, loadClientStore(), listRepresentatives(loadRepresentativeStore()), now);
   if (fromReps.trashed.length) {

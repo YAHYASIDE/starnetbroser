@@ -96,3 +96,27 @@ describe("🗑️ WhatsApp twins (his Nov 13 2026 report)", () => {
     expect(trashRepWhatsAppDevices([fromCustomer], store, [{ id: "r1", name: "حسين تجريبي" }], "now").trashed).toEqual([]);
   });
 });
+
+describe("📧 WhatsApp emails wait for «➕ أضف» (his Nov 14 2026 ask)", () => {
+  it("a new email is only suggested; known ones, repeats and reps' messages are not", async () => {
+    const { suggestionsFromWhatsApp, liveSuggestions, addWhatsAppSuggestion, suggestionNotice } = await import("./whatsappDesk");
+    const known = [{ id: "a1", name: "قديم", expectedEmail: "old@example.com" } as StarlinkAccountSummary];
+    const r = suggestionsFromWhatsApp(known, [], [
+      { id: "m1", phone: "22230000002", name: "أحمد", text: "new@example.com و OLD@example.com", at: 1 },
+      { id: "m2", phone: "22230000002", name: "أحمد", text: "new@example.com", at: 2 },
+      { id: "m3", phone: "22240000004", name: "حسين تجريبي", text: "rep@example.com", at: 3 },
+    ], [{ id: "r1", name: "الحسين تجريبي" }]);
+    expect(r.added.map((x) => x.email)).toEqual(["new@example.com"]);
+    expect(r.suggestions[0]).toMatchObject({ email: "new@example.com", name: "أحمد", phone: "22230000002" });
+    expect(r.repNumbers).toEqual([{ repId: "r1", phone: "22240000004" }]);
+    expect(suggestionsFromWhatsApp(known, r.suggestions, [{ id: "m4", name: "أحمد", text: "new@example.com", at: 4 }]).added).toEqual([]);
+    expect(suggestionNotice(r.added[0]!)).toContain("new@example.com");
+
+    // nothing was made; «أضف» makes the device and the customer
+    const added = addWhatsAppSuggestion(known, clients, r.added[0]!, NOW, newId);
+    expect(added.created[0]).toMatchObject({ expectedEmail: "new@example.com", pendingActivation: { soldAt: "2026-11-12" } });
+    expect(added.newClients[0]).toMatchObject({ name: "أحمد" });
+    // added meanwhile → no longer waiting
+    expect(liveSuggestions(r.suggestions, added.accounts)).toEqual([]);
+  });
+});

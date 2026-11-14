@@ -261,3 +261,74 @@ export function trashRepWhatsAppDevices(
   }
   return { accounts: next, clients: removedClients.length ? nextClients : clients, trashed, removedClients };
 }
+
+// ---- 📧 «أضف / لا تضف» (his Nov 14 2026 ask: «اجعل التثبيت من واتساب إشعارات فقط: إن أضفتها تُضاف وإن لم أضفها لا تُضاف») ----
+
+/** An email that came on WhatsApp, waiting for his «➕ أضف» (nothing is made until he taps it). */
+export interface WhatsAppSuggestion {
+  id: string;
+  email: string;
+  /** The WhatsApp name (his contact name, or the number). */
+  name: string;
+  phone?: string;
+  /** ms */
+  at: number;
+}
+
+function liveEmails(accounts: StarlinkAccountSummary[]): Set<string> {
+  return new Set(
+    accounts.filter((a) => !a.deletedAt).flatMap((a) => [a.expectedEmail, a.starlinkAccountEmail].map((e) => e?.trim().toLowerCase()).filter((e): e is string => !!e)),
+  );
+}
+
+/**
+ * 📧 The messages' new emails → suggestions (newest first), never a device. An email already on a device or already
+ * suggested, and a rep's message, make none (a rep known by his name gives his number to save, as before).
+ */
+export function suggestionsFromWhatsApp(
+  accounts: StarlinkAccountSummary[],
+  current: WhatsAppSuggestion[],
+  messages: WhatsAppMessage[],
+  reps: WhatsAppRep[] = [],
+): { suggestions: WhatsAppSuggestion[]; added: WhatsAppSuggestion[]; repNumbers: { repId: string; phone: string }[] } {
+  const known = liveEmails(accounts);
+  for (const s of current) known.add(s.email);
+  const added: WhatsAppSuggestion[] = [];
+  const repNumbers: { repId: string; phone: string }[] = [];
+  for (const m of messages) {
+    const rep = repSender(reps, m.phone, m.name);
+    if (rep) {
+      const phone = phoneKey(m.phone) ? m.phone! : undefined;
+      if (phone && !phoneKey(rep.phone) && rep.id && !repNumbers.some((r) => r.repId === rep.id)) repNumbers.push({ repId: rep.id, phone });
+      continue;
+    }
+    for (const email of emailsIn(m.text)) {
+      if (known.has(email)) continue;
+      known.add(email);
+      added.push({ id: `${m.id}:${email}`, email, name: m.name.trim() || m.phone || "", ...(phoneKey(m.phone) ? { phone: m.phone } : {}), at: m.at });
+    }
+  }
+  return { suggestions: [...added.slice().reverse(), ...current], added, repNumbers };
+}
+
+/** Still waiting: an email added meanwhile (by hand, by a rep, by the link) leaves the list. */
+export function liveSuggestions(list: WhatsAppSuggestion[], accounts: StarlinkAccountSummary[]): WhatsAppSuggestion[] {
+  const known = liveEmails(accounts);
+  return list.filter((s) => !known.has(s.email));
+}
+
+/** ➕ «أضف»: the «غير مفعّل» device (and the customer of that number when new), exactly as before. */
+export function addWhatsAppSuggestion(
+  accounts: StarlinkAccountSummary[],
+  clients: ClientStore,
+  s: WhatsAppSuggestion,
+  now: string,
+  newId: () => string,
+): WhatsAppDevicesResult {
+  return devicesFromWhatsApp(accounts, clients, [{ id: s.id, phone: s.phone, name: s.name, text: s.email, at: s.at }], now, newId);
+}
+
+/** The phone's notification: «📧 إيميل من واتساب» + who and the email. */
+export function suggestionNotice(s: WhatsAppSuggestion): string {
+  return `📧 إيميل من واتساب - هل أضيفه؟\n${s.name}${s.phone && s.phone !== s.name ? ` (${s.phone})` : ""}: ${s.email}\nافتح التطبيق واضغط «➕ أضف» - لا يُضاف شيء وحده.`;
+}

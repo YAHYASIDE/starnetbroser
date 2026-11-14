@@ -10,6 +10,7 @@ import { ActivationGate } from "@/components/ActivationGate";
 import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
+import { WhatsAppSuggestionsBadge } from "@/components/WhatsAppSuggestionsBadge";
 import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { DataReloadBoundary } from "@/components/DataReloadBoundary";
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <RepAutoStatementRunner />
             <WhatsAppRunner />
             <RepOpFlagsBanner />
+            <WhatsAppSuggestionsBadge />
             <RepFlagsBanner />
             <RepFlagRunner />
             <LinkGuardListener />
