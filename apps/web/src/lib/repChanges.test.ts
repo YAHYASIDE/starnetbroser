@@ -341,3 +341,19 @@ describe("🤖 a rep's devices install by themselves (his Nov 7 2026 ask)", () =
     expect(plan.wait.map((i) => i.key)).toEqual(["pay"]);
   });
 });
+
+describe("🗑️ a rep's devices in the operator's trash (his Nov 14 2026 report)", () => {
+  it("named when the rep still has them; an older rep app: trashed in the last 30 days", async () => {
+    const { trashedDevicesOfRep } = await import("./repChanges");
+    const now = new Date("2026-11-14T12:00:00Z");
+    const accounts = [
+      { id: "a1", name: "جهاز 1", representativeId: "r1", deletedAt: "2026-11-14T10:00:00Z" },
+      { id: "a2", name: "جهاز 2", representativeId: "r1", deletedAt: "2026-09-01T10:00:00Z" },
+      { id: "a3", name: "جهاز 3", representativeId: "r1" },
+      { id: "a4", name: "جهاز 4", representativeId: "r2", deletedAt: "2026-11-14T10:00:00Z" },
+    ];
+    expect(trashedDevicesOfRep(accounts, "r1", ["a1", "a2", "a3"], now).map((d) => d.id)).toEqual(["a1", "a2"]);
+    expect(trashedDevicesOfRep(accounts, "r1", ["a3"], now)).toEqual([]);
+    expect(trashedDevicesOfRep(accounts, "r1", undefined, now).map((d) => d.id)).toEqual(["a1"]);
+  });
+});

@@ -18,6 +18,7 @@ import {
   sessionDeviceIds,
   sessionsFor,
   listRepChangeItems,
+  trashedDevicesOfRep,
   ownerReviewView,
   PAIRING_REP,
   readRepChangesFile,
@@ -97,9 +98,16 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
   const current = inbox.files.find((f) => f.repId === repId);
   if (current && current.sentAt >= payload.sentAt) return { ok: false, message: `هذه تسجيلات ${rep.name} وصلت من قبل` };
   const items = waiting(payload, inbox.decisions[repId] ?? {});
+  // 🗑️ his devices in the operator's trash: a resend never brings them back - only «↩️ استرجاع» (his Nov 14 2026 report)
+  const trashed = trashedDevicesOfRep(loadDemoAccounts(demoAccounts), repId, payload.deviceIds);
+  if (trashed.length) {
+    const names = trashed.map((d) => d.name).join("، ");
+    await tellOwner(`🗑️ للمندوب ${rep.name} ${trashed.length} جهاز في المحذوفات عندك ما زالت في هاتفه: ${names}\nإرساله من جديد لا يعيدها - إن أردتها افتح «المحذوفات» واضغط «↩️ استرجاع».`, "/trash");
+  }
   if (items.length === 0) {
-    await sendRepText(repId, "✓ وصلت تسجيلاتك - لا شيء جديد فيها (كل شيء ثُبّت أو رُفض من قبل).");
-    return { ok: true, message: `لا جديد في تسجيلات ${rep.name}` };
+    const trashLine = trashed.length ? `\n🗑️ حذف المسؤول عنده: ${trashed.map((d) => d.name).join("، ")} - إعادة الإرسال لا تعيدها، أُبلغ المسؤول ليسترجعها إن أرادها.` : "";
+    await sendRepText(repId, `✓ وصلت تسجيلاتك - لا شيء جديد فيها (كل شيء ثُبّت أو رُفض من قبل).${trashLine}`);
+    return { ok: true, message: `لا جديد في تسجيلات ${rep.name}${trashed.length ? ` - ${trashed.length} من أجهزته في المحذوفات` : ""}` };
   }
   const entry: RepInboxFile = { id: payload.id, repId, sentAt: payload.sentAt, receivedAt: new Date().toISOString(), file: text, pendingCount: items.length };
   if (!saveRepInbox({ ...inbox, files: [...inbox.files.filter((f) => f.repId !== repId), entry] })) {

@@ -3537,3 +3537,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   data. Restoring a rep's backup asks «هذه نسخة هاتف المندوب «X» - بعدها يعمل هذا الهاتف كهاتفه».
 - Google Drive sign-in is the same app OAuth client: if Google refuses a rep's account (the consent screen still in
   "Testing"), his Gmail must be added as a test user in Google Cloud, or the app published.
+
+## 🗑️ A rep's device deleted, then «sent again» (Nov 14 2026)
+
+- His report: «المندوب أرسل أجهزة… وجدتها خاسرة فحذفتها، فأرسلها من جديد ولكن لا تظهر أبدًا عندي». He deleted them from
+  the card (the trash); the rep's bot answer was «لا شيء جديد فيها». Cause: an installed device is part of the rep's
+  copy (his base), so «إرسال تسجيلاتي» (changes since the copy) never carries it again. The way back is «↩️ استرجاع»
+  in the trash (the device returns with its rep and goes back in his next copy).
+- Now the rep's file lists the devices still on his phone (`RepChangesPayload.deviceIds`); on receipt
+  `trashedDevicesOfRep` names his devices in the operator's trash (an older rep app: trashed in the last 30 days):
+  the operator is told («🗑️ … في المحذوفات عندك… ↩️ استرجاع», opens /trash) and the rep's «لا شيء جديد» says the
+  operator deleted them. Nothing comes back by itself.

@@ -6,7 +6,7 @@ import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
 import { buildRepChangeSet, buildRepChangesFile, countRepChanges, PAIRING_REP, repChangesFileName, sessionDeviceIds } from "./repChanges";
 import { loadRepCopy } from "./repCopy";
 import { ensureRepPhoneKey, loadRepMode } from "./repDeviceTransfer";
-import { loadRepBase, readStores } from "./repWorkspace";
+import { ACCOUNTS_KEY, loadRepBase, readStores } from "./repWorkspace";
 
 export type SendChangesResult = { ok: true; count: number } | { ok: false; message: string };
 
@@ -40,6 +40,12 @@ export async function shareRepPairing(): Promise<SendChangesResult> {
 }
 
 
+/** 📱 The devices on this phone now (not trashed here) - see RepChangesPayload.deviceIds. */
+function myDeviceIds(): string[] {
+  const list = readStores()[ACCOUNTS_KEY];
+  return Array.isArray(list) ? list.filter((a) => a && typeof a === "object" && !(a as { deletedAt?: unknown }).deletedAt).map((a) => String((a as { id?: unknown }).id ?? "")).filter(Boolean) : [];
+}
+
 async function shareChangesFile(code: string, repId: string, changes: ReturnType<typeof buildRepChangeSet>, count: number, baseSentAt: string | undefined): Promise<SendChangesResult> {
   // 🔑 every device in the file carries its session (not only the new ones) - his Nov 2 2026 report
   const ids = sessionDeviceIds(changes);
@@ -48,7 +54,7 @@ async function shareChangesFile(code: string, repId: string, changes: ReturnType
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `rc-${now.getTime()}`;
   try {
     const text = await buildRepChangesFile(
-      { id, repId, sentAt: now.toISOString(), ...(baseSentAt ? { baseSentAt } : {}), changes, sessions, phoneKey: ensureRepPhoneKey() },
+      { id, repId, sentAt: now.toISOString(), ...(baseSentAt ? { baseSentAt } : {}), changes, sessions, phoneKey: ensureRepPhoneKey(), deviceIds: myDeviceIds() },
       code,
     );
     const written = await Filesystem.writeFile({ path: repChangesFileName(repId, now), data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });

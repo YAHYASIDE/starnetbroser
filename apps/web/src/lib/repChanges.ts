@@ -617,6 +617,29 @@ export interface RepChangesPayload {
   sessions: Record<string, Record<string, string>>;
   /** 🔗 His phone's own key: the operator binds his copies to it (repDeviceTransfer.ts). */
   phoneKey?: string;
+  /** 📱 Every device still on his phone (ids) - the operator's app names those it has in the trash. */
+  deviceIds?: string[];
+}
+
+/**
+ * 🗑️ A rep's devices the operator has in the trash that the rep still has (his Nov 14 2026 report: «حذفتها، فأرسلها من
+ * جديد ولكن لا تظهر أبدًا» - an installed device is part of the rep's copy, so «إرسال تسجيلاتي» never sends it again; it
+ * comes back only by «↩️ استرجاع» in the trash). Without `stillWithRep` (an older rep app): his devices trashed in the
+ * last `days` days.
+ */
+export function trashedDevicesOfRep(
+  accounts: Pick<StarlinkAccountSummary, "id" | "name" | "representativeId" | "deletedAt">[],
+  repId: string,
+  stillWithRep?: string[],
+  now: Date = new Date(),
+  days = 30,
+): { id: string; name: string }[] {
+  const his = stillWithRep ? new Set(stillWithRep) : null;
+  const since = now.getTime() - days * 86_400_000;
+  return accounts
+    .filter((a) => a.representativeId === repId && a.deletedAt)
+    .filter((a) => (his ? his.has(a.id) : new Date(a.deletedAt!).getTime() >= since))
+    .map((a) => ({ id: a.id, name: a.name || "جهاز" }));
 }
 
 interface RepChangesFile {
