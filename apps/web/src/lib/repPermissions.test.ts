@@ -7,7 +7,8 @@ describe("🔑 صلاحيات المندوب (his Oct 17 2026 ask)", () => {
     const perms = permissionsOf({});
     expect(allowedPaths(perms).sort()).toEqual(["/", "/clients", "/currencies", "/mailboxes", "/reminders", "/reports", "/representatives", "/settings", "/tools"]);
     for (const no of ["/store", "/starlink", "/archive", "/trash", "/money"]) expect(perms.has(`page:${no.slice(1)}`)).toBe(false);
-    expect(perms.has("data:backup")).toBe(false);
+    expect(perms.has("data:backup")).toBe(true);
+    expect(permissionsOf({ permissions: ["page:clients"] }).has("data:backup")).toBe(true);
   });
 
   it("✂️ «إضافة جهاز مبسّطة» is a restriction: off for every rep until he ticks it (his Oct 25 2026 ask for الحافظ)", () => {

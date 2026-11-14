@@ -117,6 +117,8 @@ import {
 } from "@/lib/morningNotifications";
 import { getAutoBackupLastRun, getAutoBackupPassword, setAutoBackupPassword } from "@/lib/autoBackup";
 import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
+import { applyRestoredRepMode, backupRepName, withRepMode } from "@/lib/repBackup";
+import { REP_MODE_EVENT } from "@/lib/repDeviceTransfer";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
@@ -274,6 +276,7 @@ export default function SettingsPage() {
           <>
             <BackupSection />
             <AutoBackupSection />
+            <DriveSection />
           </>
         )}
         <AppUpdateSection />
@@ -855,7 +858,7 @@ function BackupSection() {
     setExportBusy(true);
     try {
       const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts();
-      const data = await withProofs(collectAppData(window.localStorage));
+      const data = withRepMode(await withProofs(collectAppData(window.localStorage)), window.localStorage);
       if (accounts.length === 0 && Object.keys(data).length === 0) {
         setExportMessage("لا توجد بيانات لتصديرها");
         return;
@@ -912,11 +915,15 @@ function BackupSection() {
         // A full (version 2) backup restores every app-data store exactly as it was - so it must
         // be confirmed, since it replaces whatever is on this phone now.
         const when = new Date(result.exportedAt).toLocaleString("ar-u-nu-latn");
-        if (!window.confirm(`استعادة نسخة ${when}؟ سيتم استبدال كل البيانات الحالية على هذا الهاتف ببيانات النسخة.`)) {
+        const repName = backupRepName(result.data);
+        const repWords = repName === null ? "" : ` هذه نسخة هاتف المندوب${repName ? ` «${repName}»` : ""} - بعدها يعمل هذا الهاتف كهاتفه.`;
+        if (!window.confirm(`استعادة نسخة ${when}؟ سيتم استبدال كل البيانات الحالية على هذا الهاتف ببيانات النسخة.${repWords}`)) {
           return;
         }
         try {
           restoreAppData(window.localStorage, result.data);
+          // 💾 a rep's backup: his rep mode back (never the owner's app on his data)
+          if (applyRestoredRepMode(window.localStorage)) window.dispatchEvent(new Event(REP_MODE_EVENT));
           await restoreProofsFromBackup(result.data);
         } catch (err) {
           // restoreAppData already put every original record back - nothing on this phone changed.

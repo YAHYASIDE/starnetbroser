@@ -67,7 +67,8 @@ export const REP_FEATURES: RepFeature[] = [
   // 💾 data
   { id: "data:business", group: "data", icon: "🏪", label: "بيانات النشاط", hint: "اسمه وهاتفه في الكشوفات", base: true, keywords: ["نشاط", "شعار", "pdf"] },
   { id: "data:lock", group: "data", icon: "🔒", label: "قفل التطبيق", hint: "رمز وبصمة", base: true, locked: true },
-  { id: "data:backup", group: "data", icon: "💾", label: "النسخ الاحتياطي على هاتفه", hint: "نسخة كاملة ونسخة يومية من بياناته", base: false, keywords: ["نسخة", "احتياطي", "استيراد"] },
+  // 💾 His Nov 14 2026 ask «أضف لكل المندوبين إمكانية نسخ البيانات وكل شيء إلى Google Drive والهاتف»: every rep, always.
+  { id: "data:backup", group: "data", icon: "💾", label: "النسخ الاحتياطي (الهاتف و Google Drive)", hint: "نسخة كاملة، نسخة يومية على هاتفه، ونسخة كل ساعة في Google Drive", base: true, locked: true, keywords: ["نسخة", "احتياطي", "استيراد", "درايف", "drive", "جوجل"] },
 ];
 
 const BY_ID = new Map(REP_FEATURES.map((f) => [f.id, f]));

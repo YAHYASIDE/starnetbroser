@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-14-rep-backup",
+    date: "2026-11-14",
+    title: "💾 نسخ المندوب إلى الهاتف و Google Drive",
+    steps: [
+      {
+        path: "/settings",
+        title: "💾 النسخ الاحتياطي لكل مندوب",
+        before: "النسخ الاحتياطي على هاتف المندوب كان مغلقًا إلا إذا فعّلته له، ولم يكن عنده Google Drive.",
+        after: "كل مندوب عنده في الإعدادات: «نسخة احتياطية كاملة محمية»، «نسخ احتياطي تلقائي يومي» على هاتفه، و«☁️ نسخة في Google Drive» كل ساعة في حسابه على Google. يضع كلمة مرور ثم يربط Drive. وإذا استعاد نسخته على هاتف جديد يعود مندوبًا كما كان.",
+      },
+    ],
+  },
+  {
     id: "2026-11-13-double-shares",
     date: "2026-11-13",
     title: "⚠️ حصتان لنفس الجهاز في شهر",

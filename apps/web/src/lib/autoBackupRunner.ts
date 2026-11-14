@@ -4,6 +4,7 @@ import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { collectAppData, createEncryptedBackupFile } from "./accountBackup";
+import { withRepMode } from "./repBackup";
 import { withProofs } from "./paymentProofStore";
 import {
   AUTO_BACKUP_DIR,
@@ -34,7 +35,7 @@ export async function runAutoBackup(accounts: StarlinkAccountSummary[], force = 
   if (!force && !isAutoBackupDue(getAutoBackupLastRun().date, today)) return { status: "skipped" };
   try {
     const sessions = await exportAccountSessions(accounts.map((a) => a.id), true);
-    const created = await createEncryptedBackupFile(accounts, sessions, password, await withProofs(collectAppData(window.localStorage)));
+    const created = await createEncryptedBackupFile(accounts, sessions, password, withRepMode(await withProofs(collectAppData(window.localStorage)), window.localStorage));
     if (!created.ok) return { status: "failed", message: created.message };
     const file = `${AUTO_BACKUP_DIR}/${autoBackupFileName(today)}`;
     // Public Documents first (survives uninstalling the app); older Android versions that don't

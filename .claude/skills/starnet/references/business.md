@@ -3510,3 +3510,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   الشهر - راجعها» (owner only) → a sheet listing each device and its shares (the first 1️⃣, the others ⚠️); each
   opens the shipment sheet to edit or delete it (a deletion shows in the statement as «🗑️ حُذفت» with restore).
   The second share's statement line ends « · ⚠️ حصة ثانية لهذا الجهاز في نفس الشهر».
+
+## 💾 Every rep backs up to his phone and Google Drive (Nov 14 2026)
+
+- His ask: «أضف لكل المندوبين إمكانية نسخ البيانات وكل شيء إلى Google Drive والهاتف». `data:backup` is now base +
+  locked (always on, every rep, even with an older permission list - no new copy needed): the rep's settings show
+  «نسخة احتياطية كاملة محمية» (file, restore, restore from Drive), «نسخ احتياطي تلقائي يومي» (Documents/STARNET,
+  7 kept) and «☁️ نسخة في Google Drive» (hourly, his own Google account, same pruning as the owner's).
+- His rep mode (`starnet.repMode` / `starnet.repBase`, phone settings never backed up) now rides in every backup
+  under `starnet_rep_mode_backup_v1` (`lib/repBackup.ts` `withRepMode`); a restore puts it back
+  (`applyRestoredRepMode`), so a rep's backup on a new phone opens as that rep again - never the owner's app on his
+  data. Restoring a rep's backup asks «هذه نسخة هاتف المندوب «X» - بعدها يعمل هذا الهاتف كهاتفه».
+- Google Drive sign-in is the same app OAuth client: if Google refuses a rep's account (the consent screen still in
+  "Testing"), his Gmail must be added as a test user in Google Cloud, or the app published.
