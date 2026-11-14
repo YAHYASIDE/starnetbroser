@@ -14,6 +14,7 @@ import { blankDevice } from "./saleDevices";
 import { daysRemainingNumber } from "./date";
 import { formatAmount } from "./formatAmount";
 import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "./ledgerStore";
+import { foldArabic } from "./repPermissions";
 
 /** One WhatsApp message kept by the phone's reader. */
 export interface WhatsAppMessage {
@@ -59,6 +60,43 @@ export interface WhatsAppDevicesResult {
   clients: ClientStore;
   created: StarlinkAccountSummary[];
   newClients: Client[];
+  /** A rep known by his name whose card has no number yet: his WhatsApp number, to save on him. */
+  repNumbers: { repId: string; phone: string }[];
+}
+
+export interface WhatsAppRep {
+  id?: string;
+  name?: string;
+  phone?: string;
+}
+
+/** A name as compared: folded Arabic, no «ال» before a word, single spaces. */
+function nameKey(name: string | undefined): string {
+  return foldArabic(name ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length > 3 && w.startsWith("ال") ? w.slice(2) : w))
+    .join(" ");
+}
+
+/**
+ * 🤝 The rep who sent this: his number on his card, else his name as the WhatsApp contact shows it («الحسين» = «حسين»,
+ * or with «مندوب» beside it). His Nov 14 2026 report: الحسين's card had no number, so his message made a device and a
+ * customer «الحسين».
+ */
+export function repSender(reps: WhatsAppRep[], phone: string | undefined, name: string | undefined): WhatsAppRep | undefined {
+  const key = phoneKey(phone);
+  if (key) {
+    const byPhone = reps.find((r) => phoneKey(r.phone) === key);
+    if (byPhone) return byPhone;
+  }
+  const who = nameKey(name);
+  if (!who) return undefined;
+  const plain = who.split(" ").filter((w) => w !== "مندوب" && w !== "المندوب").join(" ");
+  return reps.find((r) => {
+    const rep = nameKey(r.name);
+    return !!rep && (rep === who || (plain !== who && rep === plain));
+  });
 }
 
 /**
@@ -71,10 +109,9 @@ export function devicesFromWhatsApp(
   messages: WhatsAppMessage[],
   now: string,
   newId: () => string,
-  /** The reps' numbers: their messages are not customers' (his Nov 13 2026 report - a rep's email made a device). */
-  repPhones: (string | undefined)[] = [],
+  /** The reps: their messages are not customers' (his Nov 13 / 14 2026 reports - a rep's email made a device). */
+  reps: WhatsAppRep[] = [],
 ): WhatsAppDevicesResult {
-  const reps = new Set(repPhones.map(phoneKey).filter((k): k is string => !!k));
   const known = new Set(
     accounts.filter((a) => !a.deletedAt).flatMap((a) => [a.expectedEmail, a.starlinkAccountEmail].map((e) => e?.trim().toLowerCase()).filter((e): e is string => !!e)),
   );
@@ -82,9 +119,14 @@ export function devicesFromWhatsApp(
   const nextClients: ClientStore = { ...clients };
   const created: StarlinkAccountSummary[] = [];
   const newClients: Client[] = [];
+  const repNumbers: { repId: string; phone: string }[] = [];
   for (const m of messages) {
-    const sender = phoneKey(m.phone);
-    if (sender && reps.has(sender)) continue;
+    const rep = repSender(reps, m.phone, m.name);
+    if (rep) {
+      const phone = phoneKey(m.phone) ? m.phone! : undefined;
+      if (phone && !phoneKey(rep.phone) && rep.id && !repNumbers.some((r) => r.repId === rep.id)) repNumbers.push({ repId: rep.id, phone });
+      continue;
+    }
     for (const email of emailsIn(m.text)) {
       if (known.has(email)) continue;
       known.add(email);
@@ -108,7 +150,7 @@ export function devicesFromWhatsApp(
       nextAccounts = [device, ...nextAccounts];
     }
   }
-  return { accounts: nextAccounts, clients: nextClients, created, newClients };
+  return { accounts: nextAccounts, clients: nextClients, created, newClients, repNumbers };
 }
 
 function statusWords(a: StarlinkAccountSummary): string {
@@ -185,4 +227,37 @@ export function trashWhatsAppTwins(accounts: StarlinkAccountSummary[], now: stri
     return out;
   });
   return { accounts: trashed.length ? next : accounts, trashed };
+}
+
+/**
+ * 🗑️ A WhatsApp device made from a rep's message (before his number or name was known) goes to the trash, and the
+ * customer made with it at the same moment is removed when no other device is his (his Nov 14 2026 report).
+ */
+export function trashRepWhatsAppDevices(
+  accounts: StarlinkAccountSummary[],
+  clients: ClientStore,
+  reps: WhatsAppRep[],
+  now: string,
+): { accounts: StarlinkAccountSummary[]; clients: ClientStore; trashed: StarlinkAccountSummary[]; removedClients: Client[] } {
+  const trashed: StarlinkAccountSummary[] = [];
+  const next = accounts.map((a) => {
+    if (a.deletedAt || !a.pendingActivation || !a.fromWhatsApp) return a;
+    const client = a.clientId ? clients[a.clientId] : undefined;
+    const fromRep = client ? repSender(reps, client.phone, client.name) : repSender(reps, a.phone, a.name);
+    if (!fromRep) return a;
+    const out = { ...a, deletedAt: now };
+    trashed.push(out);
+    return out;
+  });
+  if (!trashed.length) return { accounts, clients, trashed, removedClients: [] };
+  const nextClients: ClientStore = { ...clients };
+  const removedClients: Client[] = [];
+  for (const d of trashed) {
+    const client = d.clientId ? nextClients[d.clientId] : undefined;
+    if (!client || client.createdAt !== d.fromWhatsApp) continue;
+    if (next.some((a) => !a.deletedAt && a.clientId === client.id)) continue;
+    delete nextClients[client.id];
+    removedClients.push(client);
+  }
+  return { accounts: next, clients: removedClients.length ? nextClients : clients, trashed, removedClients };
 }

@@ -63,8 +63,36 @@ describe("🗑️ WhatsApp twins (his Nov 13 2026 report)", () => {
   });
 
   it("a rep's message makes no device", () => {
-    const r = devicesFromWhatsApp([], clients, [{ id: "m1", phone: "22240000004", name: "المندوب", text: "rep@example.com", at: 1 }], NOW, newId, ["+222 4000 0004"]);
+    const r = devicesFromWhatsApp([], clients, [{ id: "m1", phone: "22240000004", name: "المندوب", text: "rep@example.com", at: 1 }], NOW, newId, [{ id: "r1", phone: "+222 4000 0004" }]);
     expect(r.created).toEqual([]);
     expect(r.newClients).toEqual([]);
+    expect(r.repNumbers).toEqual([]);
+  });
+
+  it("🤝 a rep with no number on his card is known by his WhatsApp name, and his number is learned (his Nov 14 2026 report)", () => {
+    const reps = [{ id: "r1", name: "حسين تجريبي" }, { id: "r2", name: "علي" }];
+    const r = devicesFromWhatsApp([], clients, [
+      { id: "m1", phone: "22240000004", name: "الحسين تجريبي", text: "rep@example.com", at: 1 },
+      { id: "m2", phone: "22250000005", name: "علي المندوب", text: "rep2@example.com", at: 2 },
+      { id: "m3", phone: "22260000006", name: "علي محمد", text: "cust@example.com", at: 3 },
+    ], NOW, newId, reps);
+    expect(r.created.map((d) => d.expectedEmail)).toEqual(["cust@example.com"]);
+    expect(r.repNumbers).toEqual([{ repId: "r1", phone: "22240000004" }, { repId: "r2", phone: "22250000005" }]);
+  });
+
+  it("🗑️ a device already made from a rep's message goes to the trash with the customer made with it", async () => {
+    const { trashRepWhatsAppDevices } = await import("./whatsappDesk");
+    const at = "2026-11-14T08:00:00Z";
+    const store: ClientStore = {
+      ...clients,
+      k1: { id: "k1", name: "حسين تجريبي", phone: "22240000004", createdAt: at, updatedAt: at },
+    };
+    const fromRep = { id: "w1", name: "حسين تجريبي", clientId: "k1", expectedEmail: "rep@example.com", pendingActivation: { soldAt: "2026-11-14" }, fromWhatsApp: at } as StarlinkAccountSummary;
+    const fromCustomer = { id: "w2", name: "زبون تجريبي", clientId: "c1", expectedEmail: "c@example.com", pendingActivation: { soldAt: "2026-11-14" }, fromWhatsApp: at } as StarlinkAccountSummary;
+    const r = trashRepWhatsAppDevices([fromRep, fromCustomer], store, [{ id: "r1", name: "الحسين تجريبي" }], "now");
+    expect(r.trashed.map((a) => a.id)).toEqual(["w1"]);
+    expect(r.removedClients.map((c) => c.id)).toEqual(["k1"]);
+    expect(r.clients.c1).toBeDefined();
+    expect(trashRepWhatsAppDevices([fromCustomer], store, [{ id: "r1", name: "حسين تجريبي" }], "now").trashed).toEqual([]);
   });
 });

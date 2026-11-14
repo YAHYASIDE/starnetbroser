@@ -16,8 +16,8 @@ import { computeClientCombinedTotals } from "./clientAccount";
 import { businessDataSize } from "./chatOpsSend";
 import { addLocalEvent } from "./eventLog";
 import { requestDataReload } from "./dataReload";
-import { devicesFromWhatsApp, trashWhatsAppTwins, whatsappAnswers } from "./whatsappDesk";
-import { listRepresentatives, loadRepresentativeStore } from "./repStore";
+import { devicesFromWhatsApp, trashRepWhatsAppDevices, trashWhatsAppTwins, whatsappAnswers } from "./whatsappDesk";
+import { listRepresentatives, loadRepresentativeStore, saveRepresentativeStore } from "./repStore";
 
 /** «يرد وحده تلقائيًا» on this phone (his choice: on). Phone-only setting. */
 export const WHATSAPP_ANSWER_KEY = "starnet.whatsappAnswer";
@@ -49,10 +49,23 @@ export async function drainWhatsApp(): Promise<number> {
   let accounts = loadDemoAccounts(demoAccounts);
   let changed = false;
   let made = 0;
+  const repStore = loadRepresentativeStore();
+  const reps = listRepresentatives(repStore);
   if (messages.length) {
-    const repPhones = listRepresentatives(loadRepresentativeStore()).map((r) => r.phone);
-    const result = devicesFromWhatsApp(accounts, loadClientStore(), messages, now, () => crypto.randomUUID(), repPhones);
+    const result = devicesFromWhatsApp(accounts, loadClientStore(), messages, now, () => crypto.randomUUID(), reps);
     if (result.newClients.length) saveClientStore(result.clients);
+    // 🤝 a rep known by his name: his WhatsApp number saved on his card (his messages are then known by it)
+    if (result.repNumbers.length) {
+      const nextReps = { ...repStore };
+      for (const { repId, phone } of result.repNumbers) {
+        const rep = nextReps[repId];
+        if (rep && !rep.phone) {
+          nextReps[repId] = { ...rep, phone, updatedAt: now };
+          addLocalEvent(`🤝 رقم واتساب المندوب ${rep.name} حُفظ في بطاقته: ${phone}`, "/representatives");
+        }
+      }
+      saveRepresentativeStore(nextReps);
+    }
     if (result.created.length) {
       accounts = result.accounts;
       changed = true;
@@ -61,6 +74,13 @@ export async function drainWhatsApp(): Promise<number> {
     for (const d of result.created) addLocalEvent(`📧 جهاز جديد من واتساب: ${d.expectedEmail} - ${d.name} («غير مفعّل»)`, "/");
     made = result.created.length;
     if (result.newClients.length) changed = true;
+  }
+  const fromReps = trashRepWhatsAppDevices(accounts, loadClientStore(), listRepresentatives(loadRepresentativeStore()), now);
+  if (fromReps.trashed.length) {
+    accounts = fromReps.accounts;
+    changed = true;
+    if (fromReps.removedClients.length) saveClientStore(fromReps.clients);
+    for (const d of fromReps.trashed) addLocalEvent(`🗑️ جهاز من رسالة مندوب على واتساب نُقل إلى المحذوفات: ${d.expectedEmail}`, "/trash");
   }
   const twins = trashWhatsAppTwins(accounts, now);
   if (twins.trashed.length) {

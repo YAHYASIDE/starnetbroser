@@ -3487,6 +3487,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   one. Now: WhatsApp devices carry `fromWhatsApp`; `trashWhatsAppTwins` (every runner minute) moves one whose email is
   on a hand-added device to the trash (one made the day before the mark: «غير مفعّل» with no sale invoice since Nov 12);
   messages from a rep's number make nothing; the card says «💬 من واتساب» instead of «بِيع».
+- **A rep with no number on his card (his Nov 14 2026 screenshot «المندوبين عندما يسجلون جهاز صار يظهر عندي بهذه
+  الطريقة»: a «غير مفعّل» device and a customer «الحسين», 💬 من واتساب)**: الحسين's card had no phone, so his message
+  counted as a customer's. Now `repSender` knows a rep by his number **or his WhatsApp name** (folded, «ال» ignored,
+  «مندوب» beside it allowed - «الحسين» = «حسين»); his number is then saved on his card if it had none
+  (`repNumbers`). `trashRepWhatsAppDevices` (every drain) moves a WhatsApp «غير مفعّل» device whose customer is a rep
+  to the trash, and removes the customer made with it at the same moment when no other device is his.
 - His «أضف الحذف لهذا النوع من الأجهزة» (Nov 13 2026): the «غير مفعّل» card (`PendingDeviceCard`) has «🗑️ حذف» beside
   «شحن / تفعيل» and «تعديل» - after a confirm, to the trash (`handleSoftDelete`, restorable), owner only.
 
