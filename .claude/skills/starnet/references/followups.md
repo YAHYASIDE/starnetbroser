@@ -40,3 +40,10 @@ into the working session) and whenever a task closes - short, the open lines onl
 6. 🤝 Rep options the council left (need his agreement with the rep): wholesale price per device tied to cost, debt
    ceiling per rep, «استلمت لحساب المندوب».
 7. 🌍 Opening the app to customers (his «أفكر أن أوسّع التطبيق ليشمل الزبائن») - big idea, council first.
+8. 🔑 Sessions from the team / reps arriving signed out (Nov 15 2026): two causes fixed (ticket test for reps' files,
+   more cookie addresses). Waiting for his «🔍 تقرير الجلسة» from the phone that signed in and the one that received
+   it - if the 🔑 ticket travels and the device is still signed out, Starlink keeps the sign-in outside the cookies
+   (page storage) and the session copy must carry it too.
+9. 🌍 Outside-the-country devices: offered (not chosen yet) a daily check of the devices outside their country, bot
+   alerts 5 and 2 days before the restriction, «⚠️ مشبوه» when the days left jump back up, «🎯 فرص التجوال العالمي»,
+   and the account's country («🇺🇦») read from «موقع الخدمة» on each card.
