@@ -13,6 +13,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
 import type { Client } from "./clientStore";
 import { sameDeviceAs } from "./duplicates";
+import { isSignedInSession } from "./sessionTicket";
 import { autoMoveClientToRep, currentRepOfClient } from "./repClients";
 import {
   ACCOUNTS_KEY,
@@ -101,9 +102,10 @@ export function sessionDeviceIds(changes: RepChangeSet): string[] {
   return Object.keys(changes[ACCOUNTS_KEY]?.set ?? {});
 }
 
-/** 🔑 How many of these devices carry a Starlink session in the file. */
+/** 🔑 Which of these devices carry a real Starlink sign-in (the ticket - not just the cookies any visit leaves: his Nov 15
+ * 2026 report, a device opened signed out on the operator's phone kept the rep's real session from coming in). */
 export function sessionsFor(ids: string[], sessions: Record<string, Record<string, string>>): { withSession: string[]; without: string[] } {
-  const has = (id: string) => Object.values(sessions[id] ?? {}).some((v) => typeof v === "string" && v.trim() !== "");
+  const has = (id: string) => isSignedInSession(sessions[id]);
   return { withSession: ids.filter(has), without: ids.filter((id) => !has(id)) };
 }
 

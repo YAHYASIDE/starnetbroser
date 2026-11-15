@@ -36,8 +36,7 @@ export function sessionFingerprint(cookies: Record<string, string>): string {
 
 /** Starlink's sign-in ticket: the ASP.NET cookies `Starlink.Com.Access.V1` (or its chunks `…V1C1`, `…V1C2`) and
  * `Starlink.Com.Sso`. A ticket under another name still shows by its size: no visit leaves a 1,000-character cookie. */
-const SIGN_IN_COOKIE = /^starlink\.com\.(access|sso)/i;
-const TICKET_CHARS = 1000;
+import { SIGN_IN_COOKIE, TICKET_CHARS, isSignedInSession } from "./sessionTicket";
 
 /**
  * Whether these cookies carry a Starlink sign-in - not just what any visit leaves (his Nov 5 2026 report: on «المسؤول 2»
@@ -63,20 +62,7 @@ export function ticketFingerprint(cookies: Record<string, string> | undefined): 
   return parts.length ? sessionFingerprint(Object.fromEntries(parts.sort().map((p, i) => [String(i), p]))) : "";
 }
 
-export function isSignedInSession(cookies: Record<string, string> | undefined): boolean {
-  if (!cookies) return false;
-  for (const [key, value] of Object.entries(cookies)) {
-    if (!value || !value.trim()) continue;
-    if (SIGN_IN_COOKIE.test(key.trim())) return true;
-    for (const part of value.split(";")) {
-      const eq = part.indexOf("=");
-      if (eq <= 0) continue;
-      const v = part.slice(eq + 1).trim();
-      if (v && (SIGN_IN_COOKIE.test(part.slice(0, eq).trim()) || v.length >= TICKET_CHARS)) return true;
-    }
-  }
-  return false;
-}
+export { isSignedInSession } from "./sessionTicket";
 
 /** The devices whose session goes out now - only a signed-in one: a new device, a new sign-in (another ticket - his
  * Nov 8 2026 report: a device YOUBE signed into again stayed signed out on YAHYA's phone for hours), else a changed

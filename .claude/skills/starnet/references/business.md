@@ -3548,3 +3548,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `trashedDevicesOfRep` names his devices in the operator's trash (an older rep app: trashed in the last 30 days):
   the operator is told («🗑️ … في المحذوفات عندك… ↩️ استرجاع», opens /trash) and the rep's «لا شيء جديد» says the
   operator deleted them. Nothing comes back by itself.
+
+## 🔑 Sessions from the team and the reps arrive signed out (Nov 15 2026)
+
+- His report (a device's browser on Starlink's sign-in page, the email filled): «كل المسؤولين والمندوبين عندما يسجّلون
+  جهازًا لا يأتيني صالحًا، تأتي الجلسة غير مسجّلة». Found and fixed:
+  - Reps' files judged «a session» by ANY cookie (`sessionsFor`): a device he had opened signed out kept the rep's
+    real session out («his own stays»), and an empty rep session counted as sent. Now the ticket test
+    (`isSignedInSession`, moved to `lib/sessionTicket.ts`, shared with the team link) decides both.
+  - Only 4 addresses were read (`SESSION_COOKIE_URLS`): a cookie on a deeper path (/api, /auth) or another sign-in
+    host was never exported. Added starlink.com/www /api and /auth, api /auth, account(s)/login/sso/id hosts.
+- Not proven yet: what Starlink keeps now. «⋯» ← «📤 نسخ الجلسة» ← «🔍 تقرير الجلسة (بلا أسرار)» (`sessionReport`):
+  per address each cookie's name and length, 🔑 on the ticket, nothing secret - he sends it from the phone that signed
+  in and from the one that received it. If the ticket travels and the device is still signed out, Starlink keeps the
+  sign-in outside the cookies (the page's storage), which the session copy doesn't carry yet.

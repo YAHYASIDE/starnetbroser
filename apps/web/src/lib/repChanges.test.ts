@@ -300,7 +300,7 @@ describe("🔑 Starlink sessions in a rep's file (his Nov 2 2026 report)", () =>
     const { sessionDeviceIds, sessionsFor } = await import("./repChanges");
     const changes = { [ACCOUNTS_KEY]: { set: { a1: { id: "a1", name: "Dish 1" }, a2: { id: "a2", name: "Dish 2" } }, removed: [] } };
     expect(sessionDeviceIds(changes)).toEqual(["a1", "a2"]);
-    expect(sessionsFor(["a1", "a2", "a3"], { a1: { token: "x" }, a2: { token: " " }, "mail:a1": { m: "y" } })).toEqual({ withSession: ["a1"], without: ["a2", "a3"] });
+    expect(sessionsFor(["a1", "a2", "a3"], { a1: { "https://starlink.com": "Starlink.Com.Access.V1=fake; _ga=1" }, a2: { "https://starlink.com": "_ga=1; _gid=2" }, "mail:a1": { m: "y" } })).toEqual({ withSession: ["a1"], without: ["a2", "a3"] });
     expect(sessionDeviceIds({})).toEqual([]);
   });
 });

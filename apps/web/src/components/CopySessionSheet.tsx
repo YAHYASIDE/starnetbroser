@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { exportAccountSessions, isRunningInAndroidApp } from "@/lib/localBrowser";
 import { toCookieEditorJson } from "@/lib/pastedSession";
+import { sessionReport } from "@/lib/sessionTicket";
 
 /**
  * 📤 «نسخ الجلسة» (the card's «⋯», his Oct 14 2026 ask «أصدّر الجلسة من جهاز في التطبيق إلى متصفح آخر، كروم
@@ -15,6 +16,26 @@ export function CopySessionSheet({ accountId, accountName, onClose }: { accountI
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [report, setReport] = useState<string | null>(null);
+
+  // 🔍 «تقرير الجلسة» (his Nov 15 2026 report: sessions arrive signed out): cookie names and sizes only - safe to send.
+  async function makeReport() {
+    setMessage(null);
+    if (!isRunningInAndroidApp()) return setMessage("يعمل داخل تطبيق الهاتف فقط");
+    setBusy(true);
+    const sessions = await exportAccountSessions([accountId]);
+    setBusy(false);
+    const r = sessionReport(sessions[accountId]);
+    const text = [`🔍 تقرير الجلسة - ${accountName}`, r.signedIn ? "✅ فيها تذكرة الدخول 🔑" : "❌ لا تذكرة دخول - الجلسة غير مسجّلة", ...r.lines, "(أسماء الكوكيز وأطوالها فقط - بلا قيم ولا أسرار)"].join("\n");
+    setReport(text);
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("✓ نُسخ التقرير - أرسله لي كما هو");
+      setCopied(true);
+    } catch {
+      setMessage("لم يُنسخ تلقائيًا - اضغط مطولاً داخل الخانة ← تحديد الكل ← نسخ");
+    }
+  }
 
   async function copy() {
     setMessage(null);
@@ -48,11 +69,15 @@ export function CopySessionSheet({ accountId, accountName, onClose }: { accountI
           <li>في كروم على الكمبيوتر (أو Kiwi / Firefox على الهاتف): ثبّت إضافة «Cookie-Editor» وافتح starlink.com.</li>
           <li>من الإضافة: Delete All (لحذف القديمة) ← Import ← الصق ← Import، ثم حدّث الصفحة فتكون داخل الحساب.</li>
         </ol>
+        {report && <textarea className="search-input paste-session-input" dir="ltr" rows={6} readOnly value={report} onFocus={(e) => e.target.select()} aria-label="تقرير الجلسة" />}
         {json && <textarea className="search-input paste-session-input" dir="ltr" rows={5} readOnly value={json} onFocus={(e) => e.target.select()} aria-label="الجلسة" />}
         {message && <p className={copied ? "settings-hint" : "account-card-alert ledger-form-error"}>{message}</p>}
         <div className="settings-actions">
           <button type="button" className="dialog-primary" disabled={busy} onClick={() => void copy()}>
             {busy ? "⏳ جارِ القراءة…" : json ? "📤 انسخها مرة أخرى" : "📤 نسخ الجلسة"}
+          </button>
+          <button type="button" className="btn-icon" disabled={busy} onClick={() => void makeReport()}>
+            🔍 تقرير الجلسة (بلا أسرار)
           </button>
           <button type="button" className="text-action" onClick={onClose}>
             إغلاق

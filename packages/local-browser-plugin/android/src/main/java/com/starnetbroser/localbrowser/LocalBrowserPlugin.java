@@ -67,6 +67,20 @@ public class LocalBrowserPlugin extends Plugin {
         "https://www.starlink.com",
         "https://api.starlink.com",
         "https://auth.starlink.com",
+        // 🔑 His Nov 15 2026 report («كل المسؤولين والمندوبين… تأتي الجلسة غير مسجّلة»): a cookie kept under a deeper
+        // path or on another sign-in host was never read, so never sent. getCookie(url) only returns the cookies whose
+        // path covers the url - these add Starlink's api / auth paths and its other sign-in hosts (restored host-only,
+        // keeping their path - CookieStringUtil).
+        "https://starlink.com/api",
+        "https://www.starlink.com/api",
+        "https://starlink.com/auth",
+        "https://www.starlink.com/auth",
+        "https://api.starlink.com/auth",
+        "https://account.starlink.com",
+        "https://accounts.starlink.com",
+        "https://login.starlink.com",
+        "https://sso.starlink.com",
+        "https://id.starlink.com",
     };
 
     /** checkSession: extra wait between reports once the page has loaded, and the hard limit for
