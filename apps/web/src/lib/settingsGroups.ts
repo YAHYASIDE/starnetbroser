@@ -101,7 +101,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
   { id: "rep-bots", group: "bots", icon: "🤝", title: "بوتات المندوبين", summary: "ربط كل مندوب ببوته", keywords: ["مندوب", "مندوبين", "بوت"] },
-  { id: "whatsapp", group: "bots", icon: "💬", title: "واتساب بزنس", summary: "إيميلات الزبائن تصير أجهزة، والرد على أسئلتهم وحده", keywords: ["واتساب", "whatsapp", "بزنس", "business", "رد", "ايميل", "إيميل", "زبون"] },
+  { id: "whatsapp", group: "bots", icon: "💬", title: "واتساب بزنس", summary: "إيميلات الزبائن، والرد على أسئلتهم، ووكيل Claude", keywords: ["واتساب", "whatsapp", "بزنس", "business", "رد", "ايميل", "إيميل", "زبون", "وكيل", "claude", "كلود"] },
   { id: "claude", group: "bots", icon: "🤖", title: "مساعد Claude", summary: "المساعد في الدردشة، كتابة تذاكر الدعم وردودها", keywords: ["claude", "كلود", "ذكاء", "مساعد", "دعم", "تذكرة", "ترجمة", "ai", "chatgpt"] },
   { id: "live-sync", group: "sync", icon: "☁️", title: "الربط الحيّ مع المندوبين", summary: "زبائن المندوب عندك وعنده تلقائيًا (Firebase)", keywords: ["فايربيس", "firebase", "ربط", "مزامنة", "مندوب", "زبائن", "حي"] },
   { id: "activation-costs", group: "bots", icon: "⚡", title: "تكلفة باقات التفعيل", summary: "أسعار التفعيل في البوت", keywords: ["تفعيل", "باقة", "تكلفة"] },

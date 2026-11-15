@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
+import { hasClaudeKey } from "@/lib/claudeClient";
+import { agentNumberKeys, type AgentSettings } from "@/lib/whatsappAgent";
+import { AGENT_EVENT, loadAgentLog, loadAgentSettings, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
 
 type Status = { access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] };
 
@@ -80,8 +83,110 @@ export function WhatsAppSection() {
               </ul>
             </>
           )}
+          <WhatsAppAgentPart />
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * 🤖 «وكيل واتساب (Claude)» (his Nov 15 2026 choices): on / off, his test numbers (only those until «كل من يراسلني»),
+ * and the last answers it sent or handed to him.
+ */
+function WhatsAppAgentPart() {
+  const [s, setS] = useState<AgentSettings>({ on: false, everyone: false, numbers: [] });
+  const [numbersText, setNumbersText] = useState("");
+  const [log, setLog] = useState<AgentLogLine[]>([]);
+  const [key, setKey] = useState(true);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const load = () => {
+      const now = loadAgentSettings();
+      setS(now);
+      setNumbersText(now.numbers.join("\n"));
+      setLog(loadAgentLog());
+      setKey(hasClaudeKey());
+    };
+    load();
+    const reload = () => setLog(loadAgentLog());
+    window.addEventListener(AGENT_EVENT, reload);
+    return () => window.removeEventListener(AGENT_EVENT, reload);
+  }, []);
+
+  const save = (next: AgentSettings) => {
+    setS(next);
+    saveAgentSettings(next);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1500);
+  };
+  const keys = agentNumberKeys(numbersText.split("\n"));
+
+  return (
+    <div className="wa-agent" data-tour="wa-agent">
+      <h3 className="section-title">🤖 وكيل واتساب (Claude)</h3>
+      <p className="settings-hint">
+        يكتب Claude الرد على الزبون ويرسله وحده: حالة جهازه وموعد تجديده، ما عليه، سعر التجديد وطريقة الدفع، وخطوات فحص الإنترنت. وما لا يعرفه، أو
+        فيه دفع أو إلغاء أو شكوى، يقول للزبون «سأحوّل سؤالك» ويرسل لك إشعارًا. لا يرد في المجموعات ولا على المندوبين.
+      </p>
+      {!key && <p className="currency-rate-wrong">⚠️ لا يعمل قبل وضع مفتاح Claude: الإعدادات ← البوتات ← «🤖 مساعد Claude».</p>}
+      <label className="toggle-switch-row">
+        <span>تشغيل الوكيل</span>
+        <span className={`toggle-switch${s.on ? " toggle-switch-on" : ""}`}>
+          <input type="checkbox" checked={s.on} onChange={(e) => save({ ...s, on: e.target.checked })} />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <label className="add-field-label" htmlFor="wa-agent-numbers">
+        📱 أرقام التجربة (رقم في كل سطر) - يرد عليها فقط
+      </label>
+      <textarea
+        id="wa-agent-numbers"
+        className="search-input"
+        dir="ltr"
+        rows={3}
+        placeholder="22 22 33 44"
+        value={numbersText}
+        onChange={(e) => setNumbersText(e.target.value)}
+        onBlur={() => save({ ...s, numbers: numbersText.split("\n").map((n) => n.trim()).filter(Boolean) })}
+      />
+      <p className="settings-hint">
+        {keys.length ? `✓ ${keys.length} رقم للتجربة` : "لا رقم بعد"}
+        {saved ? " · حُفظ" : ""}
+      </p>
+      <label className="toggle-switch-row">
+        <span>يرد على كل من يراسلني (بعد التجربة)</span>
+        <span className={`toggle-switch${s.everyone ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={s.everyone}
+            onChange={(e) => {
+              if (e.target.checked && !window.confirm("يرد الوكيل على كل من يراسلك في واتساب، لا أرقام التجربة فقط؟")) return;
+              save({ ...s, everyone: e.target.checked });
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      {log.length > 0 && (
+        <>
+          <p className="settings-hint">آخر ما فعله الوكيل:</p>
+          <ul className="msg-list">
+            {log.slice(0, 10).map((l, i) => (
+              <li key={i} className="msg-item wa-agent-line">
+                <span className="msg-item-label">
+                  {l.error ? "⚠️" : l.handoff ? "🙋" : l.sent ? "✅" : "⏸️"} {l.name} · <bdi dir="ltr">{new Date(l.at).toLocaleString("ar", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</bdi>
+                </span>
+                <small className="msg-item-hint">«{l.question.slice(0, 80)}»</small>
+                {l.reply && <small className="msg-item-hint">↩️ {l.reply.slice(0, 160)}</small>}
+                {l.error && <small className="msg-item-hint">{l.error}</small>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

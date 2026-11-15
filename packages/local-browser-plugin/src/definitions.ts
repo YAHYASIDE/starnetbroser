@@ -864,6 +864,18 @@ export interface LocalBrowserPlugin {
   /** Each registered customer's ready answer as JSON {"<last 8 digits>": "…"}, and whether answering is on. */
   whatsappSetup(options: { answers?: string; enabled: boolean }): Promise<void>;
 
+  /** 🤖 «وكيل واتساب»: on, everyone or only his test numbers (last 8 digits), and the reps' numbers (never answered). */
+  whatsappAgentSetup(options: { on: boolean; everyone: boolean; numbers: string[]; repKeys: string[] }): Promise<void>;
+
+  /** 🤖 The messages waiting for the agent's answer, oldest first. */
+  whatsappAgentPending(): Promise<{ messages: WhatsAppAgentMessageRaw[] }>;
+
+  /** 🤖 Answered (or skipped) - forget them on the native side. */
+  whatsappAgentAck(options: { ids: string[] }): Promise<void>;
+
+  /** 🤖 The agent's answer to one message, through its notification's «رد». `sent` false = the notification is gone. */
+  whatsappAgentReply(options: { id: string; key?: string; text: string }): Promise<{ sent: boolean }>;
+
   /** «Notification access» on, answering on, and the last answers sent. */
   whatsappStatus(): Promise<{ access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] }>;
 
@@ -952,6 +964,16 @@ export interface DeviceReminder {
   note: string;
   /** Its notification already went out. */
   fired: boolean;
+}
+
+/** 🤖 One message waiting for the WhatsApp agent's answer. `key` = the sender's last 8 digits. */
+export interface WhatsAppAgentMessageRaw {
+  id: string;
+  phone?: string;
+  key: string;
+  name: string;
+  text: string;
+  at: number;
 }
 
 /** 💬 One customer message kept by the phone's WhatsApp reader (it carried an email). */

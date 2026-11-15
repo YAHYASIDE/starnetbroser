@@ -3562,3 +3562,25 @@ is never pressed while a field is empty - it refills and saves on the next try (
   per address each cookie's name and length, 🔑 on the ticket, nothing secret - he sends it from the phone that signed
   in and from the one that received it. If the ticket travels and the device is still signed out, Starlink keeps the
   sign-in outside the cookies (the page's storage), which the session copy doesn't carry yet.
+
+## 🤖 WhatsApp agent - Claude answers customers (Nov 15 2026)
+
+- His «ما هو الوكيل الذي يمكن أن يساعدني» → I offered 5 agents (collections & renewals, devices watch, reps audit,
+  Starlink support, WhatsApp replies); he chose **4 (Starlink support, #89) and 5 (WhatsApp)**. 4 still waits for the
+  support-ticket snapshot and his Claude key; 5 is built.
+- His choices for 5: **only the numbers he sets for a test at first** («أربطه بأرقام محددة فقط لأجرّب»), it **answers
+  by itself**; later «كل من يراسلني» (a second switch, off, with a confirm); topics: **the device and its renewal, what
+  he owes, prices and how to pay, internet checks**. His Claude key is not set yet («لا بعد») - the agent stays off until
+  it is (the setup sends `on` only with a key).
+- How: the phone's reader (`KastNotificationListener.handleWhatsApp`) puts a message from an agent number
+  (`WhatsAppAgentRules.answers`: on, never a rep's number, his test numbers or everyone) in `agent_inbox` and keeps its
+  notification in memory; the fixed answer is never sent to those numbers. The app (`lib/whatsappAgentLink.ts`, every
+  5 s while on) asks Claude (`askClaudeJson`, effort low, structured {reply, handoff, reason}) with the customer's facts
+  (`customerFacts`: each device's state / renewal / outside-home days / usual price `lastChargePrice`, what he owes per
+  currency), the payment lines of «بيانات النشاط», the last 12 turns with that number (phone-only
+  `starnet.whatsappAgentChats`) and the new message (`AGENT_SYSTEM`: short, his language/dialect, only the 4 topics, no
+  invented numbers, no promises, no other customers, no codes). The answer goes out through that notification's «رد»
+  (`whatsappAgentReply`, else any WhatsApp notification of the same number on the screen); at most 20 per number per
+  hour; a message read more than 15 min late is left to him. Handoff (a payment claim, cancel, complaint, unknown sender
+  asking about a device…) → a polite «حوّلت رسالتك» + a phone notification «🤖 زبون يحتاجك على واتساب». Settings and
+  the log (phone-only `starnet.whatsappAgent`, `starnet.whatsappAgentLog`) in «💬 واتساب بزنس».

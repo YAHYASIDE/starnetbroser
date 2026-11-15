@@ -1141,6 +1141,47 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 🤖 «وكيل واتساب» (WhatsAppAgentRules) ----
+
+    /** On, everyone or only his test numbers, and the reps' numbers (never answered). */
+    @PluginMethod
+    public void whatsappAgentSetup(PluginCall call) {
+        com.getcapacitor.JSArray numbers = call.getArray("numbers");
+        com.getcapacitor.JSArray reps = call.getArray("repKeys");
+        WhatsAppStore.agentSetup(getContext(), Boolean.TRUE.equals(call.getBoolean("on", false)), Boolean.TRUE.equals(call.getBoolean("everyone", false)),
+            numbers == null ? null : numbers.toString(), reps == null ? null : reps.toString());
+        call.resolve();
+    }
+
+    /** The messages waiting for the agent's answer, oldest first. */
+    @PluginMethod
+    public void whatsappAgentPending(PluginCall call) {
+        KastNotificationListener.ensureConnected(getContext());
+        JSObject ret = new JSObject();
+        try {
+            ret.put("messages", new com.getcapacitor.JSArray(WhatsAppStore.agentInbox(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("messages", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void whatsappAgentAck(PluginCall call) {
+        java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
+        WhatsAppStore.agentAck(getContext(), ids);
+        call.resolve();
+    }
+
+    /** The agent's answer to one message, through its notification's «رد». */
+    @PluginMethod
+    public void whatsappAgentReply(PluginCall call) {
+        boolean sent = KastNotificationListener.agentReply(getContext(), call.getString("id", ""), call.getString("key"), call.getString("text", ""));
+        JSObject ret = new JSObject();
+        ret.put("sent", sent);
+        call.resolve(ret);
+    }
+
     /** Reading on, answering on, and the last answers sent. */
     @PluginMethod
     public void whatsappStatus(PluginCall call) {

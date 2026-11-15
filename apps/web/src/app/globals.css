@@ -20707,3 +20707,24 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   gap: 8px;
   align-items: center;
 }
+
+/* 🤖 WhatsApp agent part of «💬 واتساب بزنس» (WhatsAppSection). */
+.wa-agent {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.wa-agent textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.wa-agent-line {
+  display: grid;
+  gap: 2px;
+}
+.wa-agent-line .msg-item-hint {
+  overflow-wrap: anywhere;
+}

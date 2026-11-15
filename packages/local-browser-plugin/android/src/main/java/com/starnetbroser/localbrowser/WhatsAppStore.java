@@ -119,4 +119,80 @@ final class WhatsAppStore {
     static synchronized JSONArray log(Context context) {
         return array(context, "log");
     }
+
+    // ---- 🤖 «وكيل واتساب» (WhatsAppAgentRules): his settings, the messages waiting for an answer, the answers sent ----
+
+    /** On / everyone, his test numbers and the reps' numbers (last 8 digits each). Set by the app. */
+    static synchronized void agentSetup(Context context, boolean on, boolean everyone, String numbersJson, String repKeysJson) {
+        SharedPreferences.Editor e = prefs(context).edit().putBoolean("agent_on", on).putBoolean("agent_all", everyone);
+        if (numbersJson != null) e.putString("agent_numbers", numbersJson);
+        if (repKeysJson != null) e.putString("agent_reps", repKeysJson);
+        e.apply();
+    }
+
+    private static java.util.List<String> list(Context context, String key) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        JSONArray a = array(context, key);
+        for (int i = 0; i < a.length(); i++) {
+            String v = a.optString(i, "");
+            if (!v.isEmpty()) out.add(v);
+        }
+        return out;
+    }
+
+    /** Whether the agent answers this number now. */
+    static boolean agentAnswers(Context context, String key) {
+        SharedPreferences p = prefs(context);
+        return WhatsAppAgentRules.answers(key, p.getBoolean("agent_on", false), p.getBoolean("agent_all", false), list(context, "agent_numbers"), list(context, "agent_reps"));
+    }
+
+    /** [{"id","phone","key","name","text","at"}], oldest first - for the app to answer. */
+    static synchronized JSONArray agentInbox(Context context) {
+        return array(context, "agent_inbox");
+    }
+
+    static synchronized void agentAdd(Context context, String id, String phone, String key, String name, String text, long at) {
+        JSONArray all = agentInbox(context);
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject m = all.optJSONObject(i);
+            if (m != null && id.equals(m.optString("id"))) return;
+        }
+        try {
+            JSONObject m = new JSONObject();
+            m.put("id", id);
+            if (phone != null) m.put("phone", phone);
+            m.put("key", key);
+            m.put("name", name == null ? "" : name);
+            m.put("text", text == null ? "" : text);
+            m.put("at", at);
+            all.put(m);
+        } catch (JSONException e) {
+            return;
+        }
+        prefs(context).edit().putString("agent_inbox", last(all, 100).toString()).commit();
+    }
+
+    static synchronized void agentAck(Context context, Set<String> ids) {
+        JSONArray kept = new JSONArray();
+        JSONArray all = agentInbox(context);
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject m = all.optJSONObject(i);
+            if (m != null && !ids.contains(m.optString("id"))) kept.put(m);
+        }
+        prefs(context).edit().putString("agent_inbox", kept.toString()).commit();
+    }
+
+    /** When this number was answered by the agent (ms) - the hourly limit. */
+    static synchronized java.util.List<Long> agentSentAt(Context context, String key) {
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        JSONArray a = array(context, "agent_sent_" + key);
+        for (int i = 0; i < a.length(); i++) out.add(a.optLong(i, 0L));
+        return out;
+    }
+
+    static synchronized void agentNoteSent(Context context, String key, long at) {
+        JSONArray a = array(context, "agent_sent_" + key);
+        a.put(at);
+        prefs(context).edit().putString("agent_sent_" + key, last(a, WhatsAppAgentRules.MAX_PER_HOUR).toString()).apply();
+    }
 }

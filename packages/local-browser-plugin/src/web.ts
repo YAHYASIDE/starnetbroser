@@ -4,6 +4,7 @@ import type {
   DeviceReminder,
   AppEventRaw,
   BankNoticeRaw,
+  WhatsAppAgentMessageRaw,
   WhatsAppMessageRaw,
   FillCardItem,
   KastDeposit,
@@ -424,6 +425,22 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async whatsappSetup(_options: { answers?: string; enabled: boolean }): Promise<void> {
     return;
+  }
+
+  async whatsappAgentSetup(_options: { on: boolean; everyone: boolean; numbers: string[]; repKeys: string[] }): Promise<void> {
+    return;
+  }
+
+  async whatsappAgentPending(): Promise<{ messages: WhatsAppAgentMessageRaw[] }> {
+    return { messages: [] };
+  }
+
+  async whatsappAgentAck(_options: { ids: string[] }): Promise<void> {
+    return;
+  }
+
+  async whatsappAgentReply(_options: { id: string; key?: string; text: string }): Promise<{ sent: boolean }> {
+    return { sent: false };
   }
 
   async whatsappStatus(): Promise<{ access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] }> {

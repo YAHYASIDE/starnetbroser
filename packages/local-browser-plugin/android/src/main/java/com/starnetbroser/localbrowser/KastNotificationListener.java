@@ -264,6 +264,13 @@ public class KastNotificationListener extends NotificationListenerService {
         final long when = at;
         if (!WhatsAppMessage.emails(text).isEmpty()) WORK.execute(() -> WhatsAppStore.addMessage(context, id, phone, name, body, when));
         String key = WhatsAppMessage.key(phone);
+        // 🤖 «وكيل واتساب»: the app writes the answer (Claude), this notification's «رد» sends it - never the fixed one too
+        if (key != null && WhatsAppStore.agentAnswers(context, key)) {
+            keepForAgent(id, n);
+            final String agentKey = key;
+            WORK.execute(() -> WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when));
+            return;
+        }
         if (key == null || !WhatsAppStore.enabled(context) || !WhatsAppMessage.asksAboutDevice(text)) return;
         String answer = WhatsAppStore.answerFor(context, key);
         long now = System.currentTimeMillis();
@@ -271,8 +278,68 @@ public class KastNotificationListener extends NotificationListenerService {
         if (replyFrom(n, answer)) WhatsAppStore.noteAnswered(context, key, name, body, now);
     }
 
+    // ---- 🤖 the agent's answers go out through the message's own notification ----
+
+    /** message id → its WhatsApp notification (this process only; a restarted app looks for it on the screen). */
+    private static final java.util.Map<String, Notification> AGENT_NOTIFICATIONS = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<String, Notification>(32, 0.75f, false) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, Notification> eldest) {
+                return size() > 60;
+            }
+        });
+
+    private static void keepForAgent(String id, Notification n) {
+        AGENT_NOTIFICATIONS.put(id, n);
+    }
+
+    /**
+     * Sends the agent's answer to the message `id` (from number `key`): through that message's notification, else any
+     * WhatsApp notification of the same number still on the screen. False when none can be found (WhatsApp cleared it).
+     */
+    static boolean agentReply(Context context, String id, String key, String text) {
+        if (text == null || text.trim().isEmpty()) return false;
+        long now = System.currentTimeMillis();
+        if (key != null && !WhatsAppAgentRules.underHourlyLimit(WhatsAppStore.agentSentAt(context, key), now)) return false;
+        Notification n = AGENT_NOTIFICATIONS.get(id);
+        boolean sent = n != null && replyFrom(context, n, text);
+        if (!sent && key != null) {
+            KastNotificationListener listener = connected;
+            if (listener != null) {
+                try {
+                    StatusBarNotification[] active = listener.getActiveNotifications();
+                    if (active != null) {
+                        for (StatusBarNotification sbn : active) {
+                            if (sbn == null || !WhatsAppMessage.isWhatsApp(sbn.getPackageName())) continue;
+                            Notification other = sbn.getNotification();
+                            if (other == null || other.extras == null) continue;
+                            String conversation = Build.VERSION.SDK_INT >= 26 ? other.getShortcutId() : null;
+                            CharSequence title = other.extras.getCharSequence(Notification.EXTRA_TITLE);
+                            if (!key.equals(WhatsAppMessage.key(WhatsAppMessage.phoneOf(conversation, title == null ? null : title.toString())))) continue;
+                            if (replyFrom(context, other, text)) {
+                                sent = true;
+                                break;
+                            }
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    // not allowed right now - reported as not sent
+                }
+            }
+        }
+        if (sent) {
+            AGENT_NOTIFICATIONS.remove(id);
+            if (key != null) WhatsAppStore.agentNoteSent(context, key, now);
+        }
+        return sent;
+    }
+
     /** Sends `text` through the notification's own «رد» (its RemoteInput) - false when it has none. */
     private boolean replyFrom(Notification n, String text) {
+        return replyFrom(this, n, text);
+    }
+
+    private static boolean replyFrom(Context context, Notification n, String text) {
         Notification.Action[] actions = n.actions;
         if (actions == null) return false;
         for (Notification.Action action : actions) {
@@ -284,7 +351,7 @@ public class KastNotificationListener extends NotificationListenerService {
             for (android.app.RemoteInput input : inputs) results.putCharSequence(input.getResultKey(), text);
             android.app.RemoteInput.addResultsToIntent(inputs, intent, results);
             try {
-                action.actionIntent.send(this, 0, intent);
+                action.actionIntent.send(context, 0, intent);
                 return true;
             } catch (android.app.PendingIntent.CanceledException e) {
                 return false;

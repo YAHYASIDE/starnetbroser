@@ -30,7 +30,10 @@ into the working session) and whenever a task closes - short, the open lines onl
    → defaults: the invoices (date, subscription / order, amount, paid or not) + the balance in Starlink's currency and
    in USD / سيفا, a «💳 ادفع الآن» that opens the device's payment page with his card filled; the button on the device
    card (sheet). Waits only for the Billing snapshot.
-1. 💬 Auto-reply on the Starlink support page (#89) - waits for 1 + 2 above. Auto-send only when `safe_to_send`.
+1. 💬 Auto-reply on the Starlink support page (#89, his agent 4) - waits for 1 + 2 above. Auto-send only when
+   `safe_to_send`.
+1b. 🤖 WhatsApp agent (his agent 5, built Nov 15 2026): once his Claude key works, he turns it on with his test numbers
+   and tells me how the answers read; then «كل من يراسلني».
 2. 🔴 Unread count on «💬 الدردشة» in «المزيد» (said «لم يُبنَ بعد» when the chat shipped; only inside the chat page).
 3. Chat brief (SADAGHA, in his order): 🧾 rep statement period/type + Excel · ⚖️ disputes centre · 👥 member-to-member
    chats · 📎 Excel/Word/video files · ✏️ edit message + reactions · 🗂️ conversation tabs (المالية / الملفات /

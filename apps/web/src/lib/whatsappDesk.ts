@@ -153,7 +153,7 @@ export function devicesFromWhatsApp(
   return { accounts: nextAccounts, clients: nextClients, created, newClients, repNumbers };
 }
 
-function statusWords(a: StarlinkAccountSummary): string {
+export function statusWords(a: StarlinkAccountSummary): string {
   if (a.pendingActivation) return "⏳ لم يُفعَّل بعد";
   if (a.serviceStatus === "suspended") return "⛔ موقوف";
   if (a.serviceStatus === "canceled") return "⛔ ملغى";
@@ -162,7 +162,7 @@ function statusWords(a: StarlinkAccountSummary): string {
   return "✅ يعمل";
 }
 
-function renewalWords(date: string | undefined): string {
+export function renewalWords(date: string | undefined): string {
   const days = date ? daysRemainingNumber(date) : null;
   if (days === null) return "";
   const day = date!.replace(/-/g, "/");
