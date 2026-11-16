@@ -13,6 +13,9 @@ into the working session) and whenever a task closes - short, the open lines onl
    tax number «Mrt001» was typed): leave the tax field empty → G Pay; else «Carte»; else «Ignorer pour le moment» and
    later Billing → Add credits (5$) with an international card (KAST) → API Keys → Create Key → paste in
    الإعدادات ← البوتات ← «🤖 مساعد Claude» ← حفظ ← 🧪 اختبار. Never send the key in chat.
+   Nov 16: platform.claude.com still refused («unable to authenticate your payment method», with a fake tax id
+   12345678 typed). Told him: empty the tax id, the KAST card's exact billing address/country, approve 3D Secure in
+   KAST; else another card, or someone abroad pays once. Anthropic takes cards only (no USDT / Binance).
 2. 🧪 «لقطة تشخيص» of a Starlink support-ticket page (unblocks the auto-reply).
 3. 🧾 «لقطة تشخيص» of a device's Starlink **Billing** page with a balance due (his example: 282.62 BBD) - unblocks
    «كشف الفوترة» below.
@@ -50,3 +53,12 @@ into the working session) and whenever a task closes - short, the open lines onl
 9. 🌍 Outside-the-country devices: offered (not chosen yet) a daily check of the devices outside their country, bot
    alerts 5 and 2 days before the restriction, «⚠️ مشبوه» when the days left jump back up, «🎯 فرص التجوال العالمي»,
    and the account's country («🇺🇦») read from «موقع الخدمة» on each card.
+10. 👷 «رئيس العمّال» + 🤖 WhatsApp worker on his own number (council Nov 16 2026, report
+   https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79). He chose «لا الآن» for building, then talked it through:
+   he writes to the foreman in Arabic (Telegram); a WhatsApp worker that really understands (Claude), learns his
+   style from his corrections, and the foreman sees the conversations. His number 22227268 is «تم الربط» in WhatsApp
+   Manager (business «YAHYA - ETS SADAGHA», his dev app «ETS SADGHA STOR») AND still works in his WhatsApp Business
+   app = coexistence → the worker can read customers' messages and his own replies. He **approved a small server on
+   his Firebase** (webhook). Still open: his OK to keep the customers' needed facts (devices, renewal, debt, prices)
+   encrypted on that server; then his steps: Claude key → a Meta System User token (never in chat) → Firebase Blaze →
+   turn off any old auto-reply / Meta AI. Shadow mode 2 weeks first. Nothing built before he says «ابدأ».
