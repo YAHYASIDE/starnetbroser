@@ -3584,3 +3584,21 @@ is never pressed while a field is empty - it refills and saves on the next try (
   hour; a message read more than 15 min late is left to him. Handoff (a payment claim, cancel, complaint, unknown sender
   asking about a device…) → a polite «حوّلت رسالتك» + a phone notification «🤖 زبون يحتاجك على واتساب». Settings and
   the log (phone-only `starnet.whatsappAgent`, `starnet.whatsappAgentLog`) in «💬 واتساب بزنس».
+
+## 📶 «وضع الإنترنت الضعيف» - a button (Nov 17 2026)
+
+- His «ابحث عن أسباب جعل التطبيق لا يعمل إلا بالإنترنت القوي، وعندما يكون ضعيفًا يعمل ببطء شديد» (he worked the whole
+  day from the other phone with strong internet), then «ابنه بسرعة… زر ظاهر يمكن تفعيله وإطفاؤه». Found: his data is on
+  the phone (needs no internet); the background jobs fight for a weak line - the team link every 8 s, the hourly
+  Google Drive upload of the whole encrypted backup (sessions + receipt photos), team session rounds, automatic rep
+  copies / statements (PDF), chat retries every 15 s, scheduled background Starlink syncs - and no network call had a
+  time limit (a stalled request hung for minutes and its job stayed «busy»).
+- `lib/lowNet.ts`: phone-only `starnet.lowNet`; the button «📶 ضعيف؟» / «ضعيف ✓» in the home header
+  (`LowNetButton`, blinks when the phone reports a weak line - Chrome Network Information `looksWeak`). On: team link a
+  round a minute (unless asked), no session rounds (unless asked), no hourly Drive upload («رفع الآن» works), no
+  automatic rep copies / statements, chat retries once a minute and no op cards, scheduled syncs pushed off to the phone
+  (`pushScheduledSyncs`). What he starts himself still runs. Always (on or off): every Firestore / link REST call goes
+  through `timedFetch` (60 s, 90 s with the button on). The Firebase SDK live listeners are untouched.
+- Also found and told him: «المزامنة الحيّة» (stopped Oct 2026) still mounted but idle, the /session page (cloud
+  sessions, off), `TodayPanel` imported nowhere, the old personal debts, the old API path. To know what HE never uses,
+  I offered a phone-only «عدّاد الاستعمال» for two weeks (pending).

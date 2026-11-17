@@ -11,6 +11,7 @@
  * Firestore: starnet/{spaceId}/reps/{repId}/sides/{rep|owner} → { data, at }.
  */
 
+import { timedFetch } from "./lowNet";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
 import type { Client, ClientStore } from "./clientStore";
@@ -228,7 +229,7 @@ export type LiveSyncRun = { ok: true; changed: boolean; reps: number } | { ok: f
 let running = false;
 
 /** One round: the rep's phone exchanges its side; the operator's phone, one side per bound rep. */
-export async function runLiveSyncOnce(fetchFn: FetchFn = fetch, reps: { id: string; name: string }[] = []): Promise<LiveSyncRun> {
+export async function runLiveSyncOnce(fetchFn: FetchFn = timedFetch, reps: { id: string; name: string }[] = []): Promise<LiveSyncRun> {
   if (running || typeof window === "undefined") return { ok: true, skipped: true };
   const config = loadLiveSyncConfig();
   if (!config || !config.enabled) return { ok: true, skipped: true };

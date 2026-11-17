@@ -20728,3 +20728,43 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .wa-agent-line .msg-item-hint {
   overflow-wrap: anywhere;
 }
+
+/* 📶 «إنترنت ضعيف» in the home header (LowNetButton): off = quiet, on = amber, a weak line = a soft blink. */
+.low-net-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.low-net-word {
+  font-weight: 700;
+}
+.low-net-btn.low-net-on {
+  border-color: var(--yellow);
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+.low-net-btn.low-net-hint {
+  animation: low-net-blink 1.4s ease-in-out infinite;
+}
+@keyframes low-net-blink {
+  50% { box-shadow: 0 0 0 4px var(--yellow-bg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .low-net-btn.low-net-hint { animation: none; }
+}
+.low-net-note {
+  position: fixed;
+  z-index: 96;
+  top: calc(var(--safe-top, 0px) + 64px);
+  inset-inline: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+}

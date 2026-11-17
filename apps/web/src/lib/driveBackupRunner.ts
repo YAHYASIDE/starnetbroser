@@ -1,5 +1,6 @@
 "use client";
 
+import { lowNetOn } from "./lowNet";
 import { CapacitorHttp } from "@capacitor/core";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
@@ -118,6 +119,8 @@ export async function runDriveBackup(
 ): Promise<{ status: "skipped" } | { status: "uploaded"; fileName: string } | { status: "failed"; message: string }> {
   if (!isRunningInAndroidApp() || !isDriveLinked()) return { status: "skipped" };
   if (!force && !isDriveUploadDue(getDriveLastUpload())) return { status: "skipped" };
+  // 📶 weak internet (his button): the hourly upload waits - «رفع الآن» still works
+  if (!force && lowNetOn()) return { status: "skipped" };
   const password = getAutoBackupPassword();
   if (!password) {
     const message = "فعّل النسخ الاحتياطي التلقائي (كلمة المرور) أولًا - تُشفَّر به نسخة Drive";

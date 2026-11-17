@@ -1,5 +1,6 @@
 "use client";
 
+import { LowNetButton } from "@/components/LowNetButton";
 import { useKeptState } from "@/lib/dataReload";
 import { isRepDevice } from "@/lib/repSeparation";
 import { isRepWorkspace, repCan } from "@/lib/repMode";
@@ -3634,6 +3635,7 @@ export function HomeView({
       <header className="app-header app-header-compact">
         <HeaderMore />
         <NotificationsBell />
+        <LowNetButton />
         <div className="brand-lockup">
           <span className="brand-logo" aria-hidden="true">★</span>
           <span className="brand-mark">STAR NET</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { LOW_NET_LINK_EVERY_MS, lowNetOn, timedFetch } from "@/lib/lowNet";
 import { requestDataReload } from "@/lib/dataReload";
 
 import { useEffect } from "react";
@@ -79,12 +80,14 @@ export function DeviceLinkRunner() {
       }
       const storage = browserLinkStorage();
       if (!loadLinkConfig(storage)?.enabled) return;
+      // 📶 weak internet (his button): a round a minute, unless he asked for one
+      if (!force && lowNetOn() && Date.now() - lastRound < LOW_NET_LINK_EVERY_MS) return;
       const full = force || isIdle();
       waiting = !full;
       running = true;
       lastRound = Date.now();
       try {
-        const result = await runLinkRound(storage, fetch, new Date(), { sendOnly: !full });
+        const result = await runLinkRound(storage, timedFetch, new Date(), { sendOnly: !full });
         if (!full) return;
         window.dispatchEvent(new CustomEvent(DEVICE_LINK_EVENT, { detail: result }));
         // 👥 a new device or money operation from another member: one notification for the round
@@ -113,6 +116,8 @@ export function DeviceLinkRunner() {
       const config = loadLinkConfig(storage);
       const skip = (message: string) => force && window.dispatchEvent(new CustomEvent(TEAM_SESSIONS_EVENT, { detail: { ok: false, sent: 0, taken: 0, message } }));
       if (sessionsBusy) return void skip("ما زال ينقل الجلسات - انتظر قليلًا ثم أعد");
+      // 📶 weak internet: the sessions wait (they are the heaviest part of the link) unless he asked
+      if (!force && lowNetOn()) return;
       if (!config?.enabled) return void skip("الربط غير مفعّل");
       const team = loadTeam(storage);
       if (team.length < 2) return void skip("لا يرى هذا الهاتف عضوًا آخر في الفريق بعد - اضغط «🔄 مزامنة الآن» ثم أعد");

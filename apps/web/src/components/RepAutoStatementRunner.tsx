@@ -1,5 +1,6 @@
 "use client";
 
+import { lowNetOn } from "@/lib/lowNet";
 import { useEffect } from "react";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { loadClientStore } from "@/lib/clientStore";
@@ -52,6 +53,8 @@ export function RepAutoStatementRunner() {
     if (!isRunningInAndroidApp() || isRepWorkspace()) return;
     let busy = false;
     const tick = async () => {
+      // 📶 weak internet (his button): the automatic statements wait
+      if (lowNetOn()) return;
       if (busy) return;
       const allReps = listRepresentatives(loadRepresentativeStore());
       const reps = allReps.filter((r) => r.autoStatement && isRepLinkedToBot(r.id));

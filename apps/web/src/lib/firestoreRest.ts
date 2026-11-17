@@ -5,6 +5,7 @@
  * throws into the app. `fetchFn` is injectable for tests.
  */
 
+import { timedFetch } from "./lowNet";
 import type { LiveSyncConfig } from "./liveSyncConfig";
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
@@ -63,7 +64,7 @@ async function call(fetchFn: FetchFn, url: string, init: RequestInit): Promise<{
 }
 
 /** A valid ID token: the saved one, refreshed when about to expire, or a new anonymous sign-in. */
-export async function idToken(config: Pick<LiveSyncConfig, "apiKey">, fetchFn: FetchFn = fetch, now = Date.now()): Promise<Result<string>> {
+export async function idToken(config: Pick<LiveSyncConfig, "apiKey">, fetchFn: FetchFn = timedFetch, now = Date.now()): Promise<Result<string>> {
   const saved = loadToken(config.apiKey);
   if (saved && saved.expiresAt - 60_000 > now) return { ok: true, value: saved.idToken };
   if (saved) {
@@ -101,7 +102,7 @@ export function documentUrl(config: Pick<LiveSyncConfig, "projectId">, path: str
 export async function readDocument(
   config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
   path: string,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
 ): Promise<Result<Record<string, string> | null>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;
@@ -120,7 +121,7 @@ export async function writeDocument(
   config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
   path: string,
   fields: Record<string, string>,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
 ): Promise<Result<true>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;
@@ -138,7 +139,7 @@ export async function writeDocument(
 export async function listDocuments(
   config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
   collectionPath: string,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
   pageSize = 100,
 ): Promise<Result<{ id: string; fields: Record<string, string>; createTime?: string }[]>> {
   const token = await idToken(config, fetchFn);
@@ -158,7 +159,7 @@ export async function listDocuments(
 }
 
 /** Deletes one document (already gone = fine). */
-export async function deleteDocument(config: Pick<LiveSyncConfig, "apiKey" | "projectId">, path: string, fetchFn: FetchFn = fetch): Promise<Result<true>> {
+export async function deleteDocument(config: Pick<LiveSyncConfig, "apiKey" | "projectId">, path: string, fetchFn: FetchFn = timedFetch): Promise<Result<true>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;
   const r = await call(fetchFn, documentUrl(config, path), { method: "DELETE", headers: { Authorization: `Bearer ${token.value}` } });
@@ -175,7 +176,7 @@ export async function queryIdsBefore(
   field: string,
   before: string,
   limit = 50,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
 ): Promise<Result<string[]>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;
@@ -202,7 +203,7 @@ export async function updateDocumentFields(
   config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
   path: string,
   fields: Record<string, string>,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
 ): Promise<Result<true>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;

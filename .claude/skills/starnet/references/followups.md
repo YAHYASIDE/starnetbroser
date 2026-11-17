@@ -62,3 +62,6 @@ into the working session) and whenever a task closes - short, the open lines onl
    his Firebase** (webhook). Still open: his OK to keep the customers' needed facts (devices, renewal, debt, prices)
    encrypted on that server; then his steps: Claude key → a Meta System User token (never in chat) → Firebase Blaze →
    turn off any old auto-reply / Meta AI. Shadow mode 2 weeks first. Nothing built before he says «ابدأ».
+11. 📊 «عدّاد الاستعمال» (Nov 17 2026, offered with the weak-internet mode; he said «نعم ابنه» - the weak mode went first):
+   count on the phone which pages / sections / big buttons he opens for two weeks, then list what he never used, he
+   chooses what hides in «المزيد» or goes. Plus remove the dead code found: TodayPanel, idle LiveSyncRunner.

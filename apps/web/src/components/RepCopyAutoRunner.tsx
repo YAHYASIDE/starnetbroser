@@ -1,5 +1,6 @@
 "use client";
 
+import { lowNetOn } from "@/lib/lowNet";
 import { useEffect } from "react";
 import { tellOwner } from "@/lib/appEvents";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
@@ -27,6 +28,8 @@ export function RepCopyAutoRunner() {
     const linkTried: Record<string, number> = {};
     const tick = async () => {
       if (busy) return;
+      // 📶 weak internet (his button): the automatic copies wait
+      if (lowNetOn()) return;
       busy = true;
       try {
         const hasFirebase = flagFirebase() !== null;

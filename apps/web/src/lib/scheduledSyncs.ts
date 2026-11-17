@@ -9,6 +9,7 @@
  * setting: not in the backup) and hands them to it.
  */
 
+import { lowNetOn } from "./lowNet";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { repCan } from "./repMode";
@@ -85,7 +86,8 @@ export async function pushScheduledSyncs(value: ScheduledSyncs = loadScheduledSy
     // 📤 repCopy is the app's own (repCopyAuto.ts) - the phone doesn't need it.
     const { morningHour, nightHour } = value;
     // 🔑 A rep's phone runs them only when the operator gave him «مزامنات مجدولة».
-    const on = repCan("sync:scheduled");
+    // 📶 weak internet (his button): no scheduled background syncs while it is on
+    const on = repCan("sync:scheduled") && !lowNetOn();
     await LocalBrowser.setScheduledSyncs({
       morning: on && value.morning,
       morningHour,

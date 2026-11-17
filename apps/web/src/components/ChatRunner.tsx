@@ -1,5 +1,6 @@
 "use client";
 
+import { LOW_NET_CHAT_RETRY_MS, lowNetOn } from "@/lib/lowNet";
 import { useEffect } from "react";
 import { addChatMessages, CHAT_EVENT, saveChatSeen, chatNotification, isMine, loadChat, messagesOf, saveChat, type ChatMessage } from "@/lib/chat";
 import { chatTargets, listenChat, listenChatReads, sendChat, type ChatTarget } from "@/lib/chatTransport";
@@ -106,7 +107,11 @@ export function ChatRunner() {
         );
       }
     };
-    const retry = async () => {
+    let lastRetry = 0;
+    const retry = async (force = false) => {
+      // 📶 weak internet (his button): unsent messages are tried once a minute
+      if (!force && lowNetOn() && Date.now() - lastRetry < LOW_NET_CHAT_RETRY_MS) return;
+      lastRetry = Date.now();
       const unsent = loadUnsent();
       if (unsent.length === 0) return;
       const store = loadChat();
@@ -131,14 +136,14 @@ export function ChatRunner() {
       }
     };
     start();
-    void retry();
+    void retry(true);
     const firstLook = window.setTimeout(ringMissed, 1500);
     // 💳 new money operations → cards in each rep's conversation (the reference phone; chatOpsSend.ts)
     const by = () => {
       const n = teamMemberName();
       return n === "أنا" ? "المسؤول" : n;
     };
-    const cards = () => void postNewOpCards(postChat, by(), side.memberId || undefined).catch(() => undefined);
+    const cards = () => !lowNetOn() && void postNewOpCards(postChat, by(), side.memberId || undefined).catch(() => undefined);
     const firstCards = window.setTimeout(cards, 20_000);
     const cardsTimer = window.setInterval(cards, 60_000); // opened from the call notification: CallManager is listening by then
     const timer = window.setInterval(() => void retry(), 15_000);

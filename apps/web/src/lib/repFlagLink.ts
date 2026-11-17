@@ -4,12 +4,13 @@
  * can and keeps it; documents go after FLAG_KEEP_MS. A network problem just means "next round".
  */
 
+import { timedFetch } from "./lowNet";
 import { deleteDocument, listDocuments, writeDocument, type FetchFn } from "./firestoreRest";
 import { openText, sealText, type Sealed } from "./deviceSyncCrypto";
 import { FLAG_KEEP_MS, flagCollection, flagDocPath, parseFlagPayload, type FlagChannel, type FlagLink, type RepFlag } from "./repFlags";
 
 /** Rep: sends what isn't sent yet; returns the ids that arrived (and the first problem, if any). */
-export async function pushFlags(link: FlagLink, flags: RepFlag[], fetchFn: FetchFn = fetch): Promise<{ sent: string[]; message?: string }> {
+export async function pushFlags(link: FlagLink, flags: RepFlag[], fetchFn: FetchFn = timedFetch): Promise<{ sent: string[]; message?: string }> {
   const sent: string[] = [];
   for (const flag of flags) {
     const sealed = await sealText(JSON.stringify(flag), link.key);
@@ -29,7 +30,7 @@ export async function pushFlags(link: FlagLink, flags: RepFlag[], fetchFn: Fetch
 export async function pullFlags(
   config: { apiKey: string; projectId: string },
   channels: Record<string, FlagChannel>,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn = timedFetch,
   now = Date.now(),
 ): Promise<{ flags: RepFlag[]; sentAt: Record<string, number>; message?: string }> {
   const flags: RepFlag[] = [];

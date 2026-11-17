@@ -10,6 +10,7 @@
  * are «phone» and «laptop» (their old paths). Settings live in `starnet.*` (never in a backup, never in the repo).
  */
 
+import { timedFetch } from "./lowNet";
 import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, unflattenKey, type Baseline, type FlatData, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
 import { isLinkKey, newLinkKey, openText, sealText } from "./deviceSyncCrypto";
 import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
@@ -414,7 +415,7 @@ const parsedBase: { raw: string | null; value: Baseline } = { raw: null, value: 
 /** One round of the link. Never throws: a network / Firebase problem is the round's message. `sendOnly`: only
  * what changed here goes out (he is in the middle of something - nothing is written into his screens); the other
  * members' changes come in on the next full round. */
-export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now: Date = new Date(), opts: { sendOnly?: boolean } = {}): Promise<RoundResult> {
+export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = timedFetch, now: Date = new Date(), opts: { sendOnly?: boolean } = {}): Promise<RoundResult> {
   const config = loadLinkConfig(s);
   const fail = (message: string): RoundResult => ({ ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [], incoming: [] });
   if (!config || !config.enabled) return fail("الربط غير مفعّل");
