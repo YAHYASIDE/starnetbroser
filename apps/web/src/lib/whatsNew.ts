@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-17-desktop-chrome",
+    date: "2026-11-17",
+    title: "🌐 الروابط تُفتح في Chrome على الكمبيوتر",
+    steps: [
+      {
+        title: "🌐 Chrome بدل Edge",
+        before: "على الكمبيوتر كانت روابط التطبيق تُفتح في Edge.",
+        after: "تُفتح الآن في Google Chrome إن كان مثبّتًا، وإلا في المتصفح الافتراضي.",
+      },
+    ],
+  },
+  {
     id: "2026-11-17-low-net",
     date: "2026-11-17",
     title: "📶 وضع الإنترنت الضعيف",

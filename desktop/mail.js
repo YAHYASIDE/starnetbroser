@@ -4,6 +4,7 @@
 // (never submitted). The phone's backup brings each mailbox's session («mail:<id>»); a laptop backup
 // carries them back. Which mailboxes are signed in is kept in mail-sessions.json (no secret in it).
 const { BrowserWindow, Menu, session, shell, app } = require("electron");
+const { openLink } = require("./browser");
 const fs = require("fs");
 const path = require("path");
 const { MAIL_COOKIE_URLS, MAIL_PREFIX, isMailUrl, isGmail, inboxUrlFor, mailSessionState, mailPartitionFor, mailRestorePlan, combineCookies } = require("./sessions");
@@ -81,7 +82,7 @@ function openMailbox(opts, { show = true } = {}) {
   const email = text(opts.email, 320).trim();
   if (isGmail(email)) {
     // Google refuses its sign-in inside other programs: Gmail opens in the normal browser.
-    void shell.openExternal("https://mail.google.com/mail/u/0/");
+    openLink("https://mail.google.com/mail/u/0/");
     return { ok: true };
   }
   const existing = open.get(accountId);
@@ -113,13 +114,13 @@ function openMailbox(opts, { show = true } = {}) {
   if (zoomStore) attachZoom(wc, zoomStore);
   wc.setWindowOpenHandler(({ url }) => {
     if (isMailUrl(url)) void wc.loadURL(url);
-    else if (/^https?:/i.test(url)) void shell.openExternal(url);
+    else if (/^https?:/i.test(url)) openLink(url);
     return { action: "deny" };
   });
   wc.on("will-navigate", (event, url) => {
     if (isMailUrl(url)) return;
     event.preventDefault();
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    if (/^https?:/i.test(url)) openLink(url);
   });
   wc.on("will-redirect", (event, url) => {
     if (!isMailUrl(url)) event.preventDefault();

@@ -23,6 +23,7 @@
     },
     "files": [
       "main.js",
+      "browser.js",
       "preload.js",
       "paths.js",
       "devices.js",

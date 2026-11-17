@@ -5,6 +5,7 @@
 // Phase 3 (his choice «فتح حسابات Starlink أولًا»): each device's own isolated Starlink window
 // (devices.js), signed in by the sessions of the phone's backup.
 const { app, BrowserWindow, protocol, net, shell, Menu, ipcMain } = require("electron");
+const { openLink } = require("./browser");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
@@ -73,13 +74,13 @@ function createWindow() {
   win.loadURL(`${ORIGIN}/`);
   // Another site: the normal browser, never inside the app's window.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    if (/^https?:/i.test(url)) openLink(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith(`${ORIGIN}/`)) return;
     event.preventDefault();
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    if (/^https?:/i.test(url)) openLink(url);
   });
 }
 

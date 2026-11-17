@@ -3602,3 +3602,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Also found and told him: «المزامنة الحيّة» (stopped Oct 2026) still mounted but idle, the /session page (cloud
   sessions, off), `TodayPanel` imported nowhere, the old personal debts, the old API path. To know what HE never uses,
   I offered a phone-only «عدّاد الاستعمال» for two weeks (pending).
+
+## 🌐 Links out of the Windows app open in Chrome (Nov 17 2026)
+
+- His «اجعل الفتح يكون من Google Chrome لا من Edge». The desktop app (`desktop/`) opened every outside link with
+  `shell.openExternal` = Windows' default browser (Edge). `desktop/browser.js` `openLink`: Chrome where Windows installs it
+  (Program Files, Program Files (x86), LocalAppData - `chromePath`, tested), else the default browser. Used by the main
+  window, the device windows and the mailbox windows.

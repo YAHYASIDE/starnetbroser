@@ -3,6 +3,7 @@
 // other site opens in the normal browser; the saved email/password typed into the sign-in page
 // (never submitted). The sessions of a backup (the phone's format) are put into those partitions.
 const { BrowserWindow, Menu, session, shell, app } = require("electron");
+const { openLink } = require("./browser");
 const { SESSION_COOKIE_URLS, isStarlinkUrl, partitionFor, starlinkRestorePlan, combineCookies } = require("./sessions");
 const { loginScript } = require("./autofill");
 const { attachZoom } = require("./zoom");
@@ -74,14 +75,14 @@ function openDevice(opts) {
     if (isStarlinkUrl(url)) {
       void wc.loadURL(url);
     } else if (/^https?:/i.test(url)) {
-      void shell.openExternal(url);
+      openLink(url);
     }
     return { action: "deny" };
   });
   wc.on("will-navigate", (event, url) => {
     if (isStarlinkUrl(url)) return;
     event.preventDefault();
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    if (/^https?:/i.test(url)) openLink(url);
   });
   wc.on("will-redirect", (event, url) => {
     if (!isStarlinkUrl(url)) event.preventDefault();
