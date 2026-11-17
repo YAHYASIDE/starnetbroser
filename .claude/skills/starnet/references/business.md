@@ -3609,3 +3609,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `shell.openExternal` = Windows' default browser (Edge). `desktop/browser.js` `openLink`: Chrome where Windows installs it
   (Program Files, Program Files (x86), LocalAppData - `chromePath`, tested), else the default browser. Used by the main
   window, the device windows and the mailbox windows.
+
+## 🤝 A rep's share: yes / no on each charge (Nov 17 2026)
+
+- His screenshot (a charge form on a device paid in UAH) «أضف زر إضافة ربح من هذا الجهاز للمندوب أو عدم إضافة ربح له».
+  In the charge form (`LedgerDialog`, debit, a device with a rep): «🤝 حصة <rep> من ربح هذا الشحن» with «✅ نعم، أضف
+  حصته» (default, his expected share ≈ $ at his %) / «❌ لا حصة له». «لا» locks `representativeCommissionPercent: 0`
+  (and no loss share) on that one entry - the device and the customer stay the rep's; the share can still be changed
+  later from the shipment sheet (the existing percent edit). Back to «نعم» after each add.

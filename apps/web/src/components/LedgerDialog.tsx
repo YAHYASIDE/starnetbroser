@@ -1,5 +1,6 @@
 "use client";
 
+import { loadRepresentativeStore } from "@/lib/repStore";
 import { ClientPicker } from "./ClientPicker";
 import type { Client, CreateClientInput } from "@/lib/clientStore";
 import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
@@ -218,6 +219,8 @@ export function LedgerDialog({
 
   // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
   const [markD, setMarkD] = useState(true);
+  // 🤝 «حصة المندوب من هذا الشحن» (his Nov 17 2026 ask): off = this shipment gives the device's rep no share (0 %)
+  const [repShare, setRepShare] = useState(true);
   // 💳 Paid now from the KAST card (his Nov 1 2026 ask «أضف مكان دفع هنا… يدفع من هنا تلقائيًا»): the cost is
   // settled at once and the card's balance goes down by it (listCardPayments reads paidVia "card").
   const [payFromCard, setPayFromCard] = useState(false);
@@ -519,7 +522,7 @@ export function LedgerDialog({
         paymentRate: kind === "credit" && !plain ? rateSnapshot : undefined,
         starlinkCost: starlinkCostInput,
         profitCurrencyRates,
-        representative,
+        representative: representative && kind === "debit" && !repShare ? { ...representative, commissionPercent: 0, sharesLosses: false } : representative,
       });
       if (currencyConfirmed) entry.currencyConfirmed = true;
       if (renewal !== undefined) entry.renewal = renewal;
@@ -533,6 +536,7 @@ export function LedgerDialog({
       setNote("");
       setEmail(accountEmail ?? "");
       setMarkD(false);
+      setRepShare(true);
       setPayFromCard(false);
       setCostAmount("");
       setAwaitBill(false);
@@ -946,6 +950,24 @@ export function LedgerDialog({
                 <div className="ledger-profit-section ledger-profit-pending">
                   <strong>ربح العملية</strong>
                   <span>أكمل بيانات المبلغ والتكلفة أعلاه لحساب الربح</span>
+                </div>
+              )}
+              {representative && (
+                <div className="ledger-rep-share" data-tour="rep-share">
+                  <span className="ledger-rep-share-title">
+                    🤝 حصة {loadRepresentativeStore()[representative.id]?.name ?? "المندوب"} من ربح هذا الشحن
+                    {repShare && previewProfitUsd !== undefined && previewProfitUsd > 0 && representative.commissionPercent > 0 ? (
+                      <> · <bdi dir="ltr">≈ {formatAmount(Math.round(((previewProfitUsd * representative.commissionPercent) / 100) * 100) / 100)} $</bdi> ({representative.commissionPercent}%)</>
+                    ) : null}
+                  </span>
+                  <div className="ledger-pay-choice ledger-rep-share-choice" role="radiogroup" aria-label="حصة المندوب">
+                    <button type="button" role="radio" aria-checked={repShare} className={repShare ? "is-on" : ""} onClick={() => setRepShare(true)}>
+                      ✅ نعم، أضف حصته
+                    </button>
+                    <button type="button" role="radio" aria-checked={!repShare} className={!repShare ? "is-on" : ""} onClick={() => setRepShare(false)}>
+                      ❌ لا حصة له
+                    </button>
+                  </div>
                 </div>
               )}
               </>

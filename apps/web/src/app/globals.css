@@ -20768,3 +20768,18 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   font-size: 0.85rem;
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
 }
+
+/* 🤝 «حصة المندوب من هذا الشحن» in the charge form (his Nov 17 2026 ask). */
+.ledger-rep-share {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+.ledger-rep-share-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.ledger-pay-choice.ledger-rep-share-choice {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
