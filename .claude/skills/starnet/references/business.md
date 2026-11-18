@@ -3641,3 +3641,30 @@ is never pressed while a field is empty - it refills and saves on the next try (
   from the one his last copy carried (`starnet.repCopySentRates`, recorded by `sendRepCopy`; the first run after the
   update only records today's). Same path as before: 10 min after the last change, reps linked to the bot with a
   linked phone, «📤 نسخة المندوب تلقائيًا» on. On the rep's phone a rate the operator changed wins (rebaseWorkspace).
+
+## 🌐 «رابط الزبائن» + «حسابي» for the customer (Nov 18 2026)
+
+- His ask: a customers' app «يدخل الزبون ويضيف اسمه الكامل ورقمه (اختياري) والإيميل والكودان، أو ينشئ حسابًا جديدًا
+  يضيف اسمه و KIT أو SN»; «خفيف، يفتح من المتصفح برابط»; his choice «نعم، ومعها «حسابي» للزبون». He said the email
+  and Wi-Fi codes are not sensitive in his market («لا أحد يسرق… لا تعتبر من الخطر») - accepted; they are still
+  sealed so only his app reads them.
+- A page, not an app: `apps/web/public/c/` (index.html + page.js + portal.js, plain JS, no library) served by Pages at
+  https://starnet.etssadagha.com/c/. `#j.…` = the request link (forms «📡 عندي حساب»: name, phone optional, email,
+  كود البريد، كود الواي فاي / «🆕 جهاز جديد»: name, phone optional, KIT or SN). `#v.…` = one customer's «حسابي»: his
+  live devices (status, renewal day + days left, usual price), what he owes per currency (+ the فرانك line), his
+  last 10 operations, the payment ways, «➕ أضف جهازًا آخر».
+- Its own Firebase project (NOT the team's - the team rules let any signed-in user write). Setup once in settings ←
+  البوتات ← «🌐 رابط الزبائن»: paste firebaseConfig → the app makes a key pair (ECDH P-256; the private half in
+  `starnet_portal_v1`, backed up, so links survive a phone change) and signs this phone in anonymously; the rules it
+  shows name his phones' uids (each phone / laptop adds its own → «⚠️ انسخ القواعد وانشرها» again). Customers may
+  only ADD a sealed request; only his phones read / delete requests and write pages; a page is read only by its
+  random name. «✅ جرّب» checks all three.
+- ✋ Nothing is added by itself (same rule as the WhatsApp emails): requests come every 2 min (10 with «إنترنت ضعيف»)
+  into `starnet_portal_requests_v1`, a phone notification each (no codes in it) and the badge «🌐 طلب من رابط
+  الزبائن» → «➕ أضف» / «💬 راسله» / «✕ لا». «أضف» = the device on the customer found by his number (else a new
+  customer by his name): an existing account → a device with `expectedEmail` + `expectedEmailPassword` +
+  `wifiPassword`; a new KIT / SN → a «غير مفعّل» device. Same email / KIT / SN already here → nothing made.
+  Marked `fromPortal`.
+- «حسابي» per customer: his statement ← «تصدير» ← «🔗 رابط حسابه» (sent to his WhatsApp) / «🚫 أوقف رابطه». The page
+  is sealed with that customer's own key (only in his link) and re-sent every 30 min when it changed (not with
+  «إنترنت ضعيف», not in a rep's phone).

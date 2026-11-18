@@ -126,6 +126,7 @@ import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, sav
 import { CustomerMessagesSection } from "@/components/CustomerMessagesSection";
 import { CallServerSection } from "@/components/CallServerSection";
 import { WhatsAppSection } from "@/components/WhatsAppSection";
+import { PortalSection } from "@/components/PortalLink";
 import { ClaudeSection } from "@/components/ClaudeSection";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
@@ -484,6 +485,7 @@ export default function SettingsPage() {
             <SettingsFold id="telegram"><TelegramSection /></SettingsFold>
             <SettingsFold id="rep-bots"><TelegramRepsSection /></SettingsFold>
             <SettingsFold id="whatsapp"><WhatsAppSection /></SettingsFold>
+            <SettingsFold id="customer-link"><PortalSection /></SettingsFold>
             <SettingsFold id="claude"><ClaudeSection /></SettingsFold>
             <SettingsFold id="activation-costs"><ActivationCostsSection /></SettingsFold>
             <SettingsFold id="instant-replies"><TelegramInstantSection /></SettingsFold>

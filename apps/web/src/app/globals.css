@@ -6409,7 +6409,7 @@ button.today-tile {
   min-width: 22px;
   padding: 1px 7px;
   border-radius: 999px;
-  background: var(--surface-2, var(--surface));
+  background: var(--surface-alt);
   border: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -14978,7 +14978,7 @@ button.today-tile {
   margin: 0;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  background: var(--surface-2, var(--surface));
+  background: var(--surface-alt);
   font-size: 0.82rem;
   line-height: 1.6;
 }
@@ -16512,7 +16512,7 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   min-width: 14px;
   padding: 0 3px;
   border: 1px solid var(--border);
-  background: var(--surface-2, var(--surface));
+  background: var(--surface-alt);
   color: var(--text-muted);
   font-size: 0.55rem;
   line-height: 1.3;
@@ -20689,7 +20689,7 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface-2, var(--surface));
+  background: var(--surface-alt);
 }
 .wa-suggest-who {
   margin: 0;
@@ -20815,4 +20815,63 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* 🌐 «رابط الزبائن» */
+.portal-badge {
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 112px);
+  border-color: var(--brand);
+}
+.portal-line {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.portal-config {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.portal-rules {
+  margin: 10px 0;
+}
+.portal-rules summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.portal-rules-text {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 11px;
+  white-space: pre;
+}
+.portal-link-text {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  max-height: 64px;
+  overflow: auto;
+}
+.portal-client {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.portal-client .portal-link-text,
+.portal-client p {
+  flex-basis: 100%;
+}
+.portal-remove {
+  margin-top: 8px;
 }

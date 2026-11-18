@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1668e3">
+<title>STAR NET</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--text:#14213d;--muted:#5b6478;--line:#dde3ee;--brand:#1668e3;--brand-text:#fff;--green:#13803d;--green-bg:#e6f6ec;--red:#b3261e;--red-bg:#fdecea;--yellow-bg:#fff6dc;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0c1220;--card:#151d2e;--text:#e8edf7;--muted:#9aa5bb;--line:#26314a;--brand:#3d9bff;--brand-text:#021022;--green:#5fd38a;--green-bg:#123224;--red:#ff8a80;--red-bg:#3a1b1b;--yellow-bg:#3a3014;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:env(safe-area-inset-top,0) 16px calc(24px + env(safe-area-inset-bottom,0))}
+main{max-width:480px;margin:0 auto}
+header{display:flex;align-items:center;gap:10px;padding:18px 0 8px}
+.logo{width:40px;height:40px;border-radius:12px;background:var(--brand);color:var(--brand-text);display:grid;place-items:center;font-size:22px}
+h1{font-size:20px;margin:0}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.tab{border:2px solid var(--line);background:var(--card);color:var(--text);border-radius:12px;padding:10px 6px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+.tab[aria-pressed=true]{border-color:var(--brand);color:var(--brand)}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+.opt{color:var(--muted);font-weight:400}
+input{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+input[dir=ltr]{text-align:left}
+input:focus{outline:2px solid var(--brand);outline-offset:1px}
+.hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+button.go{width:100%;margin-top:18px;border:0;border-radius:12px;padding:13px;background:var(--brand);color:var(--brand-text);font:inherit;font-weight:700;font-size:17px;cursor:pointer}
+button.go:disabled{opacity:.6}
+.err{background:var(--red-bg);color:var(--red);border-radius:10px;padding:10px;margin-top:12px;font-size:14px}
+.ok{text-align:center}
+.ok .big{font-size:48px}
+.owed{background:var(--yellow-bg);border-radius:12px;padding:12px;font-weight:700;font-size:18px}
+.owed.zero{background:var(--green-bg);color:var(--green)}
+.dev{border-top:1px solid var(--line);padding:10px 0}
+.dev:first-child{border-top:0}
+.dev b{display:block}
+.row{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:7px 0;font-size:14px}
+.row:first-child{border-top:0}
+.row .l{min-width:0;overflow-wrap:anywhere}
+.row .a{white-space:nowrap}
+.paid{color:var(--green)}
+.muted{color:var(--muted);font-size:13px}
+.pay{white-space:pre-line;font-size:14px}
+h2{font-size:16px;margin:0 0 8px}
+a.link,button.link{color:var(--brand);font-weight:700;background:none;border:0;font:inherit;cursor:pointer;padding:0}
+bdi{unicode-bidi:isolate}
+</style>
+</head>
+<body>
+<main id="app">
+  <header><div class="logo" aria-hidden="true">📡</div><div><h1 id="biz">STAR NET</h1><p class="sub">ستارلينك</p></div></header>
+  <div class="card"><p>⏳ جارِ الفتح…</p></div>
+</main>
+<noscript><p style="text-align:center">افتح الرابط في متصفح يدعم JavaScript.</p></noscript>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

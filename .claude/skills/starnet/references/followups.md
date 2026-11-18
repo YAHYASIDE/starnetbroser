@@ -21,6 +21,9 @@ into the working session) and whenever a task closes - short, the open lines onl
    «كشف الفوترة» below.
 4. 📧 Gmail filter for his domain mail (postponed during the «بريد على نطاقي» setup): To `@starnet-om.com` →
    Create filter → ✓ Never send it to Spam.
+5. 🌐 «رابط الزبائن» (built Nov 18 2026): create the separate Firebase project (Firestore + Anonymous), paste its
+   firebaseConfig in settings ← البوتات ← «🌐 رابط الزبائن», publish the rules it shows, «✅ جرّب», then share the
+   link and send a first customer his «🔗 رابط حسابه»; tell me how it reads.
 
 ## 🛠️ لم يكتمل في التطبيق
 
@@ -45,7 +48,8 @@ into the working session) and whenever a task closes - short, the open lines onl
 5. 💬 WhatsApp Business «رسالة الترحيب» + «الردود السريعة» texts (offered to write them).
 6. 🤝 Rep options the council left (need his agreement with the rep): wholesale price per device tied to cost, debt
    ceiling per rep, «استلمت لحساب المندوب».
-7. 🌍 Opening the app to customers (his «أفكر أن أوسّع التطبيق ليشمل الزبائن») - big idea, council first.
+7. 🌍 Opening the app to customers: the first step is built («🌐 رابط الزبائن» + «حسابي», Nov 18 2026); more (paying
+   from the page, renewal requests) only after he tries it.
 8. 🔑 Sessions from the team / reps arriving signed out (Nov 15 2026): two causes fixed (ticket test for reps' files,
    more cookie addresses). Waiting for his «🔍 تقرير الجلسة» from the phone that signed in and the one that received
    it - if the 🔑 ticket travels and the device is still signed out, Starlink keeps the sign-in outside the cookies

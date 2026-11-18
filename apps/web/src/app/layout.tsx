@@ -11,6 +11,7 @@ import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
 import { WhatsAppSuggestionsBadge } from "@/components/WhatsAppSuggestionsBadge";
+import { PortalRequestsBadge, PortalRunner } from "@/components/PortalLink";
 import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { DataReloadBoundary } from "@/components/DataReloadBoundary";
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <LiveSyncRunner />
               <DeviceLinkRunner />
               <TeamSyncLine />
+              <PortalRunner />
             </BackgroundPart>
             <BackgroundPart part="reps">
               <RepCopyAutoRunner />
@@ -92,6 +94,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </BackgroundPart>
             <RepOpFlagsBanner />
             <WhatsAppSuggestionsBadge />
+            <PortalRequestsBadge />
             <RepFlagsBanner />
             <BackgroundPart part="reps">
               <RepFlagRunner />

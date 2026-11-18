@@ -44,6 +44,7 @@ import { invoiceLockReason, type InvoiceEditInput } from "@/lib/invoiceEdit";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
 import { buildStatementData, statementNetView } from "@/lib/statementDocument";
 import { StatementImageButton } from "./StatementImageButton";
+import { PortalClientButton } from "./PortalLink";
 import { filterMovements, MOVEMENT_FILTERS, movementView, type MovementFilter } from "@/lib/partyMovements";
 import {
   addCategory,
@@ -1218,6 +1219,7 @@ function PartyCard({
             <StatementImageButton phone={party.phone} build={() => buildStatementData(party, isClient, totals, fullStatement(), deviceNames, net)} />
             <PdfButton className="party-action party-action-pdf" label="📄 PDF" build={() => buildPartyStatementPdf(party, isClient, totals, fullStatement(), deviceNames, net)} />
           </div>
+          {isClient && <PortalClientButton client={party as Client} />}
         </PartySheet>
       )}
 
