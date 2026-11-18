@@ -18,6 +18,8 @@ operator speaks Arabic; the whole UI is Arabic/RTL. Reply to the operator in Ara
   wording, «حسابي», customer messages/statements, the rep's app) are in
   `.claude/skills/starnet/references/business.md` - read it before any change to money, messages
   or the rep app, and add every new decision of his to it in the same commit.
+- Work is split into chats by area (development, devices/customers, studies, skills): the open items and
+  rules for each are in `.claude/skills/starnet/references/workstreams.md` - read your area's section first.
 
 ## Layout
 
