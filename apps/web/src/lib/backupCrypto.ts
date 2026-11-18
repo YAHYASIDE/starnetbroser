@@ -1,3 +1,4 @@
+import { bytesToBase64 } from "./base64";
 /**
  * Password-based encryption for the "protected backup" feature (account list + login-session
  * cookies, see accountBackup.ts). PBKDF2-SHA256 (210,000 iterations - current OWASP guidance for
@@ -30,9 +31,7 @@ export class WrongPasswordError extends Error {
 }
 
 function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return bytesToBase64(bytes);
 }
 
 function fromBase64(value: string): Uint8Array {

@@ -1,3 +1,4 @@
+import { bytesToBase64 } from "./base64";
 /**
  * Optional app-open PIN lock (الإعدادات → "قفل التطبيق"): when set, AppLockGate.tsx requires this
  * PIN before showing any page content. The PIN itself is never stored in plain text - only a
@@ -36,9 +37,7 @@ function safeSet(key: string, value: string | null) {
 }
 
 function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return bytesToBase64(bytes);
 }
 
 function fromBase64(value: string): Uint8Array {

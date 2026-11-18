@@ -20783,3 +20783,36 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .ledger-pay-choice.ledger-rep-share-choice {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+/* 🛟 The safe mode (SafeMode.tsx): a banner at the top while the background jobs are stopped. */
+.safe-mode-banner {
+  position: fixed;
+  z-index: 97;
+  top: calc(env(safe-area-inset-top, 0px) + 54px);
+  inset-inline: 12px;
+  padding: 8px 12px;
+  border: 2px solid var(--yellow);
+  border-radius: 999px;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.safe-mode-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.safe-mode-part {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}

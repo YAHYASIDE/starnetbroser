@@ -1,5 +1,6 @@
 "use client";
 
+import { BACKUP_AFTER_OPEN_MS, safeModeOn } from "@/lib/safeMode";
 import { LowNetButton } from "@/components/LowNetButton";
 import { useKeptState } from "@/lib/dataReload";
 import { isRepDevice } from "@/lib/repSeparation";
@@ -1962,14 +1963,19 @@ export function HomeView({
     autoBackupStartedRef.current = true;
     // Only after the real account list is loaded (same gate the sync drain waits on), so a backup
     // never captures the placeholder list shown before loading finishes.
-    void accountsReadyGateRef.current.whenReady().then(async () => {
-      const outcome = await runAutoBackup(accountsRef.current);
-      if (outcome.status === "saved") setLastBackupAt(new Date().toISOString());
-      if (outcome.status === "failed") pushToast(`تعذر النسخ الاحتياطي التلقائي: ${outcome.message}`);
-      // The off-phone copy (Settings → Google Drive). Silent: a failure (offline) is retried on the
-      // next app open and shown in Settings, never a toast every time.
-      await runDriveBackup(accountsRef.current);
-      driveReadyRef.current = true;
+    // 🧊 Never at the moment the app opens (his Nov 18 2026 report: the main phone froze on its home screen and Android
+    // closed it - the whole backup was built right then): 2 minutes later, and not in the safe mode.
+    void accountsReadyGateRef.current.whenReady().then(() => {
+      window.setTimeout(async () => {
+        if (safeModeOn()) return;
+        const outcome = await runAutoBackup(accountsRef.current);
+        if (outcome.status === "saved") setLastBackupAt(new Date().toISOString());
+        if (outcome.status === "failed") pushToast(`تعذر النسخ الاحتياطي التلقائي: ${outcome.message}`);
+        // The off-phone copy (Settings → Google Drive). Silent: a failure (offline) is retried on the
+        // next app open and shown in Settings, never a toast every time.
+        await runDriveBackup(accountsRef.current);
+        driveReadyRef.current = true;
+      }, BACKUP_AFTER_OPEN_MS);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1980,7 +1986,7 @@ export function HomeView({
     let busy = false;
     const tick = () => {
       // Only once the real list is loaded (after the first run above), never the placeholder list.
-      if (busy || !driveReadyRef.current) return;
+      if (busy || !driveReadyRef.current || safeModeOn()) return;
       busy = true;
       void runDriveBackup(accountsRef.current).finally(() => {
         busy = false;

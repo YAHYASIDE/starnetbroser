@@ -3617,3 +3617,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   حصته» (default, his expected share ≈ $ at his %) / «❌ لا حصة له». «لا» locks `representativeCommissionPercent: 0`
   (and no loss share) on that one entry - the device and the customer stay the rep's; the share can still be changed
   later from the shipment sheet (the existing percent edit). Back to «نعم» after each add.
+
+## 🧊 The main phone froze on opening + 🛟 the safe mode (Nov 18 2026)
+
+- His report: internet normal, every phone fine, but his MAIN phone «بطيء جدًا… لا يمكن الضغط على زر ضعيف، يقول التطبيق
+  لا يعمل، يبقى متجمدًا على الرئيسية وعندما أضغط أي شيء يخرجني» (Android's ANR). Found: right when the home screen was
+  ready the app built the whole encrypted backup (daily auto backup + the hourly Drive copy - his phone is the one with
+  Drive, the most data and the receipt photos) and turned it into base64 ONE CHARACTER AT A TIME (backupCrypto,
+  deviceSyncCrypto (team link batches, chat pictures / voices), appLock) - seconds to minutes of a blocked screen.
+- Fixed: `lib/base64.ts` (32 KB chunks, tested on 8 MB) everywhere; the automatic backups start 2 minutes after the
+  app opens (`BACKUP_AFTER_OPEN_MS`), never in the safe mode.
+- 🛟 «الوضع الآمن» (`lib/safeMode.ts`): a first script in the page counts the opens; 3 within 3 minutes → no background
+  part runs (`BackgroundPart` in app/layout.tsx: telegram, link, chat, whatsapp, reps, receipts, browser; scheduled syncs
+  pushed off; no backups). A banner «🛟 وضع آمن» opens a sheet to start each part («▶️ شغّل») - the one that freezes
+  is the cause - or «✅ أنهِ الوضع الآمن» (reload with everything).

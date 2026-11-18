@@ -1,3 +1,4 @@
+import { bytesToBase64 } from "./base64";
 /**
  * 🔐 The phone ↔ laptop link's encryption: a random 256-bit key made on the phone and carried to the
  * laptop inside the «رمز الربط» - so plain AES-256-GCM, no password stretching (that would cost a
@@ -5,9 +6,7 @@
  */
 
 function toBase64(bytes: Uint8Array): string {
-  let s = "";
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]!);
-  return btoa(s);
+  return bytesToBase64(bytes);
 }
 
 function fromBase64(text: string): Uint8Array {

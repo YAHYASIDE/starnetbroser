@@ -33,6 +33,8 @@ import { RepAutoStatementRunner } from "@/components/RepAutoStatementRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
 import { LaunchSplash } from "@/components/LaunchSplash";
+import { BackgroundPart, SafeModeBanner } from "@/components/SafeMode";
+import { SAFE_MODE_BOOT_SCRIPT } from "@/lib/safeMode";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -61,6 +63,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* 🛟 counts the opens before anything else runs - 3 in 3 minutes = the safe mode (lib/safeMode.ts) */}
+        <script dangerouslySetInnerHTML={{ __html: SAFE_MODE_BOOT_SCRIPT }} />
         {/* 🌌 the opening screen - first in the page, dark from the very first frame */}
         <LaunchSplash />
         {/* 🔐 nothing runs on a phone that wasn't activated with his code - not even the bridges below. */}
@@ -73,25 +77,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <DeskSidebar />
             <DeskKeys />
             <WhatsNewTour />
-            <LiveSyncRunner />
-            <DeviceLinkRunner />
-            <TeamSyncLine />
-            <RepCopyAutoRunner />
-            <RepAutoStatementRunner />
-            <WhatsAppRunner />
+            <SafeModeBanner />
+            <BackgroundPart part="link">
+              <LiveSyncRunner />
+              <DeviceLinkRunner />
+              <TeamSyncLine />
+            </BackgroundPart>
+            <BackgroundPart part="reps">
+              <RepCopyAutoRunner />
+              <RepAutoStatementRunner />
+            </BackgroundPart>
+            <BackgroundPart part="whatsapp">
+              <WhatsAppRunner />
+            </BackgroundPart>
             <RepOpFlagsBanner />
             <WhatsAppSuggestionsBadge />
             <RepFlagsBanner />
-            <RepFlagRunner />
+            <BackgroundPart part="reps">
+              <RepFlagRunner />
+            </BackgroundPart>
             <LinkGuardListener />
           </RepModeGate>
         </AppLockGate>
-        <TelegramBridge />
+        <BackgroundPart part="telegram">
+          <TelegramBridge />
+        </BackgroundPart>
         <DesktopFocusFix />
-        <ReceiptReaderRunner />
-        <BrowserActionsRunner />
-        <ChatRunner />
-        <CallManager />
+        <BackgroundPart part="receipts">
+          <ReceiptReaderRunner />
+        </BackgroundPart>
+        <BackgroundPart part="browser">
+          <BrowserActionsRunner />
+        </BackgroundPart>
+        <BackgroundPart part="chat">
+          <ChatRunner />
+          <CallManager />
+        </BackgroundPart>
         <PhoneShortcutLayer />
         <StorageFullBanner />
         <DeleteCodeHost />

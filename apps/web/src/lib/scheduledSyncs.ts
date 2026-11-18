@@ -10,6 +10,7 @@
  */
 
 import { lowNetOn } from "./lowNet";
+import { safeModeOn } from "./safeMode";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { repCan } from "./repMode";
@@ -87,7 +88,7 @@ export async function pushScheduledSyncs(value: ScheduledSyncs = loadScheduledSy
     const { morningHour, nightHour } = value;
     // 🔑 A rep's phone runs them only when the operator gave him «مزامنات مجدولة».
     // 📶 weak internet (his button): no scheduled background syncs while it is on
-    const on = repCan("sync:scheduled") && !lowNetOn();
+    const on = repCan("sync:scheduled") && !lowNetOn() && !safeModeOn();
     await LocalBrowser.setScheduledSyncs({
       morning: on && value.morning,
       morningHour,
