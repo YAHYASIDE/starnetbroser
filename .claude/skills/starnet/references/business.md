@@ -3631,3 +3631,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   part runs (`BackgroundPart` in app/layout.tsx: telegram, link, chat, whatsapp, reps, receipts, browser; scheduled syncs
   pushed off; no backups). A banner «🛟 وضع آمن» opens a sheet to start each part («▶️ شغّل») - the one that freezes
   is the cause - or «✅ أنهِ الوضع الآمن» (reload with everything).
+
+## 💱 A rate he changes reaches every rep (Nov 18 2026)
+
+- His «خطأ كبير: سعر اليورو أو الأسعار التي عندي لا تتحدّث للمندوبين - اجعل الأسعار عندما أحدّثها تطلع لكل المندوبين
+  وكل الأجهزة الأخرى». The team phones already get `starnet_currencies_v1` through the team link. The reps get rates
+  only inside a copy, and the automatic copy (repCopyAuto) fired only when a rep's DEVICES changed.
+- Now `autoCopyKey` also fires when `ratesFingerprint` (each enabled currency's rate to 4 significant digits) differs
+  from the one his last copy carried (`starnet.repCopySentRates`, recorded by `sendRepCopy`; the first run after the
+  update only records today's). Same path as before: 10 min after the last change, reps linked to the bot with a
+  linked phone, «📤 نسخة المندوب تلقائيًا» on. On the rep's phone a rate the operator changed wins (rebaseWorkspace).

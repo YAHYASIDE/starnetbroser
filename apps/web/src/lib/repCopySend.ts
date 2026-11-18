@@ -9,6 +9,7 @@ import { buildRepCopy, buildRepCopyFile, copySnapshot, markRepCopySent, markRepC
 import { ensureRepDeviceCode, repPhoneKey } from "./repDeviceTransfer";
 import { readStores, repStoreSlice } from "./repWorkspace";
 import { rejectedVersions } from "./repChanges";
+import { markSentRates, ratesFingerprint } from "./repCopyAuto";
 import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
@@ -77,6 +78,7 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     if (flagLink) markFlagLinkSent(rep.id, flagLink.spaceId);
     markRepCopySent(rep.id, copy.sentAt);
     markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
+    markSentRates(rep.id, ratesFingerprint(loadCurrencyStore()));
     return { ok: true, devices: copy.devices.length, via: "bot" };
   }
   try {
@@ -85,6 +87,7 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     if (flagLink) markFlagLinkSent(rep.id, flagLink.spaceId);
     markRepCopySent(rep.id, copy.sentAt);
     markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
+    markSentRates(rep.id, ratesFingerprint(loadCurrencyStore()));
     return { ok: true, devices: copy.devices.length, via: "share" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";

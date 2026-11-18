@@ -31,4 +31,18 @@ describe("📤 نسخة المندوب تلقائيًا - 10 minutes after the l
     expect(autoCopyKey(accounts, "r1", { r1: { d1: "c1", d2: "" } })).toBeNull();
     expect(autoCopyKey(accounts, "r1", { r1: { d1: "c1" } })).toBe(JSON.stringify([["d1", "c1"], ["d2", ""]]));
   });
+
+  it("💱 a rate he changed sends the copy too (his Nov 18 2026 ask); a 5th-digit wobble does not", async () => {
+    const { ratesFingerprint } = await import("./repCopyAuto");
+    const accounts = [{ id: "d1", representativeId: "r1", clientId: "c1" }] as unknown as StarlinkAccountSummary[];
+    const sent = { r1: { d1: "c1" } };
+    const before = ratesFingerprint({ EUR: { code: "EUR", rateFromUsd: 1.01, enabled: true } } as never);
+    const after = ratesFingerprint({ EUR: { code: "EUR", rateFromUsd: 0.86, enabled: true } } as never);
+    const wobble = ratesFingerprint({ EUR: { code: "EUR", rateFromUsd: 1.010004, enabled: true } } as never);
+    expect(autoCopyKey(accounts, "r1", sent, before, before)).toBeNull();
+    expect(autoCopyKey(accounts, "r1", sent, wobble, before)).toBeNull();
+    expect(autoCopyKey(accounts, "r1", sent, after, before)).toContain("EUR:0.86");
+    // no copy sent by hand yet = nothing automatic, rates or not
+    expect(autoCopyKey(accounts, "r1", {}, after, before)).toBeNull();
+  });
 });

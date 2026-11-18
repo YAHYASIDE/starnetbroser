@@ -1,12 +1,13 @@
 "use client";
 
 import { lowNetOn } from "@/lib/lowNet";
+import { loadCurrencyStore } from "@/lib/currencyStore";
 import { useEffect } from "react";
 import { tellOwner } from "@/lib/appEvents";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
-import { autoCopyKey, decideAutoCopy, loadAutoCopyStates, saveAutoCopyStates } from "@/lib/repCopyAuto";
+import { autoCopyKey, decideAutoCopy, loadAutoCopyStates, loadSentRates, markSentRates, ratesFingerprint, saveAutoCopyStates } from "@/lib/repCopyAuto";
 import { flagFirebase, sendRepCopy } from "@/lib/repCopySend";
 import { repNeedsFlagLink } from "@/lib/repFlags";
 import { repPhoneKey } from "@/lib/repDeviceTransfer";
@@ -53,7 +54,11 @@ export function RepCopyAutoRunner() {
             if (states[rep.id]) next[rep.id] = states[rep.id]!;
             continue;
           }
-          const step = decideAutoCopy(states[rep.id], autoCopyKey(accounts, rep.id), now);
+          // 💱 a rate he changed goes out too (his Nov 18 2026 ask); the first time, today's rates are only recorded
+          const sentRates = loadSentRates();
+          const rates = ratesFingerprint(loadCurrencyStore());
+          if (sentRates[rep.id] === undefined) markSentRates(rep.id, rates);
+          const step = decideAutoCopy(states[rep.id], autoCopyKey(accounts, rep.id, undefined, rates, sentRates[rep.id] ?? rates), now);
           if (step.state) next[rep.id] = step.state;
           if (!step.send) continue;
           const sent = await sendRepCopy(rep, accounts);
