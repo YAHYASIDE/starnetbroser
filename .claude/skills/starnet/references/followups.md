@@ -24,6 +24,11 @@ into the working session) and whenever a task closes - short, the open lines onl
 5. 🌐 «رابط الزبائن» (built Nov 18 2026): create the separate Firebase project (Firestore + Anonymous), paste its
    firebaseConfig in settings ← البوتات ← «🌐 رابط الزبائن», publish the rules it shows, «✅ جرّب», then share the
    link and send a first customer his «🔗 رابط حسابه»; tell me how it reads.
+6. 🔗 Install the Nov 19 2026 version on EVERY linked device (phone, laptop, المسؤول 2) - the paid-D fix only works
+   when both sides have it; then set «🔐 رمز العملات» and pin the currencies he wants («📌 ثبّت»).
+7. 🧭 Answer the 4 questions of the first Control Center report (https://claude.ai/artifact/A6bVVqGXqKEF7Z295UzXVR):
+   MikroTik / Wi-Fi cards? who else uses the app and with what rights? try reading the dish status through the
+   session on one device? USDT its own currency or as the dollar? Nothing of that plan is built before.
 
 ## 🛠️ لم يكتمل في التطبيق
 
