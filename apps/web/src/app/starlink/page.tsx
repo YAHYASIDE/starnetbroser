@@ -29,7 +29,8 @@ import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { binanceForCard, cardFromBinance, defaultCardTopUpAccountId, isBinanceAccount, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { shipmentRepId } from "@/lib/repClients";
-import { CurrencyStore, getCurrency, loadCurrencyStore, rateStepIsBelievable, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
+import { CurrencyStore, getCurrency, loadCurrencyStore, rateStepIsBelievable, realRateFromUsd, saveCurrencyStore, setCurrencyRate, type Currency } from "@/lib/currencyStore";
+import { loadCurrencyCodeHash, matchesCurrencyCode, pinnedPayCheck, PIN_TOLERANCE_USD } from "@/lib/currencyPin";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -381,7 +382,10 @@ export default function StarlinkPage() {
     if (!code || code === "USD") return null;
     const rate = realRateFromUsd(foreignPaid, usdPaid);
     if (rate === null) return null;
-    const current = getCurrency(currencyStore, code)?.rateFromUsd;
+    const registered = getCurrency(currencyStore, code);
+    // 📌 a pinned rate never moves from a payment (his Nov 19 2026 ask) - only this D keeps what was paid
+    if (registered?.pinnedAt) return null;
+    const current = registered?.rateFromUsd;
     if (current === undefined || Math.abs(current - rate) < 1e-6) return null;
     // 🛑 a typo in the dollars paid must not move the rate (his Nov 12 2026 euro at ~1.01 per dollar)
     if (!rateStepIsBelievable(code, current, rate)) {
@@ -964,6 +968,7 @@ export default function StarlinkPage() {
             cardBalance={card.balanceUsd}
             spendUsd={spendToRecord?.amountUsd}
             todayUsd={(d) => debtUsdToday(d, currencyStore)}
+            currencyOf={(code) => getCurrency(currencyStore, code)}
             onPay={pay}
             onCancel={() => {
               setSpendToRecord(null);
@@ -1056,6 +1061,7 @@ function PayForm({
   cardBalance,
   spendUsd,
   todayUsd,
+  currencyOf,
   onPay,
   onCancel,
 }: {
@@ -1070,6 +1076,8 @@ function PayForm({
   spendUsd?: number;
   /** A cost in another currency at today's registered rate. */
   todayUsd: (d: OpenShipmentDebt) => number | undefined;
+  /** 📌 the registered currency (its pin). */
+  currencyOf: (code: string) => Currency | undefined;
   onPay: (date: string, fromCard: boolean, actual?: ActualPaid) => void;
   onCancel: () => void;
 }) {
@@ -1086,7 +1094,13 @@ function PayForm({
   const usdValue = Number(paidUsd);
   const amountValue = Number(paidAmount);
   const changed = single !== undefined && (Math.abs(usdValue - single.costUsd) > 0.004 || (foreign !== undefined && amountValue !== cost?.amount));
-  const valid = !single || (usdValue > 0 && (!foreign || amountValue > 0));
+  // 📌 a pinned currency: up to 5$ from its rate is normal, beyond it only with «رمز العملات»
+  const pinned = foreign ? currencyOf(foreign) : undefined;
+  const pinCheck = foreign ? pinnedPayCheck(pinned, amountValue, usdValue) : null;
+  const [code, setCode] = useState("");
+  const codeHash = pinCheck?.needsCode ? loadCurrencyCodeHash() : null;
+  const codeOk = !pinCheck?.needsCode || matchesCurrencyCode(code, codeHash);
+  const valid = (!single || (usdValue > 0 && (!foreign || amountValue > 0))) && codeOk;
   const total = single && usdValue > 0 ? usdValue : totalOpenDebtUsd(items);
   return (
     <div className="party-balance-form">
@@ -1183,8 +1197,28 @@ function PayForm({
                 </>
               )}{" "}
               · عند التسجيل <bdi dir="ltr">{usd(single.costUsd)}</bdi>
-              {" "}· يصبح سعر {foreign} الحالي
+              {pinned?.pinnedAt ? <> · 📌 سعر {foreign} مثبّت فلا يتغيّر</> : <>{" "}· يصبح سعر {foreign} الحالي</>}
             </p>
+          )}
+          {pinCheck && (
+            <p className={pinCheck.needsCode ? "account-card-alert" : "settings-hint"} data-tour="pinned-pay-check">
+              📌 بالسعر المثبّت: <bdi dir="ltr">{usd(pinCheck.expectedUsd)}</bdi> · الفرق{" "}
+              <bdi dir="ltr">
+                {pinCheck.diffUsd > 0 ? "+" : ""}
+                {usd(pinCheck.diffUsd)}
+              </bdi>
+              {pinCheck.needsCode
+                ? codeHash
+                  ? ` - أكثر من ${PIN_TOLERANCE_USD}$: أدخل «رمز العملات» لتأكيده`
+                  : ` - أكثر من ${PIN_TOLERANCE_USD}$: ضع «رمز العملات» من صفحة العملات أولًا، أو صحّح المبلغ`
+                : ` - ضمن ${PIN_TOLERANCE_USD}$ ✓`}
+            </p>
+          )}
+          {pinCheck?.needsCode && codeHash && (
+            <label className="rep-form-field">
+              <span>🔐 رمز العملات</span>
+              <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} />
+            </label>
           )}
           {changed && <p className="settings-hint">تُسجَّل التكلفة بما دُفع فعلاً، ويُحسب الربح عليه.</p>}
         </>

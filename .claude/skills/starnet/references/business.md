@@ -3668,3 +3668,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - «حسابي» per customer: his statement ← «تصدير» ← «🔗 رابط حسابه» (sent to his WhatsApp) / «🚫 أوقف رابطه». The page
   is sealed with that customer's own key (only in his link) and re-sent every 30 min when it changed (not with
   «إنترنت ضعيف», not in a rep's phone).
+
+## 📌 Pinning a currency rate + «رمز العملات» (Nov 19 2026)
+
+- His ask (screenshot of the currencies page, BBD 1.9703259757345417 / DOP 60.16… learned from D payments): «أضف تثبيت
+  العملة: أثبّت سعر العملة ولا يتغيّر أبدًا إلا من هنا عندما أزيل التثبيت. ولكن عندما ندفع D يمكن أن نغيّر المبلغ قليلًا
+  عن السعر الطبيعي، أقل شيء 5 دولار زائدة أو ناقصة، ولا يتغيّر سعر العملة». Asked what beyond 5$ means → «يُقبل فقط
+  بإدخال رمز سري، ورمز يُعدَّل في خانة العملات».
+- `Currency.pinnedAt` (synced with the currencies store): «📌 ثبّت» / «🔓 أزل التثبيت» on the currencies page; while
+  pinned «تعديل السعر» is hidden, and `setCurrencyRate` / `upsertCurrency` keep the rate - so a D payment
+  (`recordRealRate`), the ✎ rate on a customer's net line (alert instead) and a currency re-added from a dialog never
+  move it.
+- A D paid in a pinned currency still records what was really paid on THAT D (its own locked rate). `pinnedPayCheck`:
+  the dollars paid vs the foreign amount at the pinned rate; within ±5$ (`PIN_TOLERANCE_USD`) it passes, beyond it the
+  pay button needs «رمز العملات». No code set yet → he is told to set it on the currencies page (or fix the amount).
+- «رمز العملات» (`lib/currencyPin.ts`): set / changed on the currencies page (the old code is needed to change it), 4+
+  characters, only a SHA-256 kept in `starnet.currencyCode` (phone-only, each phone sets its own). Also needed to unpin.

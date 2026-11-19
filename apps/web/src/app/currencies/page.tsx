@@ -23,6 +23,7 @@ import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
 import { foreignRateFromQuote, mruQuoteFor } from "@/lib/partyNet";
 import { useToolsData } from "@/components/tools/useToolsData";
+import { loadCurrencyCodeHash, matchesCurrencyCode, newCodeProblem, pinCurrency, PIN_TOLERANCE_USD, saveCurrencyCode, unpinCurrency } from "@/lib/currencyPin";
 
 function formatRate(currency: Currency): string {
   return `1 USD = ${currency.rateFromUsd} ${currency.symbol}`;
@@ -216,6 +217,53 @@ export default function CurrenciesPage() {
   const [rateUsdAmount, setRateUsdAmount] = useState("1");
   const [formError, setFormError] = useState<string | null>(null);
   const [listQuery, setListQuery] = useState("");
+  // 📌 the pin and «رمز العملات» (his Nov 19 2026 ask)
+  const [codeHash, setCodeHash] = useState<string | null>(null);
+  useEffect(() => setCodeHash(loadCurrencyCodeHash()), []);
+  const [unpinning, setUnpinning] = useState<string | null>(null);
+  const [unpinCode, setUnpinCode] = useState("");
+  const [unpinError, setUnpinError] = useState<string | null>(null);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [oldCode, setOldCode] = useState("");
+  const [newCode1, setNewCode1] = useState("");
+  const [newCode2, setNewCode2] = useState("");
+  const [codeNote, setCodeNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function pin(code: string) {
+    persist(pinCurrency(store, code, new Date().toISOString()));
+    setSavedNote({ code, text: "📌 ثُبّت السعر - لا يتغيّر إلا من هنا بعد إزالة التثبيت" });
+  }
+
+  function unpin(code: string) {
+    if (codeHash && !matchesCurrencyCode(unpinCode, codeHash)) {
+      setUnpinError("الرمز غير صحيح");
+      return;
+    }
+    persist(unpinCurrency(store, code));
+    setUnpinning(null);
+    setUnpinCode("");
+    setUnpinError(null);
+    setSavedNote({ code, text: "🔓 أُزيل التثبيت - يمكنك تعديل السعر" });
+  }
+
+  function saveCode() {
+    if (codeHash && !matchesCurrencyCode(oldCode, codeHash)) {
+      setCodeNote({ ok: false, text: "الرمز الحالي غير صحيح" });
+      return;
+    }
+    const problem = newCodeProblem(newCode1, newCode2);
+    if (problem) {
+      setCodeNote({ ok: false, text: problem });
+      return;
+    }
+    saveCurrencyCode(newCode1);
+    setCodeHash(loadCurrencyCodeHash());
+    setOldCode("");
+    setNewCode1("");
+    setNewCode2("");
+    setCodeOpen(false);
+    setCodeNote({ ok: true, text: "✓ حُفظ رمز العملات على هذا الهاتف" });
+  }
 
   // Currency converter (amount in `convFrom` -> `convTo`, pivoting through USD via
   // convertAmount) - convTo is only ever set explicitly by the operator picking one; otherwise it
@@ -429,6 +477,32 @@ export default function CurrenciesPage() {
           لحظة تسجيلها.
         </p>
 
+        {!rep && (
+          <div className="currency-code-box" data-tour="currency-code">
+            <p className="settings-hint">
+              🔐 <b>رمز العملات</b>: {codeHash ? "مضبوط على هذا الهاتف." : "غير مضبوط بعد."} يُطلب لإزالة تثبيت سعر، ولتسديد D بعملة مثبّتة إذا اختلف المبلغ عن السعر المثبّت بأكثر من {PIN_TOLERANCE_USD}$.
+            </p>
+            {!codeOpen ? (
+              <button className="text-action" type="button" onClick={() => { setCodeOpen(true); setCodeNote(null); }}>
+                {codeHash ? "تغيير الرمز" : "ضع الرمز"}
+              </button>
+            ) : (
+              <div className="currency-code-form">
+                {codeHash && (
+                  <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="الرمز الحالي" value={oldCode} onChange={(e) => setOldCode(e.target.value)} />
+                )}
+                <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="الرمز الجديد" value={newCode1} onChange={(e) => setNewCode1(e.target.value)} />
+                <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="أعد كتابته" value={newCode2} onChange={(e) => setNewCode2(e.target.value)} />
+                <div className="settings-actions">
+                  <button className="dialog-primary" type="button" onClick={saveCode}>حفظ الرمز</button>
+                  <button className="text-action" type="button" onClick={() => { setCodeOpen(false); setCodeNote(null); }}>إلغاء</button>
+                </div>
+              </div>
+            )}
+            {codeNote && <p className={codeNote.ok ? "currency-rate-saved" : "currency-rate-wrong"}>{codeNote.text}</p>}
+          </div>
+        )}
+
         <div className="form-field currency-list-search-field">
           <input
             className="search-input"
@@ -464,6 +538,7 @@ export default function CurrenciesPage() {
               ) : (
                 <div className="currency-row-info">
                   <span dir="ltr">{formatRate(currency)}</span>
+                  {currency.pinnedAt && <span className="currency-pinned">📌 السعر مثبّت منذ {formatUpdatedAt(currency.pinnedAt)}</span>}
                   {(() => {
                     // 🛑 a stable currency at an impossible rate (his Nov 12 2026 euro at ~1.01 per dollar)
                     const band = implausibleRate(currency.code, currency.rateFromUsd);
@@ -485,9 +560,30 @@ export default function CurrenciesPage() {
                   {savedNote?.code === currency.code && <span className="currency-rate-saved">{savedNote.text}</span>}
                 </div>
               )}
-              {!rep && currency.code !== "USD" && editingCode !== currency.code && (
+              {!rep && currency.code !== "USD" && editingCode !== currency.code && unpinning === currency.code && (
+                <div className="currency-code-form">
+                  {codeHash ? (
+                    <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="رمز العملات" value={unpinCode} onChange={(e) => setUnpinCode(e.target.value)} />
+                  ) : (
+                    <p className="settings-hint">لا يوجد رمز عملات بعد - الإزالة بلا رمز.</p>
+                  )}
+                  {unpinError && <p className="currency-rate-wrong">{unpinError}</p>}
+                  <div className="settings-actions">
+                    <button className="dialog-primary" type="button" onClick={() => unpin(currency.code)}>🔓 أزل التثبيت</button>
+                    <button className="text-action" type="button" onClick={() => { setUnpinning(null); setUnpinCode(""); setUnpinError(null); }}>إلغاء</button>
+                  </div>
+                </div>
+              )}
+              {!rep && currency.code !== "USD" && editingCode !== currency.code && unpinning !== currency.code && (
                 <div className="currency-row-actions">
-                  <button className="text-action" type="button" onClick={() => startEditRate(currency)}>تعديل السعر</button>
+                  {currency.pinnedAt ? (
+                    <button className="text-action" type="button" onClick={() => { setUnpinning(currency.code); setUnpinCode(""); setUnpinError(null); }}>🔓 أزل التثبيت</button>
+                  ) : (
+                    <>
+                      <button className="text-action" type="button" onClick={() => pin(currency.code)}>📌 ثبّت</button>
+                      <button className="text-action" type="button" onClick={() => startEditRate(currency)}>تعديل السعر</button>
+                    </>
+                  )}
                   <button className="text-action" type="button" onClick={() => toggleEnabled(currency)}>
                     {currency.enabled ? "إخفاء" : "إظهار"}
                   </button>

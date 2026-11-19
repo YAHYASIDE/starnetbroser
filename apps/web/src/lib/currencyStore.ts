@@ -22,6 +22,9 @@ export interface Currency {
   /** Hidden currencies stay in the registry (so historical transactions in them still resolve)
    * but are left out of "choose a currency" pickers going forward. */
   enabled: boolean;
+  /** 📌 «تثبيت السعر» (his Nov 19 2026 ask): ISO time it was pinned. A pinned rate changes only from the currencies
+   * page after he removes the pin - never from a D payment, a quote or anything automatic (lib/currencyPin.ts). */
+  pinnedAt?: string;
 }
 
 /** code -> Currency. */
@@ -135,9 +138,11 @@ export function upsertCurrency(store: CurrencyStore, input: UpsertCurrencyInput)
     code,
     name: input.name.trim(),
     symbol: input.symbol.trim(),
-    rateFromUsd: code === USD ? 1 : input.rateFromUsd,
-    updatedAt: nowIso(),
+    // 📌 a pinned rate is kept (only the currencies page changes it, after unpinning)
+    rateFromUsd: code === USD ? 1 : existing?.pinnedAt ? existing.rateFromUsd : input.rateFromUsd,
+    updatedAt: existing?.pinnedAt ? existing.updatedAt : nowIso(),
     enabled: existing?.enabled ?? true,
+    ...(existing?.pinnedAt ? { pinnedAt: existing.pinnedAt } : {}),
   };
   return { ...store, [code]: currency };
 }
@@ -146,7 +151,8 @@ export function upsertCurrency(store: CurrencyStore, input: UpsertCurrencyInput)
  * enabled. No-op for USD, whose rate is always 1. */
 export function setCurrencyRate(store: CurrencyStore, code: string, rateFromUsd: number): CurrencyStore {
   const existing = store[code];
-  if (!existing || code === USD) return store;
+  // 📌 pinned = unchanged until he removes the pin on the currencies page
+  if (!existing || code === USD || existing.pinnedAt) return store;
   return { ...store, [code]: { ...existing, rateFromUsd, updatedAt: nowIso() } };
 }
 

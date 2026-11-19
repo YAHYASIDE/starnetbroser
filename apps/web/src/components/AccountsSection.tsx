@@ -236,6 +236,11 @@ export function PartyDirectory({
     const store = loadCurrencyStore();
     const mru = getCurrency(store, "MRU")?.rateFromUsd;
     if (!mru || !(quote.mru > 0)) return;
+    // 📌 a pinned rate changes only from the currencies page, after removing the pin
+    if (getCurrency(store, quote.foreign)?.pinnedAt) {
+      window.alert(`📌 سعر ${quote.foreign} مثبّت - غيّره من صفحة العملات بعد إزالة التثبيت.`);
+      return;
+    }
     saveCurrencyStore(setCurrencyRate(store, quote.foreign, foreignRateFromQuote(quote, mru)));
     setRatesVersion((v) => v + 1);
   };
