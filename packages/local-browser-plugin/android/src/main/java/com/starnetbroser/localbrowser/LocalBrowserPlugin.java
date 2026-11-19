@@ -912,7 +912,7 @@ public class LocalBrowserPlugin extends Plugin {
         if (mailSuggestions.length > 0) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_SUGGESTIONS, mailSuggestions);
         // 💱 the app's rates for the balance strip's أوقية / سيفا (numbers only, nothing secret)
         String balanceRates = options.getString("balanceRates");
-        if (balanceRates != null && !balanceRates.isEmpty() && balanceRates.length() < 4000) intent.putExtra(AccountBrowserActivity.EXTRA_BALANCE_RATES, balanceRates);
+        if (balanceRates != null && !balanceRates.isEmpty() && balanceRates.length() < 20000) intent.putExtra(AccountBrowserActivity.EXTRA_BALANCE_RATES, balanceRates);
         // ⏳ the device's last charge (price + currency) for «شحن بانتظار الفاتورة»
         String chargeDefault = options.getString("chargeDefault");
         if (chargeDefault != null && !chargeDefault.isEmpty() && chargeDefault.length() < 200) intent.putExtra(AccountBrowserActivity.EXTRA_CHARGE_DEFAULT, chargeDefault);

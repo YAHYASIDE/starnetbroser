@@ -152,7 +152,7 @@ export function unsettleShipmentCost(entry: LedgerEntry): LedgerEntry {
   if (entry.kind !== "debit" || cost?.status !== "settled" || cost.waived) return entry;
   const { paidAt: _paidAt, paidVia: _paidVia, settledAt: _settledAt, stillDueOk: _ok, ...rest } = cost;
   const { profitCurrencyRates: _rates, ...entryRest } = entry;
-  return { ...entryRest, starlinkCost: { ...rest, status: "pending" } };
+  return { ...entryRest, starlinkCost: { ...rest, status: "pending", unsettledAt: new Date().toISOString() } };
 }
 
 // ---- Devices Starlink suspended while we still owe their D ----

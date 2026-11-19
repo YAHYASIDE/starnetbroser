@@ -479,7 +479,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private String stripBalanceDue = "";
     private String stripCurrency = "";
     private static final String BALANCE_PREFS = "starnet_browser_balance";
-    private static final String BALANCE_LOCAL_SHOWN = "localShown";
+    /** 👁 Shown by default now (his Nov 19 2026 «المبلغ بالدولار والعملات لا يظهر فوق في كثير من الأجهزة») - a new key, so
+     * the old hidden default doesn't carry over; 🙈 still hides it. */
+    private static final String BALANCE_LOCAL_SHOWN = "localShown2";
 
     /** Any read with a balance (BalancePeek, or a «مزامنة» passing Billing) updates the strip. */
     private void showBalance(JSObject fields) {
@@ -500,7 +502,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (strip == null || stripBalanceDue.isEmpty()) return;
         String line = BalanceLine.text(stripBalanceDue, stripCurrency);
         String local = BalanceLine.local(stripBalanceDue, stripCurrency, balanceRates());
-        boolean shown = getSharedPreferences(BALANCE_PREFS, MODE_PRIVATE).getBoolean(BALANCE_LOCAL_SHOWN, false);
+        boolean shown = getSharedPreferences(BALANCE_PREFS, MODE_PRIVATE).getBoolean(BALANCE_LOCAL_SHOWN, true);
         android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(line);
         text.setSpan(new android.text.style.ForegroundColorSpan(BalanceLine.owes(stripBalanceDue) ? 0xFFFF8A80 : 0xFF69F0AE), 0, line.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         if (!local.isEmpty()) {
@@ -509,7 +511,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             text.setSpan(new android.text.style.RelativeSizeSpan(0.82f), from, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             strip.setOnClickListener(v -> {
                 SharedPreferences prefs = getSharedPreferences(BALANCE_PREFS, MODE_PRIVATE);
-                prefs.edit().putBoolean(BALANCE_LOCAL_SHOWN, !prefs.getBoolean(BALANCE_LOCAL_SHOWN, false)).apply();
+                prefs.edit().putBoolean(BALANCE_LOCAL_SHOWN, !prefs.getBoolean(BALANCE_LOCAL_SHOWN, true)).apply();
                 renderBalanceStrip();
             });
         } else {

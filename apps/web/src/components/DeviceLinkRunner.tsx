@@ -31,6 +31,8 @@ const SESSIONS_AGAIN_MS = 20_000;
 /** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s) -
  * while the live listener works (lib/linkPulse.ts, his Nov 7 2026 «سريعة جدًا») only every 30 s, as a safety net. */
 const EVERY_MS = 8_000;
+/** 📵 After a round refused by a full phone: wait this long before the next automatic one. */
+const STORAGE_FULL_PAUSE_MS = 5 * 60_000;
 const EVERY_LIVE_MS = 30_000;
 /** A save here goes out this soon after (several saves in a row: once). */
 const SEND_AFTER_MS = 800;
@@ -72,6 +74,8 @@ export function DeviceLinkRunner() {
     /** The live listener works. */
     let live = false;
     let lastRound = 0;
+    /** 📵 a full phone: no automatic round before this time (was a retry every 8 s that slowed the phone). */
+    let pausedUntil = 0;
     const tick = async (force = false) => {
       if (document.visibilityState !== "visible") return;
       if (running) {
@@ -82,12 +86,15 @@ export function DeviceLinkRunner() {
       if (!loadLinkConfig(storage)?.enabled) return;
       // 📶 weak internet (his button): a round a minute, unless he asked for one
       if (!force && lowNetOn() && Date.now() - lastRound < LOW_NET_LINK_EVERY_MS) return;
+      if (!force && Date.now() < pausedUntil) return;
       const full = force || isIdle();
       waiting = !full;
       running = true;
       lastRound = Date.now();
       try {
         const result = await runLinkRound(storage, timedFetch, new Date(), { sendOnly: !full });
+        pausedUntil = result.storageFull ? Date.now() + STORAGE_FULL_PAUSE_MS : 0;
+        if (result.storageFull) window.dispatchEvent(new CustomEvent(DEVICE_LINK_EVENT, { detail: result }));
         if (!full) return;
         window.dispatchEvent(new CustomEvent(DEVICE_LINK_EVENT, { detail: result }));
         // 👥 a new device or money operation from another member: one notification for the round

@@ -11,9 +11,10 @@
  */
 
 import { timedFetch } from "./lowNet";
-import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, unflattenKey, type Baseline, type FlatData, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
+import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, preferPaidD, unflattenKey, type Baseline, type FlatData, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
 import { isLinkKey, newLinkKey, openText, sealText } from "./deviceSyncCrypto";
-import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
+import { batchGetDocuments, readDocument, writeDocument, type FetchFn } from "./firestoreRest";
+import { isQuotaError } from "./storageGuard";
 import { COUNTED_STORES, describeOp, isNotableStore, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
 import { checkConfigInput, newSpaceId } from "./liveSyncConfig";
 
@@ -111,6 +112,8 @@ const CODE_PREFIX = "STARNET-LINK-";
 /** Firestore's document limit is 1 MiB - a batch's JSON stays well under it (base64 adds a third). */
 const BATCH_CHARS = 550_000;
 const MAX_BATCHES_PER_ROUND = 50;
+/** ⚡ Batches asked for in one request (Firestore batchGet). */
+const BATCHES_PER_REQUEST = 25;
 /** One record bigger than this (a rep's «تسجيلاتي» file with its Starlink sessions) goes out in parts - a
  * single batch over Firestore's 1 MiB was refused, and the rep's devices never reached «المسؤول 2» (his
  * Nov 5 2026 report). */
@@ -408,7 +411,12 @@ export interface RoundResult {
   incoming: TeamActivity[];
   /** 🗑️ New deletions waiting for YAHYA. */
   pending?: number;
+  /** 📵 The phone's storage is full: nothing of the team's was written (and nothing marked received) - the runner
+   * waits before trying again instead of every few seconds. */
+  storageFull?: boolean;
 }
+
+export const STORAGE_FULL_MESSAGE = "📵 ذاكرة التطبيق ممتلئة على هذا الهاتف - لم تُحفظ تغييرات الفريق هنا (لم يضع شيء، تصل حين تتوفر مساحة). الإعدادات ← 💽 مساحة التخزين";
 
 const parsedBase: { raw: string | null; value: Baseline } = { raw: null, value: {} };
 
@@ -416,6 +424,22 @@ const parsedBase: { raw: string | null; value: Baseline } = { raw: null, value: 
  * what changed here goes out (he is in the middle of something - nothing is written into his screens); the other
  * members' changes come in on the next full round. */
 export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = timedFetch, now: Date = new Date(), opts: { sendOnly?: boolean } = {}): Promise<RoundResult> {
+  try {
+    return await linkRound(s, fetchFn, now, opts);
+  } catch (err) {
+    // 📵 a write refused (a full phone): nothing was marked received or agreed, so the next round brings it all again
+    const full = isQuotaError(err);
+    const message = full ? STORAGE_FULL_MESSAGE : "تعذّرت المزامنة هذه المرة - تُعاد وحدها";
+    try {
+      saveLinkState(s, { ...loadLinkState(s), lastAt: now.toISOString(), lastOk: false, lastMessage: message });
+    } catch {
+      // even the state could not be written
+    }
+    return { ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [], incoming: [], storageFull: full };
+  }
+}
+
+async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { sendOnly?: boolean }): Promise<RoundResult> {
   const config = loadLinkConfig(s);
   const fail = (message: string): RoundResult => ({ ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [], incoming: [] });
   if (!config || !config.enabled) return fail("الربط غير مفعّل");
@@ -462,21 +486,28 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = timedFetch
     const startCursor = cursor;
     const read: { seq: number; ops: WireOp[] }[] = [];
     let openParts = 0;
-    while (cursor < theirSeq && (cursor - startCursor < MAX_BATCHES_PER_ROUND || (openParts > 0 && cursor - startCursor < MAX_BATCHES_PER_ROUND + MAX_PART_BATCHES))) {
-      const doc = await readDocument(config, batchPath(config, member.id, cursor + 1), fetchFn);
-      if (!doc.ok) break;
-      if (!doc.value) {
+    const more = () => cursor < theirSeq && (cursor - startCursor < MAX_BATCHES_PER_ROUND || (openParts > 0 && cursor - startCursor < MAX_BATCHES_PER_ROUND + MAX_PART_BATCHES));
+    // ⚡ up to BATCHES_PER_REQUEST batches in one request, read in their order (was one request each)
+    reading: while (more()) {
+      const limit = openParts > 0 ? MAX_BATCHES_PER_ROUND + MAX_PART_BATCHES : MAX_BATCHES_PER_ROUND;
+      const count = Math.min(BATCHES_PER_REQUEST, theirSeq - cursor, Math.max(1, startCursor + limit - cursor));
+      const paths = Array.from({ length: count }, (_, i) => batchPath(config, member.id, cursor + 1 + i));
+      const got = await batchGetDocuments(config, paths, fetchFn);
+      if (!got.ok) break;
+      for (const path of paths) {
+        const doc = got.value[path] ?? null;
+        if (doc) {
+          try {
+            const ops = JSON.parse(await openText({ iv: doc.iv ?? "", data: doc.data ?? "" }, config.key)) as WireOp[];
+            read.push({ seq: cursor + 1, ops });
+            for (const op of ops) if (op.p) openParts += op.p.i === op.p.n - 1 ? -(op.p.n - 1) : 1;
+          } catch {
+            return finish(fail("تعذّر فك تشفير بيانات عضو آخر - أعد الربط برمز جديد"));
+          }
+        }
         cursor += 1;
-        continue;
+        if (!more()) break reading;
       }
-      try {
-        const ops = JSON.parse(await openText({ iv: doc.value.iv ?? "", data: doc.value.data ?? "" }, config.key)) as WireOp[];
-        read.push({ seq: cursor + 1, ops });
-        for (const op of ops) if (op.p) openParts += op.p.i === op.p.n - 1 ? -(op.p.n - 1) : 1;
-      } catch {
-        return finish(fail("تعذّر فك تشفير بيانات عضو آخر - أعد الربط برمز جديد"));
-      }
-      cursor += 1;
     }
     const joined = joinParts(read, cursor, cursor >= theirSeq);
     for (const op of joined.ops) remoteOps.push({ ...op, by: member.id });
@@ -497,7 +528,8 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = timedFetch
     const known = new Set(loadPendingDeletions(s).map((p) => p.id));
     s.setSetting(PENDING, JSON.stringify([...loadPendingDeletions(s), ...newPending.filter((p) => !known.has(p.id))]));
   }
-  const merged = merge(flat, localOps, applyOps, main ? { localWins: true } : { remoteWins: (op) => isMainMember((op as SyncOp & { by?: string }).by ?? "") });
+  // 💳 a paid D wins over an unpaid copy of it, on every phone (preferPaidD)
+  const merged = merge(flat, localOps, applyOps, main ? { localWins: true, prefer: preferPaidD } : { remoteWins: (op) => isMainMember((op as SyncOp & { by?: string }).by ?? ""), prefer: preferPaidD });
   // A change he made while this round ran is never written over: the key is re-read and theirs re-applied.
   for (const k of merged.changedKeys) {
     const fresh = s.read(k);

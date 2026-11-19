@@ -3684,3 +3684,26 @@ is never pressed while a field is empty - it refills and saves on the next try (
   pay button needs «رمز العملات». No code set yet → he is told to set it on the currencies page (or fix the amount).
 - «رمز العملات» (`lib/currencyPin.ts`): set / changed on the currencies page (the old code is needed to change it), 4+
   characters, only a SHA-256 kept in `starnet.currencyCode` (phone-only, each phone sets its own). Also needed to unpin.
+
+## 🔗 Team link: a paid D no longer comes back, faster reads, a full phone said aloud (Nov 19 2026)
+
+- His «المزامنة بين الأجهزة فيها خسارة أو بطء كثير جدًا»; asked → «عملية لا تصل أبدًا، خاصةً D التي تُزال عن الأجهزة
+  لا تظهر» and he chose fixes 1 + 2 (not «receive while he works»).
+- 💳 Cause found: the same ledger operation changed on two phones between rounds → the main phone (YAHYA, «نسخته
+  تفوز») kept its own copy - an unpaid one when another phone had just paid the D (automatic writers touch D entries
+  on every phone: bill reads `fillAwaitingBills`, travel fees, rep travel ledgers) - and sent it back to everyone.
+  Now `preferPaidD` (lib/deviceSync.ts, `MergeRules.prefer`) decides first: the settled copy wins over a pending
+  one, unless that pending one is a real «إلغاء التسديد» made later (`StarlinkCost.unsettledAt`, set by
+  `unsettleShipmentCost`).
+- ⚡ Batches are read with Firestore `batchGet` (`batchGetDocuments`, 25 per request) instead of one GET each.
+- 📵 A refused write (full storage) no longer half-applies: the round throws → nothing marked received or agreed →
+  «📵 ذاكرة التطبيق ممتلئة…» (`STORAGE_FULL_MESSAGE`, `RoundResult.storageFull`), the runner waits 5 minutes
+  instead of retrying every 8 s.
+
+## 💰 The device browser's balance strip shows $ / أوقية / سيفا by default (Nov 19 2026)
+
+- His screenshot («💰 عليه ARS 138,344.52 🙈», «المبلغ بالدولار والعملات لا يظهر فوق في كثير من الأجهزة»). Causes:
+  the conversion was hidden by default (Nov 3 choice) - now shown by default (new pref key `localShown2`, 🙈 / 👁 still
+  toggles); the auto-sync, «تسجيل الدخول» and activation opens passed no `balanceRates` - now every open does; the
+  rates list could pass the 4,000-character cap with long decimals and was then dropped - rates go at 6 significant
+  digits and the cap is 20,000.

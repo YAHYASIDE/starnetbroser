@@ -158,6 +158,34 @@ export async function listDocuments(
   };
 }
 
+/** ⚡ Several documents in ONE request (Firestore batchGet) - path → its text fields, null when missing. One slow
+ * round trip instead of one per document (his Nov 19 2026 «المزامنة بطيئة جدًا»). */
+export async function batchGetDocuments(
+  config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
+  paths: string[],
+  fetchFn: FetchFn = timedFetch,
+): Promise<Result<Record<string, Record<string, string> | null>>> {
+  if (paths.length === 0) return { ok: true, value: {} };
+  const token = await idToken(config, fetchFn);
+  if (!token.ok) return token;
+  const root = `projects/${config.projectId}/databases/(default)/documents/`;
+  const r = await call(fetchFn, `https://firestore.googleapis.com/v1/${root.replace(/\/$/, "")}:batchGet`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token.value}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ documents: paths.map((p) => root + p) }),
+  });
+  if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
+  const out: Record<string, Record<string, string> | null> = Object.fromEntries(paths.map((p) => [p, null]));
+  for (const item of JSON.parse(r.body || "[]") as { found?: { name: string; fields?: Record<string, { stringValue?: string }> }; missing?: string }[]) {
+    if (!item.found) continue;
+    const path = item.found.name.split("/documents/")[1] ?? "";
+    const fields: Record<string, string> = {};
+    for (const [k, v] of Object.entries(item.found.fields ?? {})) if (typeof v.stringValue === "string") fields[k] = v.stringValue;
+    out[path] = fields;
+  }
+  return { ok: true, value: out };
+}
+
 /** Deletes one document (already gone = fine). */
 export async function deleteDocument(config: Pick<LiveSyncConfig, "apiKey" | "projectId">, path: string, fetchFn: FetchFn = timedFetch): Promise<Result<true>> {
   const token = await idToken(config, fetchFn);

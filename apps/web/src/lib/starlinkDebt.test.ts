@@ -235,7 +235,7 @@ describe("editing past card operations", () => {
 
   it("undoing a settlement brings the D back and takes it off the card", () => {
     const back = unsettleShipmentCost(paid);
-    expect(back.starlinkCost).toEqual({ status: "pending", currencyCode: "USD", amount: 96.8 });
+    expect(back.starlinkCost).toEqual({ unsettledAt: expect.any(String), status: "pending", currencyCode: "USD", amount: 96.8 });
     expect(back.profitCurrencyRates).toBeUndefined();
     expect(listOpenShipmentDebts({ d: [back] })).toHaveLength(1);
     expect(listCardPayments({ d: [back] })).toHaveLength(0);

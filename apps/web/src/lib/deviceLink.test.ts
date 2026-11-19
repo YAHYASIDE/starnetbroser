@@ -8,6 +8,14 @@ function fakeFirebase(stats: { writes: number; reads: number } = { writes: 0, re
   return async (url, init) => {
     const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
     if (url.includes("accounts:signUp")) return respond(200, { idToken: "t", refreshToken: "r", expiresIn: "3600" });
+    if (url.endsWith(":batchGet")) {
+      stats.reads += 1;
+      const names = (JSON.parse(String(init?.body)) as { documents: string[] }).documents;
+      return respond(200, names.map((name) => {
+        const p = name.split("/documents/")[1] ?? "";
+        return docs.has(p) ? { found: { name, ...(docs.get(p) as object) } } : { missing: name };
+      }));
+    }
     const path = decodeURIComponent(url.split("/documents/")[1] ?? "");
     if (init?.method === "PATCH") {
       stats.writes += 1;
@@ -315,4 +323,76 @@ describe("the phone ↔ laptop link", () => {
     expect(st.progress).toEqual({ done: 1, total: 1 });
     expect(compareCounts({ starnet_demo_accounts_v1: 170 }, { starnet_demo_accounts_v1: 171 })).toEqual([{ k: "starnet_demo_accounts_v1", label: "📡 الأجهزة", mine: 170, theirs: 171 }]);
   });
+
+  async function phoneAndLaptop(initial: Record<string, string>) {
+    const stats = { writes: 0, reads: 0 };
+    const firebase = fakeFirebase(stats);
+    const phone = memory(initial);
+    const laptop = memory();
+    const made = newPhoneLink(API, "my-project-123");
+    if (!made.ok) throw new Error(made.message);
+    startAsPhone(phone, made.config);
+    const read = readLinkCode(linkCode(made.config));
+    if (!read.ok) throw new Error();
+    joinAsLaptop(laptop, read.config);
+    await runLinkRound(phone, firebase);
+    await runLinkRound(laptop, firebase);
+    return { firebase, stats, phone, laptop };
+  }
+
+  it("💳 a D paid on another phone is not undone by the main phone's unpaid copy (his Nov 19 2026 report)", async () => {
+    const pending = { id: "e1", kind: "debit", amount: 100, starlinkCost: { status: "pending", amount: 50 } };
+    const { firebase, phone, laptop } = await phoneAndLaptop({ starnet_customer_ledger_v1: ledger({ d1: [pending] }) });
+    // the laptop pays the D; meanwhile the main phone changed the same operation by itself (a bill read)
+    const paid = { ...pending, starlinkCost: { status: "settled", amount: 50, paidAt: "2026-11-19", settledAt: "2026-11-19T10:00:00.000Z" } };
+    laptop.write("starnet_customer_ledger_v1", ledger({ d1: [paid] }));
+    phone.write("starnet_customer_ledger_v1", ledger({ d1: [{ ...pending, starlinkCost: { status: "pending", amount: 51 } }] }));
+    await runLinkRound(laptop, firebase, new Date("2026-11-19T10:00:01Z"));
+    await runLinkRound(phone, firebase, new Date("2026-11-19T10:00:05Z"));
+    await runLinkRound(laptop, firebase, new Date("2026-11-19T10:00:06Z"));
+    expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!).d1[0].starlinkCost.status).toBe("settled");
+    expect(JSON.parse(laptop.data.get("starnet_customer_ledger_v1")!).d1[0].starlinkCost.status).toBe("settled");
+
+    // a real «إلغاء التسديد» made after the payment still wins
+    const undone = { ...pending, starlinkCost: { status: "pending", amount: 50, unsettledAt: "2026-11-19T11:00:00.000Z" } };
+    phone.write("starnet_customer_ledger_v1", ledger({ d1: [undone] }));
+    laptop.write("starnet_customer_ledger_v1", ledger({ d1: [{ ...paid, note: "x" }] }));
+    await runLinkRound(laptop, firebase, new Date("2026-11-19T11:00:01Z"));
+    await runLinkRound(phone, firebase, new Date("2026-11-19T11:00:02Z"));
+    await runLinkRound(laptop, firebase, new Date("2026-11-19T11:00:03Z"));
+    expect(JSON.parse(laptop.data.get("starnet_customer_ledger_v1")!).d1[0].starlinkCost.status).toBe("pending");
+  });
+
+  it("📵 a full phone loses nothing: the team's changes come in once there is room", async () => {
+    const { firebase, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({ c1: { id: "c1", name: "زبون" } }) });
+    laptop.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون" }, c2: { id: "c2", name: "جديد" } }));
+    await runLinkRound(laptop, firebase);
+    const write = phone.write;
+    phone.write = () => {
+      throw Object.assign(new Error("full"), { name: "QuotaExceededError" });
+    };
+    const refused = await runLinkRound(phone, firebase);
+    expect(refused).toMatchObject({ ok: false, storageFull: true });
+    phone.write = write;
+    const later = await runLinkRound(phone, firebase);
+    expect(later.ok).toBe(true);
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c2).toEqual({ id: "c2", name: "جديد" });
+  });
+
+  it("⚡ many batches come in a few requests", async () => {
+    const { firebase, stats, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({}) });
+    for (let i = 0; i < 30; i++) {
+      const all = JSON.parse(laptop.data.get("starnet_clients_v1") ?? "{}");
+      all[`c${i}`] = { id: `c${i}`, name: `زبون ${i}` };
+      laptop.write("starnet_clients_v1", ledger(all));
+      await runLinkRound(laptop, firebase, new Date(), { sendOnly: true });
+    }
+    await runLinkRound(laptop, firebase); // the full round publishes how many batches there are
+    stats.reads = 0;
+    await runLinkRound(phone, firebase);
+    expect(Object.keys(JSON.parse(phone.data.get("starnet_clients_v1")!))).toHaveLength(30);
+    // team + head + 2 batchGets (25 + 5) - was 30 reads of one batch each
+    expect(stats.reads).toBeLessThanOrEqual(5);
+  });
 });
+

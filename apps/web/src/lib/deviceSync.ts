@@ -255,6 +255,37 @@ export interface MergeResult {
 export interface MergeRules {
   localWins?: boolean;
   remoteWins?: (op: SyncOp) => boolean;
+  /** Decides a conflict before the rules above (null = no opinion) - see preferPaidD. */
+  prefer?: (mine: SyncOp, theirs: SyncOp) => "mine" | "theirs" | null;
+}
+
+export const LEDGER_KEY = "starnet_customer_ledger_v1";
+
+/**
+ * 💳 A paid D never comes back by itself (his Nov 19 2026 «D التي تزال عن الأجهزة لا تظهر»): when one phone paid a D
+ * (starlinkCost settled) and another phone changed the same operation without knowing (an automatic bill read, a
+ * travel fee, an old copy), the main phone used to keep its own unpaid copy - and sent it back to everyone. Now the
+ * paid copy wins, unless the unpaid one is a real «إلغاء التسديد» made after the payment (`unsettledAt`).
+ */
+export function preferPaidD(mine: SyncOp, theirs: SyncOp): "mine" | "theirs" | null {
+  if (mine.k !== LEDGER_KEY || mine.v === null || theirs.v === null) return null;
+  type Cost = { status?: string; settledAt?: string; unsettledAt?: string };
+  const costOf = (v: string): Cost | null => {
+    try {
+      return ((JSON.parse(v) as { starlinkCost?: Cost }).starlinkCost ?? null);
+    } catch {
+      return null;
+    }
+  };
+  const a = costOf(mine.v);
+  const b = costOf(theirs.v);
+  if (!a || !b || a.status === b.status) return null;
+  const paidSide = a.status === "settled" ? "mine" : b.status === "settled" ? "theirs" : null;
+  if (!paidSide) return null;
+  const paid = paidSide === "mine" ? a : b;
+  const unpaid = paidSide === "mine" ? b : a;
+  if (unpaid.unsettledAt && (!paid.settledAt || unpaid.unsettledAt > paid.settledAt)) return paidSide === "mine" ? "theirs" : "mine";
+  return paidSide;
 }
 
 export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[], rules: MergeRules = {}): MergeResult {
@@ -285,7 +316,8 @@ export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]
         dropped.add(id); // the same change on both sides - nothing to send or keep
         continue;
       }
-      const keepMine = rules.localWins ? true : rules.remoteWins?.(op) ? false : mine.at > op.at;
+      const preferred = rules.prefer?.(mine, op) ?? null;
+      const keepMine = preferred ? preferred === "mine" : rules.localWins ? true : rules.remoteWins?.(op) ? false : mine.at > op.at;
       if (keepMine) {
         conflicts.push({ k: op.k, r: op.r, kept: "local", lost: op.v, at: op.at });
         continue;

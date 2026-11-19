@@ -233,7 +233,8 @@ export function chargeDefaultOption(accountId: string): { chargeDefault?: string
 export function balanceRatesOption(): { balanceRates?: string } {
   try {
     const rates: Record<string, number> = {};
-    for (const c of Object.values(loadCurrencyStore())) if (c.rateFromUsd > 0) rates[c.code.toUpperCase()] = c.rateFromUsd;
+    // 6 significant digits: a rate like 1.9703259757345417 made the list too long for the browser (dropped whole)
+    for (const c of Object.values(loadCurrencyStore())) if (c.rateFromUsd > 0) rates[c.code.toUpperCase()] = Number(c.rateFromUsd.toPrecision(6));
     return Object.keys(rates).length ? { balanceRates: JSON.stringify(rates) } : {};
   } catch {
     return {};
@@ -273,6 +274,7 @@ export async function openAutoSync(account: StarlinkAccountSummary, label?: stri
       autoSync: true,
       ...(label ? { autoSyncLabel: label } : {}),
       ...(homeOnly ? { autoSyncHomeOnly: true } : {}),
+      ...balanceRatesOption(),
     });
     return { ok: true };
   } catch (err) {
@@ -374,6 +376,7 @@ export async function openCancelSubscription(account: StarlinkAccountSummary, ac
       ...mailExtrasFor(account, accounts),
       autoLogin: true,
       cancelSubscriptionReason: CANCEL_SUBSCRIPTION_REASON,
+      ...balanceRatesOption(),
     });
     return { ok: true };
   } catch (err) {
@@ -440,7 +443,7 @@ export async function openAccountCreation(account: StarlinkAccountSummary, step:
     if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
     markInternalLeave();
     if (step === "starlink") {
-      await LocalBrowser.openAccountBrowser({ accountId: account.id, ...starlink });
+      await LocalBrowser.openAccountBrowser({ accountId: account.id, ...starlink, ...balanceRatesOption() });
     } else {
       await LocalBrowser.openMailBrowser({
         accountId: account.id,
