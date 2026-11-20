@@ -7,6 +7,9 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 
 ## Rules every chat follows
 
+- FIRST: `git fetch origin claude/app-control-wnkqnh && git checkout claude/app-control-wnkqnh` - this file and
+  every decision live on that branch only (the default branch does not have them).
+
 - One branch for all of them: `claude/app-control-wnkqnh` (CI builds the APK / EXE only from it). Before starting:
   `git fetch origin claude/app-control-wnkqnh && git merge --ff-only FETCH_HEAD` (or a merge if needed). On a rejected
   push: fetch + merge, never force-push. Only ONE chat writes app code at a time; «الدراسات» and «المهارات» chats
@@ -89,10 +92,12 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
    `claude/app-control-wnkqnh`. ذكّرني بالمفتوح فيه باختصار، ثم ابدأ بما أختاره. لا تغيّر شيئًا قبل موافقتي.»
 2. 📡 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 2 (الأجهزة والزبائن والمندوبون والحسابات)
    و`followups.md`، واعمل على الفرع `claude/app-control-wnkqnh`. ذكّرني بالمعلّق باختصار، ثم انتظر طلبي.»
-3. 📣 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 3 (التسويق والرسائل). ساعدني في حالات واتساب
+3. 📣 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 3 (التسويق والرسائل) على الفرع
+   `claude/app-control-wnkqnh`. ساعدني في حالات واتساب
    وصور إعلانات تيك توك وفيسبوك ونصوص رسائل الزبائن. قل لي السعر قبل أي صورة أو فيديو.»
-4. 🔬 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 4 (الدراسات والأفكار). لا تعدّل كود التطبيق.
+4. 🔬 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 4 (الدراسات والأفكار) على الفرع
+   `claude/app-control-wnkqnh`. لا تعدّل كود التطبيق.
    ذكّرني بالأفكار المفتوحة، واستعمل المجلس للأفكار الكبيرة.»
-5. 🧩 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 5 (المهارات). حسّن ملفات `.claude/skills` فقط،
+5. 🧩 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 5 (المهارات) على الفرع `claude/app-control-wnkqnh`. حسّن ملفات `.claude/skills` فقط،
    واقترح أولًا ما ستغيّره وانتظر موافقتي.»
 
