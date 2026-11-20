@@ -24,14 +24,14 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 
 ## 1. 🛠️ تطوير التطبيق (code, bugs, speed, security)
 
-- 🔗 Nov 20 2026, AFTER the Nov 19 fixes: «الإنترنت جيد لكن الأجهزة لا تتحدّث: المسؤولون يزيلون D أو يعدّلون أي شيء
-  ولا يظهر عندي، وما أفعله لا يظهر عندهم أحيانًا». First check every device runs the Nov 19 build (Settings ←
-  التحديث) and read «🔗 ربط الأجهزة» on his phone and an admin's (status line, ⏳ %, ⚖️ تعارضات, 🗑️ waiting
-  deletions, last round time). Suspects: a member never doing a full round (the receive waits for 15 s idle -
-  QUIET_MS; the phone kept busy = only sendOnly), the head not written on sendOnly rounds, deletions held for YAHYA,
-  conflicts lost to the main phone, a member whose cursor ran past (theirSeq < cursor restarts). His question «إذا
-  أزال مسؤول D وأزلته أنا أيضًا، هل يتكرّر؟» - answered: no, it is the same operation (one record); same change on
-  both = nothing to send, different (date / amount) = one copy kept (paid beats unpaid; else the main phone's).
+- 🔗 Nov 20 2026 «المسؤولون يعدّلون أو يزيلون D ولا يظهر عندي، وما أفعله لا يظهر عندهم أحيانًا» - FIXED: a
+  send-only round (the member busy: a sheet open / touched < 15 s ago) wrote the batch but not the head, and a later
+  full round re-wrote the head only when cursors / counts moved - so an edit (counts unchanged) made while busy was
+  never announced: the others read only up to the head's seq and listen to the head. Now every round announces new
+  batches (`LinkState.headSeq`; an older phone announces once after the update). Test in deviceLink.test.ts. Still to
+  confirm with his screenshots of «🔗 ربط الأجهزة» on his phone + an admin's after EVERY phone has the new build.
+  Remember: on YAHYA another member's deletions wait in «🗑️ حذف من الفريق بانتظار موافقتك» by design (Nov 6 choice);
+  while he is busy his phone only sends - the others' changes land after 15 s without touching.
 
 - Done Nov 19 2026: team link - a paid D wins over an unpaid copy (`preferPaidD`), batchGet reads, a full phone
   said aloud and no half-applied round; the browser balance strip shows $ / أوقية / سيفا. Still open below.

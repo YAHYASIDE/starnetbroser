@@ -44,6 +44,8 @@ export interface TeamMember {
 export interface LinkState {
   /** My last batch number. */
   seq: number;
+  /** 🔗 The batch number my head last announced (a send-only round announces too - see linkRound). */
+  headSeq?: number;
   /** The older link: the other side's last batch I applied (read into `cursors`). */
   cursor: number;
   /** Each other member's last batch I applied. */
@@ -560,14 +562,20 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     seq += 1;
     sentOps += batch.length;
   }
-  // The head only when something moved (Firebase's free writes are counted per day).
+  // The head only when something moved (Firebase's free writes are counted per day). 🔗 New batches are announced on
+  // EVERY round, a send-only one too (his Nov 20 2026 report «المسؤولون يعدّلون ولا يظهر عندي»): the others read only
+  // up to the head's number and listen to the head - a change sent while he was busy, with nothing else moving after,
+  // was written but never seen. `headSeq` = the number the head last carried (missing on older phones: written once).
   const cursorsMoved = Object.entries(cursors).some(([id, c]) => (state.cursors[id] ?? 0) !== c);
   const counts = storeCounts(merged.data);
   const countsMoved = JSON.stringify(counts) !== JSON.stringify(state.counts ?? {});
-  if (!opts.sendOnly && (seq !== state.seq || cursorsMoved || countsMoved || !state.lastAt)) {
+  const unannounced = seq !== (state.headSeq ?? -1);
+  let headSeq = state.headSeq;
+  if (unannounced || (!opts.sendOnly && (cursorsMoved || countsMoved || !state.lastAt))) {
     const sealedCounts = await sealText(JSON.stringify(counts), config.key);
     const headWritten = await writeDocument(config, headPath(config, config.memberId), { seq: String(seq), ack: JSON.stringify(cursors), at, sti: sealedCounts.iv, std: sealedCounts.data }, fetchFn);
-    if (!headWritten.ok && !sendError) sendError = headWritten.message;
+    if (headWritten.ok) headSeq = seq;
+    else if (!sendError) sendError = headWritten.message;
   }
 
   // 4. Remember: everything now agreed, except what is still to send or still held. (⚡ a round where nothing moved
@@ -601,6 +609,7 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
   }
   const nextState: LinkState = {
     seq,
+    headSeq,
     cursor: 0,
     cursors,
     confirmed: state.confirmed.filter((k) => held.some((h) => h.k === k)),

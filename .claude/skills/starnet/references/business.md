@@ -3726,3 +3726,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   4. Remove customer data from the repo's files only; the repo stays public for now (no history rewrite).
 - Done Nov 20 2026: `@capacitor/android` / `core` / `cli` 6.2.0 → 6.2.3 (GHSA-rvm3-566m-v7fv), one `@capacitor/core`
   for every workspace (root `overrides`).
+
+## 🔗 Team link: a change made while busy now reaches the others (Nov 20 2026)
+
+- His report «الإنترنت جيد، لكن المسؤولين يزيلون D أو يعدّلون أي شيء ولا يظهر عندي، وما أفعله لا يظهر عندهم
+  أحيانًا». Cause: a send-only round never announced its batch (the head), so an edit made while busy stayed unseen
+  until something else moved. Every round now announces (`headSeq`). Every linked phone needs this build.
