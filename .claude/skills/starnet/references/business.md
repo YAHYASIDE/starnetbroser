@@ -3707,3 +3707,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   toggles); the auto-sync, «تسجيل الدخول» and activation opens passed no `balanceRates` - now every open does; the
   rates list could pass the 4,000-character cap with long decimals and was then dropped - rates go at 6 significant
   digits and the cap is 20,000.
+
+## 🧭 Five chats (Nov 20 2026)
+
+- He asked me to choose the split and ask him; he approved 5 chats: 🛠️ التطوير والأمان، 📡 الأجهزة والزبائن والمندوبون
+  والحسابات، 📣 التسويق والرسائل (new: WhatsApp statuses, TikTok / Facebook ad pictures, customer message texts)، 🔬
+  الدراسات والأفكار، 🧩 المهارات. Sections, rules and his paste-in prompts: `references/workstreams.md`.

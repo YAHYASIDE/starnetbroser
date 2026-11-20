@@ -9,13 +9,16 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 
 - One branch for all of them: `claude/app-control-wnkqnh` (CI builds the APK / EXE only from it). Before starting:
   `git fetch origin claude/app-control-wnkqnh && git merge --ff-only FETCH_HEAD` (or a merge if needed). On a rejected
-  push: fetch + merge, never force-push. Only ONE chat writes app code at a time; «دراسات» and «المهارات» chats
-  change only `.claude/` files unless he asks.
+  push: fetch + merge, never force-push. Only ONE chat writes app code at a time; «الدراسات» and «المهارات» chats
+  change only `.claude/` files unless he asks; «التسويق» only the message texts (section 3).
 - When a chat finishes something: remove it from `followups.md` / this file in the same commit; a new decision goes in
   `business.md`; a new open item goes HERE under its chat's section.
 - Reply to him in Arabic, short. Customer data, codes, keys and tokens never in chat or commits.
 
 ## 1. 🛠️ تطوير التطبيق (code, bugs, speed, security)
+
+- Done Nov 19 2026: team link - a paid D wins over an unpaid copy (`preferPaidD`), batchGet reads, a full phone
+  said aloud and no half-applied round; the browser balance strip shows $ / أوقية / سيفا. Still open below.
 
 - 🔐 **Security & data-safety audit** (his Nov 18 ask: «تأكّد من قواعد البيانات ونظام بناء التطبيق أنه آمن، لا يخسر
   البيانات ولا يطيح تلقائيًا ولا يُخترق»). Known so far (from the work, not yet a full audit):
@@ -51,7 +54,22 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 - 🤝 Rep options left by the council: wholesale price per device, debt ceiling per rep, «استلمت لحساب المندوب».
 - Use the `starnet` skill (+ `starnet-browsers` for anything the Starlink sync reads).
 
-## 3. 🔬 دراسات وأفكار جديدة (think first, build later)
+## 3. 📣 التسويق والرسائل (his Nov 20 2026 addition)
+
+His words: «أضف شات لتطوير حالات الواتس وصور إعلانات مثل تيك توك أو الفيسبوك وتطوير رسائل للزبائن».
+- Scope: WhatsApp statuses (text + picture ideas, a weekly plan), ad pictures / short videos for TikTok and Facebook,
+  the texts customers receive (reminders, activation, statements, «رسالة الترحيب» and «الردود السريعة» of WhatsApp
+  Business - followups 🛠️ 5), and every ad carrying the «🌐 رابط الزبائن» request link.
+- Arabic first (Mauritanian customers), French when he asks; his business name STAR NET, his public numbers from
+  «بيانات النشاط». No customer names, numbers or real account data in any ad or picture.
+- Pictures / videos: the session's image / video tools cost credits - say the price and get his OK before each
+  generation. Never claim what Starlink does not do (no «change your country», no fake speeds or prices).
+- App code: only the message texts (`lib/customerMessages.ts`, `lib/whatsapp.ts` wording, `lib/activationMessage.ts`)
+  with their tests; anything else goes to chat 1. Ads budget: not given yet - ask.
+- Open: his ads question «ماذا تقترح للإعلانات» (first idea: the customer link in every ad), the welcome / quick-reply
+  texts, a status plan.
+
+## 4. 🔬 دراسات وأفكار جديدة (think first, build later)
 
 - 👷 «رئيس العمّال» + 🤖 WhatsApp worker on 22227268 (followups 🛠️ 10, council report
   https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79): waits for the Claude key, his OK to keep customers' facts
@@ -61,9 +79,27 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 - 🔑 Claude key payment refused (cards only - empty tax id, exact KAST billing address, 3DS, or another card).
 - Use the `council` skill for any big idea before building.
 
-## 4. 🧩 المهارات (skills)
+- 🧭 Control Center report 1 (https://claude.ai/artifact/A6bVVqGXqKEF7Z295UzXVR): his 4 answers are pending
+  (MikroTik / Wi-Fi cards, team roles, telemetry through the session on one device, USDT). Research clones were in
+  /home/user/research (gone with the container - re-clone if needed).
+
+## 5. 🧩 المهارات (skills)
 
 - The skills live in `.claude/skills/`: `starnet` (working method + references), `starnet-browsers` (Starlink reads),
   `council`. Keep them true and short: a lesson learned in another chat is added here.
 - Ideas: a skill for the security audit checklist; a skill for «رابط الزبائن» setup / support; trimming
   `business.md` (3,600+ lines) into topic files so each chat reads less.
+
+## 📝 The prompts he pastes to open each chat (Nov 20 2026)
+
+1. 🛠️ «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 1 (التطوير والأمان) واعمل على الفرع
+   `claude/app-control-wnkqnh`. ذكّرني بالمفتوح فيه باختصار، ثم ابدأ بما أختاره. لا تغيّر شيئًا قبل موافقتي.»
+2. 📡 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 2 (الأجهزة والزبائن والمندوبون والحسابات)
+   و`followups.md`، واعمل على الفرع `claude/app-control-wnkqnh`. ذكّرني بالمعلّق باختصار، ثم انتظر طلبي.»
+3. 📣 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 3 (التسويق والرسائل). ساعدني في حالات واتساب
+   وصور إعلانات تيك توك وفيسبوك ونصوص رسائل الزبائن. قل لي السعر قبل أي صورة أو فيديو.»
+4. 🔬 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 4 (الدراسات والأفكار). لا تعدّل كود التطبيق.
+   ذكّرني بالأفكار المفتوحة، واستعمل المجلس للأفكار الكبيرة.»
+5. 🧩 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 5 (المهارات). حسّن ملفات `.claude/skills` فقط،
+   واقترح أولًا ما ستغيّره وانتظر موافقتي.»
+
