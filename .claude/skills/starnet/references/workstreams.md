@@ -7,6 +7,10 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 
 ## Rules every chat follows
 
+- His Nov 20 2026 rule: «عندما أطرح عليك أي تعديل، دلّني دائمًا في أي محادثة أرسله لكي يعدّلها». A request that
+  belongs to another chat's section → don't build it here: name that chat («تطوير التطبيق»، «الأجهزة وزباين
+  والمندوب»، «تسويق وإعلانات»، «دراسات وأفكار»، «ملفات المهارات») and give him a ready message to paste there.
+
 - FIRST: `git fetch origin claude/app-control-wnkqnh && git checkout claude/app-control-wnkqnh` - this file and
   every decision live on that branch only (the default branch does not have them).
 
@@ -19,6 +23,15 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 - Reply to him in Arabic, short. Customer data, codes, keys and tokens never in chat or commits.
 
 ## 1. 🛠️ تطوير التطبيق (code, bugs, speed, security)
+
+- 🔗 Nov 20 2026, AFTER the Nov 19 fixes: «الإنترنت جيد لكن الأجهزة لا تتحدّث: المسؤولون يزيلون D أو يعدّلون أي شيء
+  ولا يظهر عندي، وما أفعله لا يظهر عندهم أحيانًا». First check every device runs the Nov 19 build (Settings ←
+  التحديث) and read «🔗 ربط الأجهزة» on his phone and an admin's (status line, ⏳ %, ⚖️ تعارضات, 🗑️ waiting
+  deletions, last round time). Suspects: a member never doing a full round (the receive waits for 15 s idle -
+  QUIET_MS; the phone kept busy = only sendOnly), the head not written on sendOnly rounds, deletions held for YAHYA,
+  conflicts lost to the main phone, a member whose cursor ran past (theirSeq < cursor restarts). His question «إذا
+  أزال مسؤول D وأزلته أنا أيضًا، هل يتكرّر؟» - answered: no, it is the same operation (one record); same change on
+  both = nothing to send, different (date / amount) = one copy kept (paid beats unpaid; else the main phone's).
 
 - Done Nov 19 2026: team link - a paid D wins over an unpaid copy (`preferPaidD`), batchGet reads, a full phone
   said aloud and no half-applied round; the browser balance strip shows $ / أوقية / سيفا. Still open below.
