@@ -24,6 +24,7 @@
     "typescript": "5.7.2"
   },
   "overrides": {
-    "jsdom": "^27.0.1"
+    "jsdom": "^27.0.1",
+    "@capacitor/core": "6.2.3"
   }
 }

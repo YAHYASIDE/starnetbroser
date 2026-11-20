@@ -20,22 +20,15 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 - Done Nov 19 2026: team link - a paid D wins over an unpaid copy (`preferPaidD`), batchGet reads, a full phone
   said aloud and no half-applied round; the browser balance strip shows $ / أوقية / سيفا. Still open below.
 
-- 🔐 **Security & data-safety audit** (his Nov 18 ask: «تأكّد من قواعد البيانات ونظام بناء التطبيق أنه آمن، لا يخسر
-  البيانات ولا يطيح تلقائيًا ولا يُخترق»). Known so far (from the work, not yet a full audit):
-  - All business data lives in the phone (localStorage). Loss risks: uninstall / «مسح البيانات» / a full storage.
-    Guards that exist: daily file backup, Google Drive copy, team link copy, the encrypted export. To check: the
-    restore really works end to end, a warning when no backup for N days, storage near full (`storageGuard.ts`).
-  - Team Firebase (live link, reps, chat, flags): everything is sealed with AES-256 before it leaves the phone
-    (deviceSyncCrypto / backupCrypto) - Firebase sees ciphertext. BUT its rules allow ANY anonymous user of that project
-    to read / write / delete `/starnet/**` → someone with the project's apiKey could delete or junk the synced copies
-    (not the phone's own data). Candidate fix: rules locked to the team's uids (as done for «رابط الزبائن»), or App
-    Check. Needs his OK (every team phone must sign in once more).
-  - Freezes: fixed Nov 18 (base64 + backups after 2 min) + 🛟 safe mode; confirm with him the main phone is fine.
-  - Secrets: Claude key `starnet.claudeKey`, bot tokens, Drive tokens are `starnet.*` (phone-only, not backed up). To
-    check: none leak into backups, logs, error reports, notifications or rep copies.
-  - Build: CI (preview.yml) runs typecheck + all tests before the APK; the APK is a debug build signed with the CI
-    key. To check: dependency audit (`npm audit`), the update check (`appUpdate.ts`) only trusts the release.
-  - Deliver: a report (Artifact, Arabic) with each risk = how likely, what it costs him, the fix; then fix in order.
+- 🔐 **Security audit** - report done Nov 20 2026 (https://claude.ai/artifact/F9EwuFvy3pR2n1yyvU8Gf4), his answers in
+  `business.md` «🔐 Security audit». Capacitor 6.2.3 done. Still open, in order:
+  - 💳 Cards in the team link (`starnet_card_fill_v1` travels to every linked phone): clarify his «كل مندوب» first.
+  - 💾 Backup gaps: Drive uploads don't count for «لا نسخة احتياطية منذ أيام»; the home banner only warns at 95 %
+    (add 80 %). He tries a Drive restore on a spare phone (not the main one) and writes the backup password on paper.
+  - 🔑 Private signing key in GitHub secrets + release build (not debuggable) - only after that restore test, and
+    after he has the reinstall steps (every phone: backup → uninstall → install → restore).
+  - 🔒 Team Firebase rules locked to the team's uids (approved) - every team phone signs in once more.
+  - 🧹 Remove customer data (e.g. a customer's e-mail) from `.claude/` files; repo stays public, no history rewrite.
 - 📊 Usage counter + remove dead code (followups 11).
 - 🔴 Unread count on «💬 الدردشة» (followups 🛠️ 2); chat brief items (followups 🛠️ 3).
 - 🤖 Bot buttons «🤲 سلّمت» / «🤝 وعودي» / «💰 ديون زبائني» (offered, not chosen).

@@ -3713,3 +3713,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - He asked me to choose the split and ask him; he approved 5 chats: 🛠️ التطوير والأمان، 📡 الأجهزة والزبائن والمندوبون
   والحسابات، 📣 التسويق والرسائل (new: WhatsApp statuses, TikTok / Facebook ad pictures, customer message texts)، 🔬
   الدراسات والأفكار، 🧩 المهارات. Sections, rules and his paste-in prompts: `references/workstreams.md`.
+
+## 🔐 Security audit and his answers (Nov 20 2026)
+
+- Report: https://claude.ai/artifact/F9EwuFvy3pR2n1yyvU8Gf4 (7 risks). His answers, in his order:
+  1. Cards over the team link: «نعم كل مندوب يمكنه ملء مكان البطاقة» - NOT built yet: ask him whether he means the
+     team phones (المسؤول 2, laptop - already receive them, sealed) or also the reps (today the rep copy never carries
+     card details; a rep holding number + CVC is a big change).
+  2. New private signing key + a release build: yes, but ONLY after a restore from a backup has been tried on one
+     phone, and he gets the reinstall steps first (backup → uninstall → install → restore, on every phone).
+  3. Lock the team Firebase rules to the team's uids: yes.
+  4. Remove customer data from the repo's files only; the repo stays public for now (no history rewrite).
+- Done Nov 20 2026: `@capacitor/android` / `core` / `cli` 6.2.0 → 6.2.3 (GHSA-rvm3-566m-v7fv), one `@capacitor/core`
+  for every workspace (root `overrides`).
