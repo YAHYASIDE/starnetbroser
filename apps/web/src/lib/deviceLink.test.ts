@@ -397,6 +397,27 @@ describe("the phone ↔ laptop link", () => {
     expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("زبون 2");
   });
 
+  it("🛡️ an old build can't move or unpin a pinned rate - it is refused and corrected (his Nov 21 2026 report)", async () => {
+    const T1 = "2026-11-19T10:00:00.000Z";
+    const eur = { code: "EUR", name: "يورو", symbol: "€", rateFromUsd: 0.86, updatedAt: T1, enabled: true, pinnedAt: T1 };
+    const { firebase, phone, laptop } = await phoneAndLaptop({ starnet_currencies_v1: ledger({ EUR: eur }) });
+    // the laptop (an older build) writes the euro at 0.2675 without the pin
+    const { pinnedAt: _p, ...noPin } = eur;
+    laptop.write("starnet_currencies_v1", ledger({ EUR: { ...noPin, rateFromUsd: 0.2675 } }));
+    await runLinkRound(laptop, firebase);
+    const got = await runLinkRound(phone, firebase);
+    expect(got.refused).toBe(1);
+    expect(JSON.parse(phone.data.get("starnet_currencies_v1")!).EUR).toEqual(eur);
+    // the phone sent the pinned euro back: the laptop is corrected
+    await runLinkRound(laptop, firebase);
+    expect(JSON.parse(laptop.data.get("starnet_currencies_v1")!).EUR).toEqual(eur);
+    // his unpin with the code (unpinnedAt) goes through
+    phone.write("starnet_currencies_v1", ledger({ EUR: { ...noPin, unpinnedAt: "2026-11-21T09:00:00.000Z" } }));
+    await runLinkRound(phone, firebase);
+    await runLinkRound(laptop, firebase);
+    expect(JSON.parse(laptop.data.get("starnet_currencies_v1")!).EUR.pinnedAt).toBeUndefined();
+  });
+
   it("⚡ many batches come in a few requests", async () => {
     const { firebase, stats, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({}) });
     for (let i = 0; i < 30; i++) {

@@ -23,7 +23,8 @@ import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
 import { foreignRateFromQuote, mruQuoteFor } from "@/lib/partyNet";
 import { useToolsData } from "@/components/tools/useToolsData";
-import { loadCurrencyCodeHash, matchesCurrencyCode, newCodeProblem, pinCurrency, PIN_TOLERANCE_USD, saveCurrencyCode, unpinCurrency } from "@/lib/currencyPin";
+import { loadCurrencyCodeHash, loadRefusedChanges, matchesCurrencyCode, newCodeProblem, pinAllCurrencies, pinCurrency, PIN_TOLERANCE_USD, saveCurrencyCode, unpinCurrency, type RefusedRateChange } from "@/lib/currencyPin";
+import { teamMemberName } from "@/components/TeamFlagSheet";
 
 function formatRate(currency: Currency): string {
   return `1 USD = ${currency.rateFromUsd} ${currency.symbol}`;
@@ -234,16 +235,36 @@ export default function CurrenciesPage() {
       setSavedNote({ code, text: "⚠️ هذا السعر غير معقول - صحّحه أولًا («تعديل السعر») ثم ثبّته" });
       return;
     }
-    persist(pinCurrency(store, code, new Date().toISOString()));
+    persist(pinCurrency(store, code, new Date().toISOString(), teamMemberName()));
     setSavedNote({ code, text: "📌 ثُبّت السعر - لا يتغيّر إلا من هنا بعد إزالة التثبيت" });
   }
 
+  /** 📌 «ثبّت كل الأسعار» (his Nov 21 2026 ask). */
+  const [pinAllNote, setPinAllNote] = useState<string | null>(null);
+  function pinAll() {
+    const r = pinAllCurrencies(store, new Date().toISOString(), teamMemberName());
+    if (r.pinned.length) persist(r.store);
+    setPinAllNote(
+      (r.pinned.length ? `📌 ثُبّتت ${r.pinned.length} عملة` : "كل العملات مثبّتة") +
+        (r.wrong.length ? ` · لم تُثبَّت (سعرها غير معقول، صحّحه أولًا): ${r.wrong.join("، ")}` : ""),
+    );
+  }
+
+  // 🛡️ changes of a pinned rate refused from another phone of the team
+  const [refused, setRefused] = useState<RefusedRateChange[]>([]);
+  useEffect(() => setRefused(loadRefusedChanges()), []);
+
   function unpin(code: string) {
-    if (codeHash && !matchesCurrencyCode(unpinCode, codeHash)) {
+    // 👥 the team's «رمز العملات» is needed on every phone (his Nov 21 2026 ask) - none yet: set it first
+    if (!codeHash) {
+      setUnpinError("ضع «رمز العملات» أولًا (أسفل الصفحة) - لا يُزال التثبيت بلا رمز");
+      return;
+    }
+    if (!matchesCurrencyCode(unpinCode, codeHash)) {
       setUnpinError("الرمز غير صحيح");
       return;
     }
-    persist(unpinCurrency(store, code));
+    persist(unpinCurrency(store, code, new Date().toISOString(), teamMemberName()));
     setUnpinning(null);
     setUnpinCode("");
     setUnpinError(null);
@@ -260,13 +281,13 @@ export default function CurrenciesPage() {
       setCodeNote({ ok: false, text: problem });
       return;
     }
-    saveCurrencyCode(newCode1);
+    saveCurrencyCode(newCode1, teamMemberName());
     setCodeHash(loadCurrencyCodeHash());
     setOldCode("");
     setNewCode1("");
     setNewCode2("");
     setCodeOpen(false);
-    setCodeNote({ ok: true, text: "✓ حُفظ رمز العملات على هذا الهاتف" });
+    setCodeNote({ ok: true, text: "✓ حُفظ رمز العملات لكل الفريق - يصل لكل الأجهزة المربوطة" });
   }
 
   // Currency converter (amount in `convFrom` -> `convTo`, pivoting through USD via
@@ -294,7 +315,7 @@ export default function CurrenciesPage() {
   function saveEditRate(code: string) {
     const rate = editedRate(code, editAmount, editUsd, editMru, store.MRU?.rateFromUsd);
     if (rate === null) return;
-    persist(setCurrencyRate(store, code, rate));
+    persist(setCurrencyRate(store, code, rate, teamMemberName()));
     setEditingCode(null);
     // The device cards read the rate when they show: their «≈ USD» is already the new one.
     const devices = devicesInCurrency(accounts, code);
@@ -484,7 +505,7 @@ export default function CurrenciesPage() {
         {!rep && (
           <div className="currency-code-box" data-tour="currency-code">
             <p className="settings-hint">
-              🔐 <b>رمز العملات</b>: {codeHash ? "مضبوط على هذا الهاتف." : "غير مضبوط بعد."} يُطلب لإزالة تثبيت سعر، ولتسديد D بعملة مثبّتة إذا اختلف المبلغ عن السعر المثبّت بأكثر من {PIN_TOLERANCE_USD}$.
+              🔐 <b>رمز العملات</b>: {codeHash ? "مضبوط - رمز واحد لكل الفريق." : "غير مضبوط بعد."} يُطلب لإزالة تثبيت سعر، ولتسديد D بعملة مثبّتة إذا اختلف المبلغ عن السعر المثبّت بأكثر من {PIN_TOLERANCE_USD}$.
             </p>
             {!codeOpen ? (
               <button className="text-action" type="button" onClick={() => { setCodeOpen(true); setCodeNote(null); }}>
@@ -515,6 +536,32 @@ export default function CurrenciesPage() {
             onChange={(e) => setListQuery(e.target.value)}
           />
         </div>
+
+        {!rep && (
+          <div className="settings-actions">
+            <button className="dialog-primary" type="button" onClick={pinAll}>📌 ثبّت كل الأسعار</button>
+          </div>
+        )}
+        {pinAllNote && <p className="currency-rate-saved">{pinAllNote}</p>}
+        {!rep && refused.length > 0 && (
+          <details className="currency-refused">
+            <summary>🛡️ تغييرات رُفضت على أسعار مثبّتة ({refused.length})</summary>
+            <ul>
+              {refused.map((r, i) => (
+                <li key={i}>
+                  «{r.by || "جهاز في الفريق"}» حاول {r.unpinned ? "إزالة تثبيت" : "تغيير سعر"} {r.code}
+                  {r.rate !== null ? (
+                    <>
+                      {r.unpinned ? " وجعل سعره " : " إلى "}
+                      <bdi dir="ltr">{r.rate}</bdi>
+                    </>
+                  ) : null}{" "}
+                  · {formatUpdatedAt(r.at)} - رُفض وأُعيد السعر المثبّت (نسخة قديمة أو بلا رمز)
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <ul className="currency-list">
           {filteredCurrencies.length === 0 && <p className="client-picker-empty">لا توجد عملة مطابقة</p>}
@@ -561,6 +608,17 @@ export default function CurrenciesPage() {
                     ) : null;
                   })()}
                   <span className="currency-row-updated">آخر تحديث: {formatUpdatedAt(currency.updatedAt)}</span>
+                  {(() => {
+                    // 🕵️ who changed it, from which phone (his Nov 21 2026 ask)
+                    const last = currency.changes?.at(-1);
+                    if (!last) return null;
+                    const what = last.what === "pin" ? "ثبّته" : last.what === "unpin" ? "أزال التثبيت" : "غيّر السعر";
+                    return (
+                      <span className="currency-row-updated">
+                        🕵️ {what}: «{last.by || "؟"}» · <bdi dir="ltr">{last.rate}</bdi> · {formatUpdatedAt(last.at)}
+                      </span>
+                    );
+                  })()}
                   {savedNote?.code === currency.code && <span className="currency-rate-saved">{savedNote.text}</span>}
                 </div>
               )}
@@ -569,7 +627,7 @@ export default function CurrenciesPage() {
                   {codeHash ? (
                     <input className="search-input" type="password" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="رمز العملات" value={unpinCode} onChange={(e) => setUnpinCode(e.target.value)} />
                   ) : (
-                    <p className="settings-hint">لا يوجد رمز عملات بعد - الإزالة بلا رمز.</p>
+                    <p className="settings-hint">لا يوجد رمز عملات بعد - ضعه أولًا أسفل الصفحة («رمز العملات»)، ثم أزل التثبيت به.</p>
                   )}
                   {unpinError && <p className="currency-rate-wrong">{unpinError}</p>}
                   <div className="settings-actions">

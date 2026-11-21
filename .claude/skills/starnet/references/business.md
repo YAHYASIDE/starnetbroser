@@ -3805,3 +3805,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «تدريب الوكيل»: sent on a greeting / first message of the day, a number answers that item, «0» sends it again
   (both the app and the reader read it). Default menu: device info, renewal price, how to pay, weak internet, a new
   device, a person. (3) Reply quality: asked him for the bad answers; lessons for each menu item + «🧠 وكيل أذكى».
+
+## 🛡️ A pinned rate is protected in the whole team (Nov 21 2026)
+
+- His report: «سعر اليورو كان مثبّتًا وتغيّر يوم 20 نوفمبر إلى 0.2675 وسقط التثبيت. أظن جهازًا في الفريق على نسخة قديمة
+  كتب فوقه، أو مسؤول أزال التثبيت لأن رمز العملات في هاتفي فقط». The link took any other phone's change of a record
+  unless both sides changed it - a pin had no protection. Who did it on Nov 20 can't be known (currencies weren't in
+  «ماذا وصل من الفريق», no change history then).
+- His asks, all built: (1) `losesPin` / `guardPinnedOp`: every updated phone refuses from another phone a change that
+  drops a pin or moves a pinned rate, unless it carries his unpin with the code (`unpinnedAt` ≥ the pin) or a newer
+  pin; the pinned record goes out again so the wrong phone is corrected; refusals listed on «العملات» («🛡️ تغييرات
+  رُفضت») + a phone notification. Every local save keeps a stored pin too (`keepPins` in saveCurrencyStore: a screen
+  holding an older copy can't write over it). «رمز العملات» is ONE for the team: `starnet_currency_code_v1` {hash,
+  setAt, by} (link + backup; a phone's older `starnet.currencyCode` becomes the team's once); unpinning always needs it
+  (none set → set it first). (2) «📌 ثبّت كل الأسعار» (skips USD, hidden, impossible rates). (3) Reps: a rate / pin
+  change sends the rep copy after 30 s (`RATES_QUIET_MS`, runner every 15 s) instead of 10 min; the team link already
+  sends within a second (the receiving phone applies after 15 s without touching). (4) `Currency.changes` (who = team
+  phone name, what rate / pin / unpin, rate, when; last 10) shown under each currency, and currency changes from
+  other phones in «📜 ماذا وصل من الفريق».
+- Limit: a phone still on an OLD build keeps doing what it did on itself until it is updated (its change is refused
+  everywhere else and corrected back). Every team phone must install this build.

@@ -244,6 +244,8 @@ export interface MergeResult {
   conflicts: SyncConflict[];
   /** Keys whose stored text must be rewritten. */
   changedKeys: string[];
+  /** 🛡️ Changes from another phone refused by `rules.guard` (their record goes out again, corrected). */
+  refused: SyncOp[];
 }
 
 /** The other side's changes onto this side. Same record changed on both → the later wins. */
@@ -257,6 +259,10 @@ export interface MergeRules {
   remoteWins?: (op: SyncOp) => boolean;
   /** Decides a conflict before the rules above (null = no opinion) - see preferPaidD. */
   prefer?: (mine: SyncOp, theirs: SyncOp) => "mine" | "theirs" | null;
+  /** 🛡️ Refuses another phone's change whatever happened here (lib/currencyPin.ts guardPinnedOp: a pinned rate). The
+   * record as it stands here goes out again, at `now`, so the other phones are corrected. */
+  guard?: (op: SyncOp, before: string | undefined) => "reject" | null;
+  now?: string;
 }
 
 export const LEDGER_KEY = "starnet_customer_ledger_v1";
@@ -308,8 +314,16 @@ export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]
   const dropped = new Set<string>();
   const conflicts: SyncConflict[] = [];
   const changed = new Set<string>();
+  const refused: SyncOp[] = [];
+  const resend = new Map<string, SyncOp>();
   for (const op of remoteOps) {
     const id = `${op.k}\u0000${op.r}`;
+    const here = data[op.k]?.records[op.r];
+    if (rules.guard?.(op, here) === "reject") {
+      refused.push(op);
+      if (here !== undefined && !local.has(id)) resend.set(id, { k: op.k, s: data[op.k]!.shape, r: op.r, v: here, at: rules.now ?? op.at });
+      continue;
+    }
     const mine = local.get(id);
     if (mine && !dropped.has(id)) {
       if (mine.v === op.v) {
@@ -335,7 +349,7 @@ export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]
     }
     changed.add(op.k);
   }
-  return { data, outgoing: localOps.filter((op) => !dropped.has(`${op.k}\u0000${op.r}`)), conflicts, changedKeys: [...changed] };
+  return { data, outgoing: [...localOps.filter((op) => !dropped.has(`${op.k}\u0000${op.r}`)), ...resend.values()], conflicts, changedKeys: [...changed], refused };
 }
 
 /** The baseline after a round: everything as it now stands, except deletions still held. */
