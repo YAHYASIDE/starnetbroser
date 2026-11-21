@@ -45,3 +45,12 @@ describe("👥 what came from the team (his Oct 31 2026 «المسؤول 2»)", 
   });
 });
 
+describe("💱 a rate changed on another phone (Nov 21 2026)", () => {
+  it("says who changed which rate, and a pin moving", () => {
+    const k = "starnet_currencies_v1";
+    const before = JSON.stringify({ code: "EUR", rateFromUsd: 0.86, pinnedAt: "x" });
+    const a = describeOp({ k, r: "EUR", v: JSON.stringify({ code: "EUR", rateFromUsd: 0.2675 }), at: "t" }, before, "المسؤول 2");
+    expect(a).toMatchObject({ by: "المسؤول 2", label: "💱 EUR = 0.2675 🔓 أزال التثبيت", notable: true });
+    expect(describeOp({ k, r: "EUR", v: JSON.stringify({ code: "EUR", rateFromUsd: 0.86, pinnedAt: "x", name: "y" }), at: "t" }, before, "x")).toBeNull();
+  });
+});

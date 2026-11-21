@@ -2,6 +2,7 @@
 
 import { LOW_NET_LINK_EVERY_MS, lowNetOn, timedFetch } from "@/lib/lowNet";
 import { requestDataReload } from "@/lib/dataReload";
+import { shareOldCurrencyCode } from "@/lib/currencyPin";
 
 import { useEffect } from "react";
 import { browserLinkStorage, LINK_EXCLUDED_KEYS, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
@@ -63,6 +64,8 @@ function isIdle(): boolean {
  */
 export function DeviceLinkRunner() {
   useEffect(() => {
+    // 👥 this phone's older «رمز العملات» becomes the team's (once, when the team has none yet)
+    shareOldCurrencyCode();
     const touched = () => (lastTouch = Date.now());
     const touchEvents = ["pointerdown", "keydown", "input", "touchstart"] as const;
     for (const e of touchEvents) document.addEventListener(e, touched, { capture: true, passive: true });
@@ -101,6 +104,8 @@ export function DeviceLinkRunner() {
         const text = activityNotification(result.incoming);
         if (text) await notifyPhone(text);
         // 🗑️ on YAHYA: another member deleted something - it waits for him
+        // 🛡️ a phone of the team (an older build) tried to move / unpin a pinned rate - refused and corrected
+        if (result.refused) await notifyPhone(`🛡️ رُفض تغيير سعر عملة مثبّت من جهاز في الفريق (${result.refused}) - التفاصيل في «العملات»`, "/currencies");
         if (result.pending) await notifyPhone(`🗑️ حذف من الفريق بانتظار موافقتك (${result.pending}) - الإعدادات ← 🔗 ربط الأجهزة`);
         // 🔄 the open page reads again in place - never a reload (it opened the home page under another page). At
         // once: a screen holding the old data could write it back over the team's change (what was open comes back -

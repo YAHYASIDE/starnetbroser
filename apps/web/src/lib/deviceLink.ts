@@ -17,6 +17,7 @@ import { batchGetDocuments, readDocument, writeDocument, type FetchFn } from "./
 import { isQuotaError } from "./storageGuard";
 import { COUNTED_STORES, describeOp, isNotableStore, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
 import { checkConfigInput, newSpaceId } from "./liveSyncConfig";
+import { addRefusedChanges, guardPinnedOp, refusedChange } from "./currencyPin";
 
 export type LinkRole = "phone" | "laptop";
 
@@ -413,6 +414,8 @@ export interface RoundResult {
   incoming: TeamActivity[];
   /** 🗑️ New deletions waiting for YAHYA. */
   pending?: number;
+  /** 🛡️ Changes to a pinned rate refused this round (lib/currencyPin.ts). */
+  refused?: number;
   /** 📵 The phone's storage is full: nothing of the team's was written (and nothing marked received) - the runner
    * waits before trying again instead of every few seconds. */
   storageFull?: boolean;
@@ -531,12 +534,15 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     s.setSetting(PENDING, JSON.stringify([...loadPendingDeletions(s), ...newPending.filter((p) => !known.has(p.id))]));
   }
   // 💳 a paid D wins over an unpaid copy of it, on every phone (preferPaidD)
-  const merged = merge(flat, localOps, applyOps, main ? { localWins: true, prefer: preferPaidD } : { remoteWins: (op) => isMainMember((op as SyncOp & { by?: string }).by ?? ""), prefer: preferPaidD });
+  // 🛡️ a pinned rate is never moved / unpinned by another phone without «رمز العملات» (guardPinnedOp)
+  const shared = { prefer: preferPaidD, guard: guardPinnedOp, now: at };
+  const merged = merge(flat, localOps, applyOps, main ? { localWins: true, ...shared } : { remoteWins: (op) => isMainMember((op as SyncOp & { by?: string }).by ?? ""), ...shared });
+  if (merged.refused.length) addRefusedChanges(merged.refused.map((op) => refusedChange(op, nameOf((op as SyncOp & { by?: string }).by ?? ""))));
   // A change he made while this round ran is never written over: the key is re-read and theirs re-applied.
   for (const k of merged.changedKeys) {
     const fresh = s.read(k);
     if (fresh !== (snapshot[k] ?? null)) {
-      const again = merge({ [k]: flattenKey(fresh ?? "null", merged.data[k]?.shape) }, [], applyOps.filter((op) => op.k === k));
+      const again = merge({ [k]: flattenKey(fresh ?? "null", merged.data[k]?.shape) }, [], applyOps.filter((op) => op.k === k), { guard: guardPinnedOp, now: at });
       merged.data[k] = again.data[k] ?? merged.data[k]!;
     }
     s.write(k, unflattenKey(merged.data[k]!));
@@ -596,7 +602,7 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     s.setSetting(CONFLICTS, JSON.stringify(all));
   }
   // 👥 Who did what: marks on what they added / changed, and the log (a lost change of theirs is not theirs here).
-  const lost = new Set(merged.conflicts.filter((c) => c.kept === "local").map((c) => `${c.k}|${c.r}|${c.at}`));
+  const lost = new Set([...merged.conflicts.filter((c) => c.kept === "local"), ...merged.refused].map((c) => `${c.k}|${c.r}|${c.at}`));
   const incoming: TeamActivity[] = [];
   for (const op of applyOps) {
     if (lost.has(`${op.k}|${op.r}|${op.at}`)) continue;
@@ -631,6 +637,7 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     held,
     incoming,
     pending: newPending.length,
+    refused: merged.refused.length,
   };
   return finish(result);
 

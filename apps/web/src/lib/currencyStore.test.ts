@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  keepPins,
+  losesPin,
   Currency,
   convertAmount,
   defaultCurrencyStore,
@@ -263,5 +265,19 @@ describe("🛑 an impossible rate (his Nov 12 2026 euro at ~1.01 per dollar)", (
     expect(rateStepIsBelievable("HNL", 26.1, 26.84)).toBe(true);
     expect(rateStepIsBelievable("HNL", 26.1, 35)).toBe(false);
     expect(rateStepIsBelievable("XYZ", undefined, 3)).toBe(true);
+  });
+});
+
+describe("🛡️ a save never loses a pin (Nov 21 2026)", () => {
+  it("keeps the stored pinned currency when an older copy is saved over it", () => {
+    const T1 = "2026-11-19T10:00:00.000Z";
+    const pinned = { code: "EUR", name: "يورو", symbol: "€", rateFromUsd: 0.86, updatedAt: T1, enabled: true, pinnedAt: T1 };
+    const { pinnedAt: _p, ...noPin } = pinned;
+    const stored = { EUR: pinned };
+    expect(keepPins(stored, { EUR: { ...noPin, rateFromUsd: 0.2675 } }).EUR).toEqual(pinned);
+    expect(keepPins(stored, {}).EUR).toEqual(pinned);
+    expect(keepPins(stored, { EUR: { ...noPin, unpinnedAt: "2026-11-21T00:00:00.000Z" } }).EUR!.pinnedAt).toBeUndefined();
+    expect(keepPins(stored, { EUR: { ...pinned, name: "اليورو" } }).EUR!.name).toBe("اليورو");
+    expect(losesPin(undefined, undefined)).toBe(false);
   });
 });

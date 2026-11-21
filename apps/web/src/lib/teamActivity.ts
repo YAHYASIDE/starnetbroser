@@ -98,6 +98,15 @@ export function describeOp(op: Pick<SyncOp, "k" | "r" | "v" | "at">, before: str
     else return null;
     return { at: op.at, by, kind, k: op.k, r: op.r, label, notable: true };
   }
+  if (op.k === "starnet_currencies_v1") {
+    // 🕵️ a rate / a pin changed on another phone (his Nov 21 2026 «أريد أن أعرف من غيّر السعر ومن أي جهاز»)
+    if (kind === "del" || !rec) return null;
+    const old = parse(before ?? null);
+    const pinMoved = Boolean(rec.pinnedAt) !== Boolean(old?.pinnedAt);
+    if (old && old.rateFromUsd === rec.rateFromUsd && !pinMoved) return null;
+    label = `💱 ${String(rec.code ?? op.r)} = ${String(rec.rateFromUsd ?? "")}${pinMoved ? (rec.pinnedAt ? " 📌 ثبّته" : " 🔓 أزال التثبيت") : ""}`;
+    return { at: op.at, by, kind, k: op.k, r: op.r, label, notable: true };
+  }
   if (NAMED[op.k]) {
     label = `${NAMED[op.k]} ${String(rec?.name ?? "")}`.trim();
     notable = op.k === "starnet_demo_accounts_v1" && kind === "add";

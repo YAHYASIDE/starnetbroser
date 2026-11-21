@@ -38,4 +38,17 @@ public class WhatsAppAgentRulesTest {
         for (int i = 0; i < 30; i++) sent.add(now - 2 * WhatsAppAgentRules.HOUR_MS);
         assertTrue(WhatsAppAgentRules.underHourlyLimit(sent, now));
     }
+
+    @Test
+    public void theDiagnosticReason() {
+        java.util.List<String> tests = java.util.Arrays.asList("70000001");
+        java.util.List<String> reps = java.util.Arrays.asList("70000002");
+        org.junit.Assert.assertEquals("محفوظ باسم - لم يُقرأ رقمه", WhatsAppAgentRules.reason(null, true, true, false, tests, reps));
+        org.junit.Assert.assertEquals("لم يُقرأ رقم المرسل", WhatsAppAgentRules.reason(null, false, true, false, tests, reps));
+        org.junit.Assert.assertEquals("الوكيل متوقف (أو لا مفتاح Claude)", WhatsAppAgentRules.reason("70000001", false, false, false, tests, reps));
+        org.junit.Assert.assertEquals("رقم مندوب - لا يرد عليه الوكيل", WhatsAppAgentRules.reason("70000002", false, true, true, tests, reps));
+        org.junit.Assert.assertEquals("✓ دخلت للوكيل", WhatsAppAgentRules.reason("70000001", false, true, false, tests, reps));
+        org.junit.Assert.assertEquals("ليس من أرقام التجربة", WhatsAppAgentRules.reason("70000003", false, true, false, tests, reps));
+        org.junit.Assert.assertEquals("✓ دخلت للوكيل", WhatsAppAgentRules.reason("70000003", false, true, true, tests, reps));
+    }
 }

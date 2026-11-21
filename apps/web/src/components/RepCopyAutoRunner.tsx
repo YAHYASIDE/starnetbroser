@@ -7,7 +7,7 @@ import { tellOwner } from "@/lib/appEvents";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
-import { autoCopyKey, decideAutoCopy, loadAutoCopyStates, loadSentRates, markSentRates, ratesFingerprint, saveAutoCopyStates } from "@/lib/repCopyAuto";
+import { AUTO_COPY_QUIET_MS, RATES_QUIET_MS, autoCopyKey, decideAutoCopy, loadAutoCopyStates, loadSentRates, markSentRates, ratesFingerprint, saveAutoCopyStates } from "@/lib/repCopyAuto";
 import { flagFirebase, sendRepCopy } from "@/lib/repCopySend";
 import { repNeedsFlagLink } from "@/lib/repFlags";
 import { repPhoneKey } from "@/lib/repDeviceTransfer";
@@ -16,7 +16,8 @@ import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 import { loadScheduledSyncs } from "@/lib/scheduledSyncs";
 import { loadRepChats } from "@/lib/telegram";
 
-const EVERY_MS = 60_000;
+/** Every 15 s: a rate change reaches the reps within about half a minute (RATES_QUIET_MS). */
+const EVERY_MS = 15_000;
 
 /** 📤 «نسخة المندوب تلقائيًا» (lib/repCopyAuto.ts): once a minute while the app is open, each rep
  * whose copy is out of date and unchanged for 10 minutes gets his copy through the reps bot. */
@@ -58,7 +59,9 @@ export function RepCopyAutoRunner() {
           const sentRates = loadSentRates();
           const rates = ratesFingerprint(loadCurrencyStore());
           if (sentRates[rep.id] === undefined) markSentRates(rep.id, rates);
-          const step = decideAutoCopy(states[rep.id], autoCopyKey(accounts, rep.id, undefined, rates, sentRates[rep.id] ?? rates), now);
+          // 💱 a rate / pin change goes out within seconds, a device change after 10 quiet minutes
+          const ratesMoved = sentRates[rep.id] !== undefined && sentRates[rep.id] !== rates;
+          const step = decideAutoCopy(states[rep.id], autoCopyKey(accounts, rep.id, undefined, rates, sentRates[rep.id] ?? rates), now, ratesMoved ? RATES_QUIET_MS : AUTO_COPY_QUIET_MS);
           if (step.state) next[rep.id] = step.state;
           if (!step.send) continue;
           const sent = await sendRepCopy(rep, accounts);

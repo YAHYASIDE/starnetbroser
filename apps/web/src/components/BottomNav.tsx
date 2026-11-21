@@ -128,6 +128,8 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     // 💬 his Nov 7 2026 ask: the team and the reps inside the app
     { label: "💬 الدردشة", icon: "chat", color: "#0e9f6e", tint: "#dcf5ea", href: "/chat" },
+    // 🎓 his Nov 21 2026 ask: where he teaches the WhatsApp agent
+    { label: "🎓 تدريب الوكيل", icon: "chat", color: "#7c3aed", tint: "#efe7ff", href: "/agent" },
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
     { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },

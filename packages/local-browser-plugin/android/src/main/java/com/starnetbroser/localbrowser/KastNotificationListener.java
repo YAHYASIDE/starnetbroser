@@ -233,17 +233,23 @@ public class KastNotificationListener extends NotificationListenerService {
         if (n == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
         Bundle extras = n.extras;
         if (extras == null) return;
+        final Context context = getApplicationContext();
         String conversation = Build.VERSION.SDK_INT >= 26 ? n.getShortcutId() : null;
-        if (WhatsAppMessage.isGroup(conversation, extras.getBoolean("android.isGroupConversation", false))) return;
         CharSequence titleCs = extras.getCharSequence(Notification.EXTRA_TITLE);
         String title = titleCs == null ? "" : titleCs.toString();
-        String text = null;
         long at = n.when > 0 ? n.when : sbn.getPostTime();
-        android.os.Parcelable[] messages = extras.getParcelableArray("android.messages");
-        if (messages != null && messages.length > 0 && messages[messages.length - 1] instanceof Bundle) {
-            Bundle lastMessage = (Bundle) messages[messages.length - 1];
+        if (WhatsAppMessage.isGroup(conversation, extras.getBoolean("android.isGroupConversation", false))) {
+            noteSeen(context, title, conversation, new WhatsAppMessage.Found(null, null), at, "مجموعة - لا يُقرأ ولا يُرد");
+            return;
+        }
+        String text = null;
+        Bundle lastMessage = lastMessageOf(extras);
+        if (lastMessage != null) {
             // his own message (no sender) - never answered
-            if (lastMessage.getCharSequence("sender") == null && lastMessage.getParcelable("sender_person") == null) return;
+            if (lastMessage.getCharSequence("sender") == null && lastMessage.getParcelable("sender_person") == null) {
+                noteSeen(context, title, conversation, new WhatsAppMessage.Found(null, null), at, "رسالتك أنت - لا يُرد عليها");
+                return;
+            }
             CharSequence line = lastMessage.getCharSequence("text");
             text = line == null ? null : line.toString();
             long time = lastMessage.getLong("time", 0L);
@@ -253,22 +259,38 @@ public class KastNotificationListener extends NotificationListenerService {
             text = line == null ? null : line.toString();
         }
         if (text == null || text.trim().isEmpty()) return;
-        final String phone = WhatsAppMessage.phoneOf(conversation, title);
+        final WhatsAppMessage.Found found = senderOf(n);
+        final String phone = found.phone;
         final String id = WhatsAppMessage.id(sbn.getPackageName(), phone, title, text, at);
         synchronized (WHATSAPP_SEEN) {
             if (!WHATSAPP_SEEN.add(id)) return;
         }
-        final Context context = getApplicationContext();
         final String name = title;
         final String body = text;
         final long when = at;
         if (!WhatsAppMessage.emails(text).isEmpty()) WORK.execute(() -> WhatsAppStore.addMessage(context, id, phone, name, body, when));
         String key = WhatsAppMessage.key(phone);
+        // 💬 this customer's latest «رد»: his answer from «🎓 تدريب الوكيل» goes out through it later, even after the
+        // agent's own «لحظة…» made WhatsApp replace or clear the notification (his Nov 21 2026 «لم يُرسل»)
+        if (key != null && hasReply(n)) LAST_REPLY.put(key, n);
+        noteSeen(context, title, conversation, found, at, WhatsAppStore.agentReason(context, key, phone == null && WhatsAppMessage.numberText(title) == null && !title.trim().isEmpty()));
         // 🤖 «وكيل واتساب»: the app writes the answer (Claude), this notification's «رد» sends it - never the fixed one too
         if (key != null && WhatsAppStore.agentAnswers(context, key)) {
             keepForAgent(id, n);
             final String agentKey = key;
-            WORK.execute(() -> WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when));
+            // 🤖 the app open (it said «I'm here» lately) answers it; closed → this reader answers by itself (WhatsAppAgentNative)
+            boolean alive = WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), System.currentTimeMillis());
+            boolean packed = WhatsAppStore.agentPack(context) != null;
+            if (alive || !packed) {
+                final String path = alive ? "👉 التطبيق مفتوح - يرد هو" : "⚠️ التطبيق مغلق ولا نسخة عند القارئ - افتح قسم الوكيل دقيقة ثم أغلقه";
+                WORK.execute(() -> {
+                    WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when);
+                    WhatsAppStore.agentSeenPath(context, path);
+                });
+            } else {
+                WORK.execute(() -> WhatsAppStore.agentSeenPath(context, "📴 التطبيق مغلق - القارئ يرد وحده…"));
+                AGENT_WORK.execute(() -> answerNatively(context, id, phone, agentKey, name, body, when));
+            }
             return;
         }
         if (key == null || !WhatsAppStore.enabled(context) || !WhatsAppMessage.asksAboutDevice(text)) return;
@@ -276,6 +298,156 @@ public class KastNotificationListener extends NotificationListenerService {
         long now = System.currentTimeMillis();
         if (answer == null || !WhatsAppMessage.mayAnswer(WhatsAppStore.lastAnsweredAt(context, key), now)) return;
         if (replyFrom(n, answer)) WhatsAppStore.noteAnswered(context, key, name, body, now);
+    }
+
+    /** The agent's own calls to Claude (one at a time, off the main thread). */
+    private static final ExecutorService AGENT_WORK = Executors.newSingleThreadExecutor();
+
+    /**
+     * 🤖 The agent's answer while the app is closed (his Nov 21 2026 ask): the same words the app would write, from the
+     * app's pack, sent through the message's «رد»; a hand-off notifies him. Everything goes to the log the app takes in.
+     */
+    private static void answerNatively(Context context, String id, String phone, String key, String name, String text, long at) {
+        long now = System.currentTimeMillis();
+        org.json.JSONObject entry = new org.json.JSONObject();
+        try {
+            entry.put("id", id).put("key", key).put("name", name == null ? "" : name).put("text", text).put("at", at);
+            if (phone != null) entry.put("phone", phone);
+            org.json.JSONObject pack = WhatsAppStore.agentPack(context);
+            if (pack == null) return;
+            entry.put("model", pack.optString("model", ""));
+            if (now - at > WhatsAppAgentRules.FRESH_MS) {
+                entry.put("error", "قُرئت متأخرة - تُركت لك");
+                WhatsAppStore.agentNativeLog(context, entry);
+                return;
+            }
+            org.json.JSONObject waiting = pack.optJSONObject("open");
+            int open = waiting == null ? 0 : waiting.optInt(key, 0);
+            if (WhatsAppAgentNative.silenced(open, WhatsAppStore.agentNativeHandoffs(context, key), now)) {
+                WhatsAppStore.agentSeenPath(context, "📴 🤐 سكت: سؤالان بلا جوابك");
+                entry.put("handoff", true).put("silent", true).put("reason", "سكت الوكيل: سؤالان قبله بلا جوابك");
+                WhatsAppStore.agentNativeLog(context, entry);
+                return;
+            }
+            org.json.JSONArray chat = WhatsAppAgentNative.chat(pack, key, WhatsAppStore.agentNativeChat(context, key));
+            String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new java.util.Date(now));
+            String user = WhatsAppAgentNative.userText(pack, key, name, text, chat, today);
+            WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), WhatsAppAgentNative.requestBody(pack, user).toString());
+            entry.put("input", answer.input).put("output", answer.output);
+            if (answer.error != null) {
+                WhatsAppStore.agentSeenPath(context, "📴 ✗ القارئ لم يرد: " + answer.error);
+                entry.put("handoff", true).put("error", answer.error);
+                WhatsAppStore.agentNativeLog(context, entry);
+                AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, "لم يرد الوكيل: " + answer.error), "/agent");
+                return;
+            }
+            boolean sent = agentReply(context, id, key, answer.reply);
+            WhatsAppStore.agentSeenPath(context, sent ? "📴 ✓ ردّ القارئ وحده والتطبيق مغلق" : "📴 ✗ كتب القارئ الرد لكن لم يجد «رد» الإشعار");
+            entry.put("reply", answer.reply).put("handoff", answer.handoff).put("reason", answer.reason).put("sent", sent);
+            org.json.JSONArray turns = new org.json.JSONArray().put(new org.json.JSONObject().put("from", "customer").put("text", text).put("at", at));
+            if (sent) turns.put(new org.json.JSONObject().put("from", "agent").put("text", answer.reply).put("at", System.currentTimeMillis()));
+            WhatsAppStore.agentNativeTurns(context, key, turns);
+            if (answer.handoff) WhatsAppStore.agentNativeHandoff(context, key, now);
+            WhatsAppStore.agentNativeLog(context, entry);
+            if (answer.handoff || !sent) {
+                AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, sent ? answer.reason : "لم يُرسل الرد (الإشعار اختفى) - رد عليه بنفسك"), "/agent");
+            }
+        } catch (org.json.JSONException | RuntimeException e) {
+            try {
+                entry.put("error", "تعذّر الرد والتطبيق مغلق: " + e.getClass().getSimpleName());
+                WhatsAppStore.agentSeenPath(context, "📴 ✗ تعذّر: " + e.getClass().getSimpleName());
+                WhatsAppStore.agentNativeLog(context, entry);
+            } catch (org.json.JSONException ignored) {
+                // nothing more to keep
+            }
+        }
+    }
+
+    /** POST /v1/messages with his key - never logged. */
+    private static WhatsAppAgentNative.Answer callClaude(String apiKey, String body) {
+        java.net.HttpURLConnection c = null;
+        try {
+            c = (java.net.HttpURLConnection) new java.net.URL("https://api.anthropic.com/v1/messages").openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(20_000);
+            c.setReadTimeout(90_000);
+            c.setDoOutput(true);
+            c.setRequestProperty("content-type", "application/json");
+            c.setRequestProperty("x-api-key", apiKey);
+            c.setRequestProperty("anthropic-version", "2023-06-01");
+            try (java.io.OutputStream out = c.getOutputStream()) {
+                out.write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            int status = c.getResponseCode();
+            java.io.InputStream in = status >= 200 && status < 300 ? c.getInputStream() : c.getErrorStream();
+            StringBuilder sb = new StringBuilder();
+            if (in != null) {
+                try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) sb.append(line).append('\n');
+                }
+            }
+            return WhatsAppAgentNative.parse(status, sb.toString());
+        } catch (java.io.IOException e) {
+            WhatsAppAgentNative.Answer a = new WhatsAppAgentNative.Answer();
+            a.error = "لا اتصال بالإنترنت";
+            return a;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /** The MessagingStyle's last message (a Bundle with "text", "time", "sender", "sender_person"), or null. */
+    private static Bundle lastMessageOf(Bundle extras) {
+        android.os.Parcelable[] messages = extras.getParcelableArray("android.messages");
+        if (messages != null && messages.length > 0 && messages[messages.length - 1] instanceof Bundle) return (Bundle) messages[messages.length - 1];
+        return null;
+    }
+
+    /**
+     * The sender's number of a WhatsApp notification (WhatsAppMessage.find): its chat id when that is a phone, its title,
+     * the last message's sender, its sender_person (uri «tel:…» / key). The same for reading a message and for finding
+     * its conversation again to send the agent's answer - a «…@lid» chat too (his Nov 21 2026 report).
+     */
+    static WhatsAppMessage.Found senderOf(Notification n) {
+        Bundle extras = n.extras;
+        if (extras == null) return new WhatsAppMessage.Found(null, null);
+        String conversation = Build.VERSION.SDK_INT >= 26 ? n.getShortcutId() : null;
+        CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
+        String sender = null;
+        String uri = null;
+        String personKey = null;
+        Bundle last = lastMessageOf(extras);
+        if (last != null) {
+            CharSequence s = last.getCharSequence("sender");
+            if (s != null) sender = s.toString();
+            android.os.Parcelable p = last.getParcelable("sender_person");
+            if (Build.VERSION.SDK_INT >= 28 && p instanceof android.app.Person) {
+                android.app.Person person = (android.app.Person) p;
+                uri = person.getUri();
+                personKey = person.getKey();
+                if (sender == null && person.getName() != null) sender = person.getName().toString();
+            }
+        }
+        return WhatsAppMessage.find(conversation, title == null ? null : title.toString(), sender, uri, personKey);
+    }
+
+    /** 🔍 The agent section's «آخر رسالة رآها القارئ»: when, the title, the number read and from where, why. */
+    private static void noteSeen(Context context, String title, String conversation, WhatsAppMessage.Found found, long at, String reason) {
+        try {
+            org.json.JSONObject seen = new org.json.JSONObject();
+            seen.put("at", at);
+            seen.put("title", title == null ? "" : title);
+            if (found.phone != null) seen.put("phone", found.phone);
+            if (found.from != null) seen.put("from", found.from);
+            seen.put("hiddenId", WhatsAppMessage.isHiddenId(conversation));
+            String key = WhatsAppMessage.key(found.phone);
+            seen.put("test", WhatsAppStore.agentIsTest(context, key));
+            seen.put("reason", reason);
+            WORK.execute(() -> WhatsAppStore.agentNoteSeen(context, seen));
+        } catch (org.json.JSONException ignored) {
+            // only the diagnostic line
+        }
     }
 
     // ---- 🤖 the agent's answers go out through the message's own notification ----
@@ -288,6 +460,24 @@ public class KastNotificationListener extends NotificationListenerService {
                 return size() > 60;
             }
         });
+
+    /** Customer (last 8 digits) → his latest WhatsApp notification that has a «رد» (this process only). */
+    private static final java.util.Map<String, Notification> LAST_REPLY = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<String, Notification>() {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, Notification> eldest) {
+                return size() > 200;
+            }
+        });
+
+    /** The notification carries a «رد» (an action with a RemoteInput). */
+    private static boolean hasReply(Notification n) {
+        if (n.actions == null) return false;
+        for (Notification.Action a : n.actions) {
+            if (a != null && a.actionIntent != null && a.getRemoteInputs() != null && a.getRemoteInputs().length > 0) return true;
+        }
+        return false;
+    }
 
     private static void keepForAgent(String id, Notification n) {
         AGENT_NOTIFICATIONS.put(id, n);
@@ -303,6 +493,11 @@ public class KastNotificationListener extends NotificationListenerService {
         if (key != null && !WhatsAppAgentRules.underHourlyLimit(WhatsAppStore.agentSentAt(context, key), now)) return false;
         Notification n = AGENT_NOTIFICATIONS.get(id);
         boolean sent = n != null && replyFrom(context, n, text);
+        // the customer's latest «رد» - still valid after WhatsApp cleared the notification (its PendingIntent lives on)
+        if (!sent && key != null) {
+            Notification last = LAST_REPLY.get(key);
+            sent = last != null && last != n && replyFrom(context, last, text);
+        }
         if (!sent && key != null) {
             KastNotificationListener listener = connected;
             if (listener != null) {
@@ -313,9 +508,8 @@ public class KastNotificationListener extends NotificationListenerService {
                             if (sbn == null || !WhatsAppMessage.isWhatsApp(sbn.getPackageName())) continue;
                             Notification other = sbn.getNotification();
                             if (other == null || other.extras == null) continue;
-                            String conversation = Build.VERSION.SDK_INT >= 26 ? other.getShortcutId() : null;
-                            CharSequence title = other.extras.getCharSequence(Notification.EXTRA_TITLE);
-                            if (!key.equals(WhatsAppMessage.key(WhatsAppMessage.phoneOf(conversation, title == null ? null : title.toString())))) continue;
+                            // the same reading as the message's (a «…@lid» chat is found by its title / sender)
+                            if (!key.equals(WhatsAppMessage.key(senderOf(other).phone))) continue;
                             if (replyFrom(context, other, text)) {
                                 sent = true;
                                 break;

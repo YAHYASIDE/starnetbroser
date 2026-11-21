@@ -13,6 +13,9 @@ import { parseJsonAnswer } from "./claudeAssist";
 
 const KEY = "starnet.claudeKey";
 export const CLAUDE_MODEL = "claude-opus-5-5";
+/** 🤖 The WhatsApp agent's model (his Nov 21 2026 choice): Claude Haiku 5.5, about 40 times cheaper per reply. It has
+ * no server-side fallback, so its requests go without that beta. */
+export const AGENT_MODEL = "claude-haiku-5-5";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 export function loadClaudeKey(): string {
@@ -40,7 +43,7 @@ function client(): Anthropic {
   return new Anthropic({ apiKey: loadClaudeKey(), dangerouslyAllowBrowser: true, maxRetries: 2, timeout: 120_000 });
 }
 
-export type ClaudeResult<T> = { ok: true; value: T } | { ok: false; message: string };
+export type ClaudeResult<T> = { ok: true; value: T; usage?: { model: string; input: number; output: number } } | { ok: false; message: string };
 
 /** What went wrong, in his words. */
 function failure(err: unknown): string {
@@ -60,8 +63,29 @@ export async function askClaudeJson<T>(input: {
   schema: Record<string, unknown>;
   keys: readonly string[];
   effort?: "low" | "medium" | "high";
+  /** Another model than CLAUDE_MODEL (the agent: AGENT_MODEL) - asked without the fallback beta. */
+  model?: string;
 }): Promise<ClaudeResult<T>> {
   if (!hasClaudeKey()) return { ok: false, message: "ضع مفتاح Claude أولًا: الإعدادات ← 🤖 مساعد Claude" };
+  if (input.model && input.model !== CLAUDE_MODEL) {
+    try {
+      const message = await client().messages.create({
+        model: input.model,
+        max_tokens: 4000,
+        system: input.system,
+        messages: [{ role: "user", content: input.user }],
+        output_config: { effort: input.effort ?? "low", format: { type: "json_schema", schema: input.schema } },
+      });
+      if (message.stop_reason === "refusal") return { ok: false, message: "رفض Claude هذا الطلب" };
+      if (message.stop_reason === "max_tokens") return { ok: false, message: "الجواب طويل جدًا - أعد المحاولة" };
+      const text = message.content.find((b) => b.type === "text");
+      const value = text && text.type === "text" ? parseJsonAnswer<T>(text.text, input.keys) : null;
+      const usage = { model: input.model, input: message.usage.input_tokens, output: message.usage.output_tokens };
+      return value ? { ok: true, value, usage } : { ok: false, message: "جواب غير مفهوم من Claude - أعد المحاولة" };
+    } catch (err) {
+      return { ok: false, message: failure(err) };
+    }
+  }
   try {
     const message = await client().beta.messages.create({
       model: CLAUDE_MODEL,

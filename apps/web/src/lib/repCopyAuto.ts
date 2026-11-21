@@ -12,6 +12,9 @@ import { copyGaps, copySnapshot, loadRepCopySentDevices } from "./repCopy";
 import type { CurrencyStore } from "./currencyStore";
 
 export const AUTO_COPY_QUIET_MS = 10 * 60_000;
+/** 💱 A rate / a pin changed (his Nov 21 2026 «السعر المثبّت يصل للمندوبين فورًا، لا بعد 10 دقائق»): the copy goes after
+ * this short pause instead (a few edits in a row still make one copy). */
+export const RATES_QUIET_MS = 30_000;
 /** After a failed send, wait before trying again (bot offline, phone unlinked…). */
 export const AUTO_COPY_RETRY_MS = 30 * 60_000;
 
@@ -26,11 +29,11 @@ export interface AutoCopyState {
 /**
  * One rep, now: `key` null = his copy is current. Returns the state to keep and whether to send.
  */
-export function decideAutoCopy(prev: AutoCopyState | undefined, key: string | null, now: number): { state?: AutoCopyState; send: boolean } {
+export function decideAutoCopy(prev: AutoCopyState | undefined, key: string | null, now: number, quietMs = AUTO_COPY_QUIET_MS): { state?: AutoCopyState; send: boolean } {
   if (key === null) return { send: false };
   if (!prev || prev.key !== key) return { state: { key, since: now }, send: false };
   if (prev.failedAt && now - prev.failedAt < AUTO_COPY_RETRY_MS) return { state: prev, send: false };
-  return { state: prev, send: now - prev.since >= AUTO_COPY_QUIET_MS };
+  return { state: prev, send: now - prev.since >= quietMs };
 }
 
 /**
@@ -40,7 +43,7 @@ export function decideAutoCopy(prev: AutoCopyState | undefined, key: string | nu
 export function ratesFingerprint(store: CurrencyStore): string {
   return Object.values(store)
     .filter((c) => c && c.enabled !== false && Number.isFinite(c.rateFromUsd))
-    .map((c) => `${c.code}:${Number(c.rateFromUsd.toPrecision(4))}`)
+    .map((c) => `${c.code}:${Number(c.rateFromUsd.toPrecision(4))}${c.pinnedAt ? "📌" : ""}`)
     .sort()
     .join(",");
 }

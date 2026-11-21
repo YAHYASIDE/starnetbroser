@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
-import { agentNumberKeys, type AgentSettings } from "@/lib/whatsappAgent";
-import { AGENT_EVENT, loadAgentLog, loadAgentSettings, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
+import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
+import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, loadPackStatus, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
+import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 
 type Status = { access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] };
 
@@ -100,6 +102,24 @@ function WhatsAppAgentPart() {
   const [log, setLog] = useState<AgentLogLine[]>([]);
   const [key, setKey] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [seen, setSeen] = useState<AgentSeen | null>(null);
+  const [spend, setSpend] = useState<AgentSpend>(NO_SPEND);
+
+  // 🔍 what the phone's reader saw last (his Nov 21 2026 ask) - read again every few seconds while this is open
+  useEffect(() => {
+    if (!isRunningInAndroidApp()) return;
+    let alive = true;
+    const read = () =>
+      LocalBrowser.whatsappAgentLastSeen()
+        .then((r) => alive && setSeen(r.seen ?? null))
+        .catch(() => undefined);
+    read();
+    const timer = window.setInterval(read, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const load = () => {
@@ -110,7 +130,11 @@ function WhatsAppAgentPart() {
       setKey(hasClaudeKey());
     };
     load();
-    const reload = () => setLog(loadAgentLog());
+    setSpend(loadAgentSpend());
+    const reload = () => {
+      setLog(loadAgentLog());
+      setSpend(loadAgentSpend());
+    };
     window.addEventListener(AGENT_EVENT, reload);
     return () => window.removeEventListener(AGENT_EVENT, reload);
   }, []);
@@ -156,6 +180,13 @@ function WhatsAppAgentPart() {
         {saved ? " · حُفظ" : ""}
       </p>
       <label className="toggle-switch-row">
+        <span>🧠 وكيل أذكى (Claude Sonnet - نحو 20 ضعف السعر)</span>
+        <span className={`toggle-switch${s.smart ? " toggle-switch-on" : ""}`}>
+          <input type="checkbox" checked={s.smart === true} onChange={(e) => save({ ...s, smart: e.target.checked || undefined })} />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <label className="toggle-switch-row">
         <span>يرد على كل من يراسلني (بعد التجربة)</span>
         <span className={`toggle-switch${s.everyone ? " toggle-switch-on" : ""}`}>
           <input
@@ -169,7 +200,46 @@ function WhatsAppAgentPart() {
           <span className="toggle-switch-thumb" />
         </span>
       </label>
-      <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      <p className="settings-hint">يرد والتطبيق مفتوح أو مغلق (ما دامت «قراءة الإشعارات» مفعّلة)؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      <p className="settings-hint">
+        {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: {s.smart ? "Claude Sonnet" : "Claude Haiku"}). الرصيد الحقيقي في platform.claude.com ← Billing.
+      </p>
+      {isRunningInAndroidApp() && s.on && (
+        <p className="settings-hint">
+          {(() => {
+            const p = loadPackStatus();
+            if (!p) return "📦 نسخة الرد والتطبيق مغلق: لم تُرسل بعد - اترك هذا القسم مفتوحًا دقيقة";
+            if (p.error) return `📦 ✗ لم تُرسل نسخة الرد والتطبيق مغلق: ${p.error}`;
+            return `📦 ✓ نسخة الرد والتطبيق مغلق: ${new Date(p.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${p.customers} زبون`;
+          })()}
+        </p>
+      )}
+      <Link href="/agent" className="text-action">
+        🎓 تدريب الوكيل: أجب عن أسئلته وعلّمه ←
+      </Link>
+      {isRunningInAndroidApp() && (
+        <div className="msg-item wa-agent-seen">
+          <span className="msg-item-label">🔍 آخر رسالة رآها القارئ</span>
+          {seen ? (
+            <>
+              <small className="msg-item-hint">
+                «<bdi>{seen.title || "بلا عنوان"}</bdi>» · <bdi dir="ltr">{new Date(seen.at).toLocaleString("ar", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</bdi>
+              </small>
+              <small className="msg-item-hint">
+                الرقم المقروء: {agentSeenLines(seen).phone ? <bdi dir="ltr">{agentSeenLines(seen).phone}</bdi> : null}
+                {agentSeenLines(seen).note ? ` (${agentSeenLines(seen).note})` : ""}
+              </small>
+              <small className="msg-item-hint">{agentSeenLines(seen).match}</small>
+              <small className="msg-item-hint">
+                <strong>{agentSeenLines(seen).reason}</strong>
+              </small>
+              {seen.path && <small className="msg-item-hint">{seen.path}</small>}
+            </>
+          ) : (
+            <small className="msg-item-hint">لم يرَ القارئ أي رسالة واتساب بعد - أرسل رسالة من رقم التجربة</small>
+          )}
+        </div>
+      )}
       {log.length > 0 && (
         <>
           <p className="settings-hint">آخر ما فعله الوكيل:</p>
@@ -189,4 +259,9 @@ function WhatsAppAgentPart() {
       )}
     </div>
   );
+}
+
+function localDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

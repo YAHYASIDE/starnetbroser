@@ -98,6 +98,13 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
 - 🧭 Control Center report 1 (https://claude.ai/artifact/A6bVVqGXqKEF7Z295UzXVR): his 4 answers are pending
   (MikroTik / Wi-Fi cards, team roles, telemetry through the session on one device, USDT). Research clones were in
   /home/user/research (gone with the container - re-clone if needed).
+- 📞 **WhatsApp Cloud API study** (his Nov 21 2026 «نعم» to all three): what the WhatsApp agent can't do through
+  notification replies - buttons / list choices, pictures with the choices, hearing voice notes (speech-to-text, his
+  customers speak Hassaniya - he will train it) and answering with a voice. Study: Meta Cloud API on his number
+  22227268 (coexistence with the WhatsApp Business app, followups 10 «رئيس العمّال»), the small server on his Firebase,
+  speech-to-text / text-to-speech services that handle Hassaniya, costs per month for his volume, what changes for
+  the current agent (notification replies → the API). Report first (Arabic Artifact), nothing built.
+
 
 ## 5. 🧩 المهارات (skills)
 

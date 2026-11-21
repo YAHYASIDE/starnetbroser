@@ -3753,3 +3753,87 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sign-in form was filled wrong; now filled by the app + cookies flushed when leaving the device browser. If it still
   signs out, ask for «🔍 تقرير الجلسة» right after activating.
 
+## 🤖 WhatsApp agent: the sender's number from the title, not WhatsApp's hidden id (Nov 21 2026)
+
+- His report: the agent never answered on «المسؤول 2» (key ok, agent on, test number 74646158, notification
+  «+223 74 64 61 58» arriving), «آخر ما فعله الوكيل» empty. Cause: `WhatsAppMessage.phoneOf` took the digits of the
+  chat id first, and newer WhatsApp gives many chats a hidden id «…@lid» whose digits are not a phone → a wrong
+  number, never one of his test numbers. Also the title carries invisible direction marks and «(3 رسائل)».
+- His choices (approved plan + his 3 additions): the number comes from the chat id ONLY when it is a phone
+  (`@s.whatsapp.net` / `@c.us`), else the title, else the last message's sender, else sender_person (uri `tel:` /
+  key); a saved contact with no number says «محفوظ باسم - لم يُقرأ رقمه». The same reading serves the fixed answer,
+  «📧 إيميل من واتساب» and finding the chat again to send the agent's «رد» (a `@lid` chat too); a customer answered
+  before (chat id = his phone) still is. 74646158 is his own Mali number, not a rep.
+- 🔍 «آخر رسالة رآها القارئ» in the agent section: title, time, the number read and from where, @lid or not, test
+  number or not, why. A waiting message the app leaves (agent off / no key / older than 15 min) now leaves a line in
+  «آخر ما فعله الوكيل» too.
+- ✅ Nov 21 2026: confirmed on «المسؤول 2» - the agent answers the test number (his screenshot «تم وصار يرد»).
+
+## 🎓 «تدريب الوكيل» - he teaches the WhatsApp agent (Nov 21 2026)
+
+- His words: «أريد شات أو مكانًا خاصًا بردود الواتس أدرّبه فيه، وكل الأسئلة التي تأتيه يعطيها لي لأعلّمه كي يجاوب،
+  ولكي أعلّمه الرد بالعربية أو الفرنسية». Seeing its first answers he also asked: how to know the Claude balance, and
+  «لا يعيده إلا مرتين فقط لكي لا ينفد الرصيد».
+- His choices: (a) the customer's language - Arabic → simple standard Arabic (no Gulf words: it said الحين / زين /
+  شنهو), French → French; a page in «المزيد» (`/agent`); his answer to a waiting question is SENT to the customer at
+  once (through the message's «رد» on the agent's phone) and becomes a lesson; a question it doesn't know gets a short
+  «لحظة من فضلك، سأتأكد وأرد عليك»; the agent may know all of the customer's own device info (KIT, serial added).
+- My defaults (he didn't pick): after 2 questions of one customer without his answer the agent is silent with him (no
+  Claude call) until he answers, 24 h at most; one notification «🤐 سكت الوكيل معه». His answer to one question closes
+  that customer's other waiting ones. The agent reads the newest 60 lessons.
+- Stores `starnet_agent_questions_v1` / `starnet_agent_lessons_v1` (backup + team link: he trains from his phone, the
+  agent on «المسؤول 2» learns at once). Only the agent's phone sends his answers; gone notification = «⚠️ لم يُرسل» +
+  «📋 انسخ الجواب». «💬 جرّب» needs a Claude key on the phone used.
+- Still to decide (asked twice): the agent on the cheaper model (Haiku) + «💰 استهلاك تقديري» line; the agent asking
+  for a fresh Starlink sync of the customer's device before answering («مزامنة الجهاز عن طريق مشرف التطبيق»).
+  The real Claude balance is only at platform.claude.com ← Billing (no API for it).
+- ✅ Nov 21 2026, his «نعم انقله إلى Haiku وابنِ مزامنة الجهاز»: the agent (runner + «💬 جرّب») asks `claude-haiku-5-5`
+  (no server-side fallback there; the rest of the assistant stays on Opus 5.5) and each phone keeps «💰 استهلاك
+  تقديري» (today / month, from each reply's tokens, Haiku $0.10 / $0.50 per M) - phone-only `starnet.whatsappAgentSpend`.
+  🔄 Device read before answering (lib/agentRefresh.ts): a question about his device + the customer's device read
+  more than 6 h ago → background sync of at most 2 of his own devices, once per device per 6 h, wait ≤ 75 s, answer
+  from the fresh result (applyPendingSyncs, not acked - the home screen merges it as usual). Needs «الظهور فوق
+  التطبيقات» on the agent's phone; else a log line and the last known data.
+- Nov 21 2026, his screenshot (two «⚠️ لم يُرسل» answers to «سعر الجهاز»): after the agent's «لحظة…» WhatsApp replaced
+  the notification, so his answer found nothing to reply through. Fix: the reader keeps each customer's latest «رد»
+  (`LAST_REPLY`, this process only) and his answer goes through it. Also asked: «إذا سأل عن سعر أو اشتراك يسأله أي
+  سعر / أي اشتراك، وإذا سأل عن جهاز يسأله أي جهاز» → the agent asks ONE question back with numbered choices from
+  the facts / lessons (not a handoff). Open (explained, not built): answering while the app is closed (native
+  Claude call), a smarter model option, buttons / pictures and voice notes (not possible through notification
+  replies - only through Meta's Cloud API, followups 10).
+- ✅ Nov 21 2026, his «نعم عدّلهم كلهم وبسرعة»: (1) the agent answers while STAR NET is closed - the app pushes a
+  «pack» (his Claude key, model, AGENT_SYSTEM + schema, payment lines, lessons, each registered customer's facts by
+  phone key, the last day's chats, waiting questions per customer) to the reader's SharedPreferences (phone-only); the
+  runner says «I'm here» every 5 s; with no heartbeat for 20 s the reader (WhatsAppAgentNative.java) calls the API
+  itself, replies through the «رد», notifies him on a hand-off, and logs everything for the app to take in when it
+  opens (log 📴, chats, questions, spend). No fresh Starlink read in that path. (2) «🧠 وكيل أذكى» toggle: Sonnet 5.5
+  ($2 / $10 per M) instead of Haiku. (3) the WhatsApp Cloud API study (buttons, pictures, voice in Hassaniya) → the
+  studies chat (workstreams 4), report first.
+- Nov 21 2026, his «لا يرد والتطبيق مغلق، والرد غير جيد، ولا يرسل خيارات - أريد خيارات ثابتة»: (1) the app now
+  says «I'm here» only while on the screen and «away» the moment it leaves it, so the reader answers at once (before,
+  background timers kept it «alive» or slowed it); the 🔍 line shows who answered («👉 التطبيق» / «📴 ✓ القارئ» / why
+  not) and «📦 نسخة الرد والتطبيق مغلق» shows when the reader's copy was given and for how many customers (or why
+  not). Waiting for his screenshot of those two lines. (2) 📋 fixed menu `starnet_agent_menu_v1` {on, text} on
+  «تدريب الوكيل»: sent on a greeting / first message of the day, a number answers that item, «0» sends it again
+  (both the app and the reader read it). Default menu: device info, renewal price, how to pay, weak internet, a new
+  device, a person. (3) Reply quality: asked him for the bad answers; lessons for each menu item + «🧠 وكيل أذكى».
+
+## 🛡️ A pinned rate is protected in the whole team (Nov 21 2026)
+
+- His report: «سعر اليورو كان مثبّتًا وتغيّر يوم 20 نوفمبر إلى 0.2675 وسقط التثبيت. أظن جهازًا في الفريق على نسخة قديمة
+  كتب فوقه، أو مسؤول أزال التثبيت لأن رمز العملات في هاتفي فقط». The link took any other phone's change of a record
+  unless both sides changed it - a pin had no protection. Who did it on Nov 20 can't be known (currencies weren't in
+  «ماذا وصل من الفريق», no change history then).
+- His asks, all built: (1) `losesPin` / `guardPinnedOp`: every updated phone refuses from another phone a change that
+  drops a pin or moves a pinned rate, unless it carries his unpin with the code (`unpinnedAt` ≥ the pin) or a newer
+  pin; the pinned record goes out again so the wrong phone is corrected; refusals listed on «العملات» («🛡️ تغييرات
+  رُفضت») + a phone notification. Every local save keeps a stored pin too (`keepPins` in saveCurrencyStore: a screen
+  holding an older copy can't write over it). «رمز العملات» is ONE for the team: `starnet_currency_code_v1` {hash,
+  setAt, by} (link + backup; a phone's older `starnet.currencyCode` becomes the team's once); unpinning always needs it
+  (none set → set it first). (2) «📌 ثبّت كل الأسعار» (skips USD, hidden, impossible rates). (3) Reps: a rate / pin
+  change sends the rep copy after 30 s (`RATES_QUIET_MS`, runner every 15 s) instead of 10 min; the team link already
+  sends within a second (the receiving phone applies after 15 s without touching). (4) `Currency.changes` (who = team
+  phone name, what rate / pin / unpin, rate, when; last 10) shown under each currency, and currency changes from
+  other phones in «📜 ماذا وصل من الفريق».
+- Limit: a phone still on an OLD build keeps doing what it did on itself until it is updated (its change is refused
+  everywhere else and corrected back). Every team phone must install this build.

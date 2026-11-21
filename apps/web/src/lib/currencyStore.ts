@@ -25,6 +25,26 @@ export interface Currency {
   /** 📌 «تثبيت السعر» (his Nov 19 2026 ask): ISO time it was pinned. A pinned rate changes only from the currencies
    * page after he removes the pin - never from a D payment, a quote or anything automatic (lib/currencyPin.ts). */
   pinnedAt?: string;
+  /** 🔓 ISO time he removed the pin WITH «رمز العملات» (Nov 21 2026): the only way another phone's copy may drop a pin
+   * (lib/currencyPin.ts guardPinnedOp) - an old build that loses the pin has no such time and is refused. */
+  unpinnedAt?: string;
+  /** 🕵️ Who changed the rate / the pin, from which phone of the team (newest last, at most 10). */
+  changes?: CurrencyChange[];
+}
+
+/** One change of a currency: when, who (the team phone's name), what, at which rate. */
+export interface CurrencyChange {
+  at: string;
+  by: string;
+  what: "rate" | "pin" | "unpin";
+  rate: number;
+}
+
+export const MAX_CURRENCY_CHANGES = 10;
+
+/** The currency with one more change noted (the last MAX_CURRENCY_CHANGES kept). */
+export function withChange<T extends Pick<Currency, "changes">>(c: T, change: CurrencyChange): T {
+  return { ...c, changes: [...(c.changes ?? []), change].slice(-MAX_CURRENCY_CHANGES) };
 }
 
 /** code -> Currency. */
@@ -95,9 +115,36 @@ export function loadCurrencyStore(): CurrencyStore {
   }
 }
 
-export function saveCurrencyStore(store: CurrencyStore): void {
+/**
+ * 🛡️ A change that would lose a pin (his Nov 21 2026 report): the pin dropped without his unpin with «رمز العملات»
+ * (`unpinnedAt` after the pin), or a pinned rate moved without a newer pin, or a pinned currency removed. Shared by the
+ * team link (lib/currencyPin.ts guardPinnedOp) and every save on this phone.
+ */
+export function losesPin(before: Partial<Currency> | undefined, next: Partial<Currency> | undefined): boolean {
+  if (!before?.pinnedAt) return false;
+  if (!next) return true;
+  if (next.pinnedAt) {
+    if (next.pinnedAt > before.pinnedAt) return false;
+    return !(next.rateFromUsd === before.rateFromUsd && next.pinnedAt === before.pinnedAt);
+  }
+  return !(next.unpinnedAt && next.unpinnedAt >= before.pinnedAt);
+}
+
+/** The store to save with every pinned currency kept as stored when `next` would lose its pin - a screen holding an
+ * older copy (loaded before the team link brought the pin) never writes over it. */
+export function keepPins(stored: CurrencyStore, next: CurrencyStore): CurrencyStore {
+  let out = next;
+  for (const [code, c] of Object.entries(stored)) {
+    if (c?.pinnedAt && losesPin(c, next[code])) out = { ...out, [code]: c };
+  }
+  return out;
+}
+
+export function saveCurrencyStore(input: CurrencyStore): void {
   if (typeof window === "undefined") return;
   const before = storedBefore(STORAGE_KEY);
+  const stored = (before && typeof before === "object" ? before : {}) as CurrencyStore;
+  const store = keepPins(stored, input);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   // 🔔 «تم تغيير سعر العملة» (his Oct 14 2026 ask)
   noteChanges("rates", before, store);
@@ -143,17 +190,21 @@ export function upsertCurrency(store: CurrencyStore, input: UpsertCurrencyInput)
     updatedAt: existing?.pinnedAt ? existing.updatedAt : nowIso(),
     enabled: existing?.enabled ?? true,
     ...(existing?.pinnedAt ? { pinnedAt: existing.pinnedAt } : {}),
+    ...(existing?.unpinnedAt ? { unpinnedAt: existing.unpinnedAt } : {}),
+    ...(existing?.changes ? { changes: existing.changes } : {}),
   };
   return { ...store, [code]: currency };
 }
 
 /** Just the rate + updatedAt, for the Settings "تعديل السعر" button - never touches name/symbol/
  * enabled. No-op for USD, whose rate is always 1. */
-export function setCurrencyRate(store: CurrencyStore, code: string, rateFromUsd: number): CurrencyStore {
+export function setCurrencyRate(store: CurrencyStore, code: string, rateFromUsd: number, by?: string): CurrencyStore {
   const existing = store[code];
   // 📌 pinned = unchanged until he removes the pin on the currencies page
   if (!existing || code === USD || existing.pinnedAt) return store;
-  return { ...store, [code]: { ...existing, rateFromUsd, updatedAt: nowIso() } };
+  const at = nowIso();
+  const next = { ...existing, rateFromUsd, updatedAt: at };
+  return { ...store, [code]: by ? withChange(next, { at, by, what: "rate", rate: rateFromUsd }) : next };
 }
 
 /**

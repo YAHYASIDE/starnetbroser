@@ -20721,6 +20721,7 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   min-width: 0;
   box-sizing: border-box;
 }
+.wa-agent-seen { cursor: default; margin-block: 8px; }
 .wa-agent-line {
   display: grid;
   gap: 2px;
@@ -20901,3 +20902,20 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   flex: none;
   width: 100%;
 }
+
+/* 🎓 «تدريب الوكيل» (app/agent) */
+.agent-list { display: flex; flex-direction: column; gap: 10px; }
+.agent-q { cursor: default; gap: 6px; }
+.agent-q textarea, .agent-q input, .agent-list > .search-input { width: 100%; box-sizing: border-box; flex: none; font-family: inherit; }
+.agent-q-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-q-done { opacity: 0.85; }
+.agent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.agent-danger { color: var(--red); }
+.agent-chat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.agent-bubble { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); }
+.agent-bubble-customer { align-self: flex-start; background: var(--surface); }
+.agent-bubble-agent { align-self: flex-end; background: var(--surface); background: color-mix(in srgb, var(--surface) 80%, #0e9f6e 20%); }
+
+/* 🛡️ refused changes of a pinned rate (app/currencies) */
+.currency-refused { margin: 8px 0; font-size: 0.9rem; color: var(--text-muted); }
+.currency-refused ul { margin: 6px 0 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }

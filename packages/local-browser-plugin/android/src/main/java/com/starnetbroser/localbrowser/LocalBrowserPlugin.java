@@ -1166,6 +1166,48 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🤖 The agent's pack for answering while the app is closed (WhatsAppAgentNative) - phone-only. */
+    @PluginMethod
+    public void whatsappAgentPack(PluginCall call) {
+        WhatsAppStore.agentSetPack(getContext(), call.getString("pack", ""));
+        call.resolve();
+    }
+
+    /** 🤖 «I'm here»: the app answers the waiting messages itself for the next few seconds. */
+    @PluginMethod
+    public void whatsappAgentHeartbeat(PluginCall call) {
+        // `away`: the app left the screen - the reader answers from now on
+        WhatsAppStore.agentHeartbeat(getContext(), Boolean.TRUE.equals(call.getBoolean("away", false)) ? 0L : System.currentTimeMillis());
+        call.resolve();
+    }
+
+    /** 🤖 What the reader answered while the app was closed - taken (and forgotten here). */
+    @PluginMethod
+    public void whatsappAgentTakeNative(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("entries", new com.getcapacitor.JSArray(WhatsAppStore.agentTakeNativeLog(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("entries", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    /** 🔍 The last WhatsApp message the reader saw and why the agent took / left it (null `seen` = none yet). */
+    @PluginMethod
+    public void whatsappAgentLastSeen(PluginCall call) {
+        JSObject ret = new JSObject();
+        org.json.JSONObject seen = WhatsAppStore.agentLastSeen(getContext());
+        if (seen != null) {
+            try {
+                ret.put("seen", JSObject.fromJSONObject(seen));
+            } catch (org.json.JSONException ignored) {
+                // no line
+            }
+        }
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void whatsappAgentAck(PluginCall call) {
         java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
