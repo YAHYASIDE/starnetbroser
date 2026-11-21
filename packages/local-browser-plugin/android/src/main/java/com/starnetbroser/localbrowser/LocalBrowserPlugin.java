@@ -1176,7 +1176,8 @@ public class LocalBrowserPlugin extends Plugin {
     /** 🤖 «I'm here»: the app answers the waiting messages itself for the next few seconds. */
     @PluginMethod
     public void whatsappAgentHeartbeat(PluginCall call) {
-        WhatsAppStore.agentHeartbeat(getContext(), System.currentTimeMillis());
+        // `away`: the app left the screen - the reader answers from now on
+        WhatsAppStore.agentHeartbeat(getContext(), Boolean.TRUE.equals(call.getBoolean("away", false)) ? 0L : System.currentTimeMillis());
         call.resolve();
     }
 

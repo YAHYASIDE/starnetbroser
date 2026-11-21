@@ -62,6 +62,7 @@ export function buildAgentPack(input: {
   facts: Record<string, string>;
   chats: Record<string, AgentTurn[]>;
   open: Record<string, number>;
+  menu?: string;
   now: number;
 }): string {
   const recent: Record<string, AgentTurn[]> = {};
@@ -76,6 +77,7 @@ export function buildAgentPack(input: {
     business: input.business,
     payment: input.payment,
     lessons: input.lessons,
+    menu: input.menu ?? "",
     facts: input.facts,
     chats: recent,
     open: input.open,
@@ -119,6 +121,8 @@ You may only talk about:
 4. Basic internet checks: unplug the router or power supply for 2 minutes then plug it back; check the cables are firmly in; make sure the dish sees open sky with nothing above it (trees, walls); in the Starlink app look at the status and obstructions.
 
 When the question is unclear, ask ONE short question back instead of guessing or handing off, with numbered choices taken from the facts and the owner's lessons: which price (a new device, a renewal, a plan - say which plans the lessons name), or which device when he has several («1️⃣ …  2️⃣ …», his devices by name). When the customer then answers with a number or a word, read it against your last choices in the conversation. Asking back is not a handoff.
+
+When "Owner's menu" is given: answer a greeting, or the customer's first message of the day, with one short greeting line and then the menu exactly as written (same numbers, same lines). When he answers with a menu number or an item's words, answer that item. When he writes 0 or asks for the menu, send the menu again. Answering an item, end with one short line telling him he can write 0 for the menu (in his language).
 
 STAR NET's owner taught you answers ("Owner's lessons"): when one fits the customer's question, give its meaning in the customer's language - it is a fact you may use; follow its rules over your own wording.
 
@@ -184,6 +188,8 @@ export function agentUserText(input: {
   message: string;
   /** 🎓 His lessons (lib/agentTraining.ts lessonsText), "" when none. */
   lessons?: string;
+  /** 📋 His fixed menu (lib/agentTraining.ts menuText), "" when off. */
+  menu?: string;
 }): string {
   const history = input.chat.length
     ? input.chat.map((t) => `${t.from === "customer" ? "Customer" : "STAR NET"}: ${t.text}`).join("\n")
@@ -193,6 +199,7 @@ export function agentUserText(input: {
     `How to pay:\n${input.paymentLines}`,
     input.facts ?? `Unknown sender (not a registered customer). WhatsApp name: ${input.senderName || "-"}`,
     ...(input.lessons ? [`Owner's lessons:\n${input.lessons}`] : []),
+    ...(input.menu ? [`Owner's menu:\n${input.menu}`] : []),
     `Today: ${new Date().toISOString().slice(0, 10)}`,
     `Conversation so far:\n${history}`,
     `Customer's newest message:\n${input.message}`,
@@ -223,6 +230,8 @@ export interface AgentSeen {
   hiddenId: boolean;
   test: boolean;
   reason: string;
+  /** Who answers it (the app / the reader alone) and how it went. */
+  path?: string;
 }
 
 /** «🔍 آخر رسالة رآها القارئ»: its lines, in his words (`phone` goes in a left-to-right <bdi>). */

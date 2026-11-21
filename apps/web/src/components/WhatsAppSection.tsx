@@ -7,7 +7,7 @@ import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
 import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
-import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
+import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, loadPackStatus, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
 import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 
 type Status = { access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] };
@@ -204,6 +204,16 @@ function WhatsAppAgentPart() {
       <p className="settings-hint">
         {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: {s.smart ? "Claude Sonnet" : "Claude Haiku"}). الرصيد الحقيقي في platform.claude.com ← Billing.
       </p>
+      {isRunningInAndroidApp() && s.on && (
+        <p className="settings-hint">
+          {(() => {
+            const p = loadPackStatus();
+            if (!p) return "📦 نسخة الرد والتطبيق مغلق: لم تُرسل بعد - اترك هذا القسم مفتوحًا دقيقة";
+            if (p.error) return `📦 ✗ لم تُرسل نسخة الرد والتطبيق مغلق: ${p.error}`;
+            return `📦 ✓ نسخة الرد والتطبيق مغلق: ${new Date(p.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${p.customers} زبون`;
+          })()}
+        </p>
+      )}
       <Link href="/agent" className="text-action">
         🎓 تدريب الوكيل: أجب عن أسئلته وعلّمه ←
       </Link>
@@ -223,6 +233,7 @@ function WhatsAppAgentPart() {
               <small className="msg-item-hint">
                 <strong>{agentSeenLines(seen).reason}</strong>
               </small>
+              {seen.path && <small className="msg-item-hint">{seen.path}</small>}
             </>
           ) : (
             <small className="msg-item-hint">لم يرَ القارئ أي رسالة واتساب بعد - أرسل رسالة من رقم التجربة</small>

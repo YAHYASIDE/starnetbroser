@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   addLesson,
+  cleanMenu,
+  DEFAULT_MENU,
+  menuText,
   addQuestion,
   answerQuestion,
   answersToSend,
@@ -83,5 +86,14 @@ describe("🎓 the agent's training (his Nov 21 2026 ask)", () => {
     expect(text.split("\n- ").length).toBe(MAX_PROMPT_LESSONS);
     expect(text.startsWith(`- Q: س${MAX_PROMPT_LESSONS + 4}`)).toBe(true);
     expect(text).not.toContain("Q: س0\n");
+  });
+});
+
+describe("📋 his fixed menu", () => {
+  it("off by default with a starting menu; read only when on", () => {
+    expect(cleanMenu(null)).toEqual({ on: false, text: DEFAULT_MENU });
+    expect(menuText(cleanMenu(null))).toBe("");
+    expect(menuText(cleanMenu({ on: true, text: " 1️⃣ جهازي \n2️⃣ الدفع " }))).toBe("1️⃣ جهازي \n2️⃣ الدفع");
+    expect(cleanMenu({ on: true, text: "  " }).text).toBe(DEFAULT_MENU);
   });
 });

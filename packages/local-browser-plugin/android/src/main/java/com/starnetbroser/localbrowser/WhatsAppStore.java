@@ -162,6 +162,18 @@ final class WhatsAppStore {
         prefs(context).edit().putString("agent_last_seen", seen.toString()).apply();
     }
 
+    /** 🔍 Who answers the last message seen (the app / the reader alone) and how it went - on its diagnostic line. */
+    static synchronized void agentSeenPath(Context context, String path) {
+        JSONObject seen = agentLastSeen(context);
+        if (seen == null) return;
+        try {
+            seen.put("path", path);
+        } catch (JSONException e) {
+            return;
+        }
+        prefs(context).edit().putString("agent_last_seen", seen.toString()).apply();
+    }
+
     static synchronized JSONObject agentLastSeen(Context context) {
         String raw = prefs(context).getString("agent_last_seen", null);
         if (raw == null) return null;

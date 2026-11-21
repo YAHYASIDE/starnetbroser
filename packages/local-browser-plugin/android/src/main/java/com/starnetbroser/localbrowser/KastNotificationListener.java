@@ -279,9 +279,16 @@ public class KastNotificationListener extends NotificationListenerService {
             keepForAgent(id, n);
             final String agentKey = key;
             // 🤖 the app open (it said «I'm here» lately) answers it; closed → this reader answers by itself (WhatsAppAgentNative)
-            if (WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), System.currentTimeMillis()) || WhatsAppStore.agentPack(context) == null) {
-                WORK.execute(() -> WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when));
+            boolean alive = WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), System.currentTimeMillis());
+            boolean packed = WhatsAppStore.agentPack(context) != null;
+            if (alive || !packed) {
+                final String path = alive ? "👉 التطبيق مفتوح - يرد هو" : "⚠️ التطبيق مغلق ولا نسخة عند القارئ - افتح قسم الوكيل دقيقة ثم أغلقه";
+                WORK.execute(() -> {
+                    WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when);
+                    WhatsAppStore.agentSeenPath(context, path);
+                });
             } else {
+                WORK.execute(() -> WhatsAppStore.agentSeenPath(context, "📴 التطبيق مغلق - القارئ يرد وحده…"));
                 AGENT_WORK.execute(() -> answerNatively(context, id, phone, agentKey, name, body, when));
             }
             return;
@@ -317,6 +324,7 @@ public class KastNotificationListener extends NotificationListenerService {
             org.json.JSONObject waiting = pack.optJSONObject("open");
             int open = waiting == null ? 0 : waiting.optInt(key, 0);
             if (WhatsAppAgentNative.silenced(open, WhatsAppStore.agentNativeHandoffs(context, key), now)) {
+                WhatsAppStore.agentSeenPath(context, "📴 🤐 سكت: سؤالان بلا جوابك");
                 entry.put("handoff", true).put("silent", true).put("reason", "سكت الوكيل: سؤالان قبله بلا جوابك");
                 WhatsAppStore.agentNativeLog(context, entry);
                 return;
@@ -327,12 +335,14 @@ public class KastNotificationListener extends NotificationListenerService {
             WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), WhatsAppAgentNative.requestBody(pack, user).toString());
             entry.put("input", answer.input).put("output", answer.output);
             if (answer.error != null) {
+                WhatsAppStore.agentSeenPath(context, "📴 ✗ القارئ لم يرد: " + answer.error);
                 entry.put("handoff", true).put("error", answer.error);
                 WhatsAppStore.agentNativeLog(context, entry);
                 AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, "لم يرد الوكيل: " + answer.error), "/agent");
                 return;
             }
             boolean sent = agentReply(context, id, key, answer.reply);
+            WhatsAppStore.agentSeenPath(context, sent ? "📴 ✓ ردّ القارئ وحده والتطبيق مغلق" : "📴 ✗ كتب القارئ الرد لكن لم يجد «رد» الإشعار");
             entry.put("reply", answer.reply).put("handoff", answer.handoff).put("reason", answer.reason).put("sent", sent);
             org.json.JSONArray turns = new org.json.JSONArray().put(new org.json.JSONObject().put("from", "customer").put("text", text).put("at", at));
             if (sent) turns.put(new org.json.JSONObject().put("from", "agent").put("text", answer.reply).put("at", System.currentTimeMillis()));
@@ -344,7 +354,8 @@ public class KastNotificationListener extends NotificationListenerService {
             }
         } catch (org.json.JSONException | RuntimeException e) {
             try {
-                entry.put("error", "تعذّر الرد والتطبيق مغلق");
+                entry.put("error", "تعذّر الرد والتطبيق مغلق: " + e.getClass().getSimpleName());
+                WhatsAppStore.agentSeenPath(context, "📴 ✗ تعذّر: " + e.getClass().getSimpleName());
                 WhatsAppStore.agentNativeLog(context, entry);
             } catch (org.json.JSONException ignored) {
                 // nothing more to keep

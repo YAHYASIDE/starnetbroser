@@ -441,7 +441,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async whatsappAgentHeartbeat(): Promise<void> {
+  async whatsappAgentHeartbeat(_options?: { away?: boolean }): Promise<void> {
     return;
   }
 

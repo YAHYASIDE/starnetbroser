@@ -44,7 +44,7 @@ import {
   type AgentSettings,
   type AgentTurn,
 } from "./whatsappAgent";
-import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadQuestions, markSent, openFrom, saveQuestions } from "./agentTraining";
+import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadMenu, loadQuestions, markSent, menuText, openFrom, saveQuestions } from "./agentTraining";
 
 export const AGENT_EVENT = "starnet:whatsapp-agent";
 const CHATS_KEY = "starnet.whatsappAgentChats";
@@ -145,7 +145,7 @@ export async function agentPreview(message: string, phone: string, chat: AgentTu
   const { client, facts } = phone.trim() ? factsFor(phone) : { client: null, facts: null };
   const answer = await askClaudeJson<AgentAnswer>({
     system: AGENT_SYSTEM,
-    user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: "", chat, message, lessons: lessonsText(loadLessons()) }),
+    user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: "", chat, message, lessons: lessonsText(loadLessons()), menu: menuText(loadMenu()) }),
     schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
     keys: AGENT_KEYS,
     effort: "low",
@@ -199,7 +199,7 @@ export async function runWhatsAppAgent(): Promise<number> {
       const chat = chats[m.key] ?? [];
       const answer = await askClaudeJson<AgentAnswer>({
         system: AGENT_SYSTEM,
-        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text, lessons }),
+        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text, lessons, menu: menuText(loadMenu()) }),
         schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
         keys: AGENT_KEYS,
         effort: "low",
@@ -307,9 +307,23 @@ function recordSpend(usage: { model: string; input: number; output: number } | u
 
 // ---- 🤖 answering while the app is closed (WhatsAppAgentNative.java) ----
 
-/** «I'm here»: while the app runs, it answers the waiting messages itself. */
+/** «I'm here»: while the app is on the screen it answers the waiting messages itself; in the background (its timers
+ * slow down) the reader answers at once instead (his Nov 21 2026 «لا يرد والتطبيق مغلق»). */
 export async function agentHeartbeat(): Promise<void> {
+  if (document.visibilityState !== "visible") return;
   await LocalBrowser.whatsappAgentHeartbeat();
+}
+
+/** The app left the screen: the reader answers from now on, not 20 seconds later. */
+export async function agentAway(): Promise<void> {
+  await LocalBrowser.whatsappAgentHeartbeat({ away: true });
+}
+
+const PACK_STATUS_KEY = "starnet.whatsappAgentPackStatus";
+
+/** 📦 The reader's copy: when it was last given, for how many customers, or why it failed. */
+export function loadPackStatus(): { at: number; customers: number; error?: string } | null {
+  return readJson<{ at: number; customers: number; error?: string } | null>(PACK_STATUS_KEY, null);
 }
 
 let lastPack = "";
@@ -327,7 +341,11 @@ export async function pushAgentPack(force = false): Promise<void> {
   for (const c of Object.values(loadClientStore())) {
     const key = phoneKey(c.phone);
     if (!key || (c as { deletedAt?: string | null }).deletedAt) continue;
-    facts[key] = clientFacts(c, data);
+    try {
+      facts[key] = clientFacts(c, data);
+    } catch {
+      // one customer's odd data never stops the copy
+    }
   }
   const open: Record<string, number> = {};
   const questions = loadQuestions();
@@ -338,14 +356,21 @@ export async function pushAgentPack(force = false): Promise<void> {
     business: loadBusinessProfile().name,
     payment: paymentInstructions(),
     lessons: lessonsText(loadLessons()),
+    menu: menuText(loadMenu()),
     facts,
     chats: readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {}),
     open,
     now: Date.now(),
   });
   if (pack === lastPack) return;
-  await LocalBrowser.whatsappAgentPack({ pack });
-  lastPack = pack;
+  try {
+    await LocalBrowser.whatsappAgentPack({ pack });
+    lastPack = pack;
+    writeJson(PACK_STATUS_KEY, { at: Date.now(), customers: Object.keys(facts).length });
+  } catch (err) {
+    writeJson(PACK_STATUS_KEY, { at: Date.now(), customers: 0, error: err instanceof Error ? err.message : "تعذّر" });
+  }
+  window.dispatchEvent(new Event(AGENT_EVENT));
 }
 
 /** What the reader did while the app was closed → the log, the chats, the questions, the spend. */

@@ -12,6 +12,26 @@
 
 export const QUESTIONS_KEY = "starnet_agent_questions_v1";
 export const LESSONS_KEY = "starnet_agent_lessons_v1";
+/** 📋 His fixed menu (his Nov 21 2026 ask «خيارات ثابتة يمكن للشخص الاختيار منها») - business data, in the link. */
+export const MENU_KEY = "starnet_agent_menu_v1";
+
+export interface AgentMenu {
+  on: boolean;
+  text: string;
+}
+
+/** A starting menu he edits (STAR NET's usual topics). */
+export const DEFAULT_MENU = "1️⃣ معلومات جهازي (الحالة وموعد التجديد)\n2️⃣ سعر التجديد\n3️⃣ طريقة الدفع\n4️⃣ الإنترنت ضعيف أو مقطوع\n5️⃣ شراء جهاز جديد\n6️⃣ التحدث مع موظف";
+
+export function cleanMenu(raw: unknown): AgentMenu {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Partial<AgentMenu>;
+  return { on: r.on === true, text: typeof r.text === "string" && r.text.trim() ? r.text : DEFAULT_MENU };
+}
+
+/** What the agent reads: the menu when on, else "". */
+export function menuText(menu: AgentMenu): string {
+  return menu.on ? menu.text.trim() : "";
+}
 
 /** A message the agent didn't know (or he marked): waiting for his answer. */
 export interface AgentQuestion {
@@ -185,5 +205,19 @@ export function loadLessons(): AgentLesson[] {
 
 export function saveLessons(lessons: AgentLesson[]): void {
   window.localStorage.setItem(LESSONS_KEY, JSON.stringify(lessons));
+  window.dispatchEvent(new Event(TRAINING_EVENT));
+}
+
+export function loadMenu(): AgentMenu {
+  try {
+    const raw = window.localStorage.getItem(MENU_KEY);
+    return cleanMenu(raw ? JSON.parse(raw) : null);
+  } catch {
+    return cleanMenu(null);
+  }
+}
+
+export function saveMenu(menu: AgentMenu): void {
+  window.localStorage.setItem(MENU_KEY, JSON.stringify(menu));
   window.dispatchEvent(new Event(TRAINING_EVENT));
 }

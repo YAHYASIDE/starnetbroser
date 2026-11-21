@@ -67,6 +67,8 @@ final class WhatsAppAgentNative {
         sb.append("How to pay:\n").append(pack.optString("payment", "")).append("\n\n");
         sb.append(known.isEmpty() ? "Unknown sender (not a registered customer). WhatsApp name: " + (senderName == null || senderName.isEmpty() ? "-" : senderName) : known).append("\n\n");
         if (!lessons.isEmpty()) sb.append("Owner's lessons:\n").append(lessons).append("\n\n");
+        String menu = pack.optString("menu", "");
+        if (!menu.isEmpty()) sb.append("Owner's menu:\n").append(menu).append("\n\n");
         sb.append("Today: ").append(today).append("\n\n");
         sb.append("Conversation so far:\n").append(history).append("\n\n");
         sb.append("Customer's newest message:\n").append(message);

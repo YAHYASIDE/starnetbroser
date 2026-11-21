@@ -7,9 +7,11 @@ import {
   answerQuestion,
   dismissQuestion,
   loadLessons,
+  loadMenu,
   loadQuestions,
   removeLesson,
   saveLessons,
+  saveMenu,
   saveQuestions,
   trainingCounts,
   TRAINING_EVENT,
@@ -22,7 +24,7 @@ import { AGENT_EVENT, agentPreview, loadAgentSpend } from "@/lib/whatsappAgentLi
 import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 import { withTurns, type AgentAnswer, type AgentTurn } from "@/lib/whatsappAgent";
 
-type Tab = "questions" | "lessons" | "try";
+type Tab = "questions" | "lessons" | "menu" | "try";
 
 const when = (at: number) => new Date(at).toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
 
@@ -77,6 +79,7 @@ export default function AgentTrainingPage() {
           [
             ["questions", `❓ تنتظرك (${counts.open})`],
             ["lessons", `📚 الدروس (${lessons.length})`],
+            ["menu", "📋 القائمة"],
             ["try", "💬 جرّب"],
           ] as [Tab, string][]
         ).map(([t, label]) => (
@@ -88,6 +91,7 @@ export default function AgentTrainingPage() {
 
       {tab === "questions" && <QuestionsTab questions={questions} lessons={lessons} />}
       {tab === "lessons" && <LessonsTab lessons={lessons} />}
+      {tab === "menu" && <MenuTab />}
       {tab === "try" && <TryTab />}
     </main>
   );
@@ -257,6 +261,58 @@ function LessonsTab({ lessons }: { lessons: AgentLesson[] }) {
           </div>
         ))
       )}
+    </section>
+  );
+}
+
+/** 📋 His fixed menu: sent on a greeting / the first message of the day; the customer answers with a number. */
+function MenuTab() {
+  const [on, setOn] = useState(false);
+  const [text, setText] = useState("");
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    const m = loadMenu();
+    setOn(m.on);
+    setText(m.text);
+  }, []);
+  const save = (next: { on: boolean; text: string }) => {
+    saveMenu(next);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1500);
+  };
+  return (
+    <section className="section agent-list">
+      <p className="settings-hint">
+        خيارات ثابتة يرسلها الوكيل للزبون عند التحية أو أول رسالة في اليوم، فيختار برقم. وعند «0» يعيد إرسالها. اكتب كل خيار في سطر برقمه، والوكيل
+        يجيب عن كل خيار من الدروس ومعلومات الزبون.
+      </p>
+      <label className="toggle-switch-row">
+        <span>📋 أرسل القائمة للزبائن</span>
+        <span className={`toggle-switch${on ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={on}
+            onChange={(e) => {
+              setOn(e.target.checked);
+              save({ on: e.target.checked, text });
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <div className="msg-item agent-q">
+        <label className="add-field-label" htmlFor="agent-menu-text">
+          القائمة
+        </label>
+        <textarea id="agent-menu-text" className="search-input" rows={8} value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="agent-actions">
+          <button type="button" className="dialog-primary" disabled={!text.trim()} onClick={() => save({ on, text })}>
+            💾 احفظ القائمة
+          </button>
+          {saved && <small className="msg-item-hint">✓ حُفظت</small>}
+        </div>
+      </div>
+      <p className="settings-hint">علّمه جواب كل خيار في «📚 الدروس»، مثلًا: «سعر التجديد» ← «20,000 أوقية شهريًا».</p>
     </section>
   );
 }

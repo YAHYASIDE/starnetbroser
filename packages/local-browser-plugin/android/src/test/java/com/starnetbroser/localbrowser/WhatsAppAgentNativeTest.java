@@ -56,6 +56,8 @@ public class WhatsAppAgentNativeTest {
         String unknown = WhatsAppAgentNative.userText(p, "70000009", "أحمد", "سلام", new JSONArray(), "2026-11-21");
         assertTrue(unknown.contains("Unknown sender (not a registered customer). WhatsApp name: أحمد"));
         assertTrue(unknown.contains("(no earlier messages)"));
+        p.put("menu", "1️⃣ جهازي");
+        assertTrue(WhatsAppAgentNative.userText(p, "70000001", "", "سلام", new JSONArray(), "2026-11-21").contains("Owner's lessons:\n- Q: كم\n  A: 20,000\n\nOwner's menu:\n1️⃣ جهازي\n\nToday:"));
         JSONObject body = WhatsAppAgentNative.requestBody(p, text);
         assertEquals("claude-haiku-5-5", body.getString("model"));
         assertEquals("low", body.getJSONObject("output_config").getString("effort"));

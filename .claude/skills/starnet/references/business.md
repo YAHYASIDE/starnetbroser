@@ -3797,3 +3797,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   opens (log 📴, chats, questions, spend). No fresh Starlink read in that path. (2) «🧠 وكيل أذكى» toggle: Sonnet 5.5
   ($2 / $10 per M) instead of Haiku. (3) the WhatsApp Cloud API study (buttons, pictures, voice in Hassaniya) → the
   studies chat (workstreams 4), report first.
+- Nov 21 2026, his «لا يرد والتطبيق مغلق، والرد غير جيد، ولا يرسل خيارات - أريد خيارات ثابتة»: (1) the app now
+  says «I'm here» only while on the screen and «away» the moment it leaves it, so the reader answers at once (before,
+  background timers kept it «alive» or slowed it); the 🔍 line shows who answered («👉 التطبيق» / «📴 ✓ القارئ» / why
+  not) and «📦 نسخة الرد والتطبيق مغلق» shows when the reader's copy was given and for how many customers (or why
+  not). Waiting for his screenshot of those two lines. (2) 📋 fixed menu `starnet_agent_menu_v1` {on, text} on
+  «تدريب الوكيل»: sent on a greeting / first message of the day, a number answers that item, «0» sends it again
+  (both the app and the reader read it). Default menu: device info, renewal price, how to pay, weak internet, a new
+  device, a person. (3) Reply quality: asked him for the bad answers; lessons for each menu item + «🧠 وكيل أذكى».

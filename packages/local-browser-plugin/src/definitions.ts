@@ -875,7 +875,7 @@ export interface LocalBrowserPlugin {
   whatsappAgentPack(options: { pack: string }): Promise<void>;
 
   /** 🤖 «I'm here»: the app answers the waiting messages itself for the next ~20 s. */
-  whatsappAgentHeartbeat(): Promise<void>;
+  whatsappAgentHeartbeat(options?: { away?: boolean }): Promise<void>;
 
   /** 🤖 What the reader answered while the app was closed (taken, then forgotten natively). */
   whatsappAgentTakeNative(): Promise<{ entries: WhatsAppAgentNativeEntry[] }>;
@@ -1009,6 +1009,8 @@ export interface WhatsAppAgentSeen {
   hiddenId: boolean;
   test: boolean;
   reason: string;
+  /** Who answers it (the app / the reader alone) and how it went. */
+  path?: string;
 }
 
 /** 🤖 One message the reader handled while the app was closed (LocalBrowser.whatsappAgentTakeNative). */

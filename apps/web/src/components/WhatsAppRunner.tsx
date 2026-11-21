@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { isRepWorkspace } from "@/lib/repMode";
 import { drainWhatsApp, pushWhatsAppAnswers, WHATSAPP_EVENT } from "@/lib/whatsappLink";
-import { AGENT_EVENT, agentHeartbeat, importNativeAgent, loadAgentSettings, pushAgentPack, pushAgentSetup, runWhatsAppAgent } from "@/lib/whatsappAgentLink";
+import { AGENT_EVENT, agentAway, agentHeartbeat, importNativeAgent, loadAgentSettings, pushAgentPack, pushAgentSetup, runWhatsAppAgent } from "@/lib/whatsappAgentLink";
 import { TRAINING_EVENT } from "@/lib/agentTraining";
 
 const EVERY_MS = 60_000;
@@ -50,6 +50,12 @@ export function WhatsAppRunner() {
     // a new lesson / answer: the reader's pack at once
     const onTraining = () => void pushAgentPack(true).catch(() => undefined);
     window.addEventListener(TRAINING_EVENT, onTraining);
+    // 📴 off the screen: the reader takes over at once; back: the app again
+    const onAgentVisible = () => {
+      if (document.visibilityState === "visible") void agent();
+      else void agentAway().catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", onAgentVisible);
     const first = window.setTimeout(() => void run(), 4000);
     const timer = window.setInterval(() => void run(), EVERY_MS);
     const onVisible = () => document.visibilityState === "visible" && void run();
@@ -64,6 +70,7 @@ export function WhatsAppRunner() {
       window.clearInterval(agentTimer);
       window.removeEventListener(AGENT_EVENT, onAgent);
       window.removeEventListener(TRAINING_EVENT, onTraining);
+      document.removeEventListener("visibilitychange", onAgentVisible);
     };
   }, []);
   return null;
