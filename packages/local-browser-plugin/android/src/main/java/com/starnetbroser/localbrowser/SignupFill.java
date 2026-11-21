@@ -94,12 +94,21 @@ final class SignupFill {
 
     /** Starlink's activation pages. Null when there is no KIT/SN. */
     static String starlinkScript(String kit, String firstName, String lastName, String email, String phone) {
+        return starlinkScript(kit, firstName, lastName, email, phone, null);
+    }
+
+    /** With the device's password (his one activation password, Nov 21 2026): Starlink's «تعيين كلمة مرور» fields
+     * (the password and its confirmation) are filled with it, so the account's password is the one the app keeps -
+     * a different one typed by hand left the device signed out with the wrong password filled next time. */
+    static String starlinkScript(String kit, String firstName, String lastName, String email, String phone, String password) {
         if (kit == null || kit.trim().isEmpty()) return null;
-        return "(function(a,f,l,e,ph){"
+        return "(function(a,f,l,e,ph,pw){"
             + "if(window.__starnetActivate)return;window.__starnetActivate=1;"
             + PRELUDE
             + "var KIT=/معرّف\\s*Starlink|معرف\\s*Starlink|Starlink\\s*ID|\\bKIT\\b|serial|التسلسلي/i;"
             + "function tick(){"
+            + "if(pw){var ps=document.querySelectorAll('input[type=password]');"
+            + "for(var j=0;j<ps.length;j++){var q=ps[j];if(vis(q)&&!q.disabled&&!q.readOnly&&!q.value&&!q.__sn){put(q,pw);q.__sn=1;}}}"
             + "var k=field(KIT,/mail|password|بريد|كلمة/i);"
             + "if(k){if(!d.k&&!k.value){put(k,a);d.k=Date.now();}"
             // «متابعة» once the page has taken the KIT in.
@@ -120,6 +129,7 @@ final class SignupFill {
             + "if(!d.link){var g=button(/تفعيل خدمة\\s*Starlink|activate\\s*(your\\s*)?starlink/i);if(g){g.click();d.link=1;}}}"
             + "tick();var n=0;var t=setInterval(function(){tick();if(++n>500)clearInterval(t);},700);"
             + "})(" + LoginAutofill.literal(kit.trim()) + "," + LoginAutofill.literal(firstName) + ","
-            + LoginAutofill.literal(lastName) + "," + LoginAutofill.literal(email) + "," + LoginAutofill.literal(phone) + ");";
+            + LoginAutofill.literal(lastName) + "," + LoginAutofill.literal(email) + "," + LoginAutofill.literal(phone) + ","
+            + LoginAutofill.literal(password == null ? "" : password) + ");";
     }
 }

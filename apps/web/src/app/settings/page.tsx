@@ -19,7 +19,7 @@ import { WhatsNewSection } from "@/components/WhatsNewSection";
 import { LiveSyncSection } from "@/components/LiveSyncSection";
 import { DeviceLinkSection } from "@/components/DeviceLinkSection";
 import { ScheduledSyncsSection } from "@/components/ScheduledSyncsSection";
-import { MailDomainSection } from "@/components/MailDomainSection";
+import { ActivationPasswordSection, MailDomainSection } from "@/components/MailDomainSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -342,6 +342,7 @@ export default function SettingsPage() {
       <UsedPasswordsSection />
       <SettingsFold id="gmail-codes"><GmailCodesSection /></SettingsFold>
       <SettingsFold id="mail-domain"><MailDomainSection /></SettingsFold>
+      <SettingsFold id="activation-password"><ActivationPasswordSection /></SettingsFold>
       <SettingsFold id="card-gmail"><CardGmailSection /></SettingsFold>
       <SettingsFold id="theme">
       <section className="section">

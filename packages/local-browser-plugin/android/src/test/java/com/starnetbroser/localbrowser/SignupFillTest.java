@@ -32,6 +32,14 @@ public class SignupFillTest {
     }
 
     @Test
+    public void starlinkScriptFillsThePasswordFieldsWhenGiven() {
+        String script = SignupFill.starlinkScript("KIT00000DEMO1", "a", "b", "demo@example.com", "1", "DemoPass-1");
+        assertTrue(script.contains("\"DemoPass-1\""));
+        assertTrue(script.contains("input[type=password]"));
+        assertNull(SignupFill.starlinkScript(" ", "a", "b", "c", "d", "DemoPass-1"));
+    }
+
+    @Test
     public void valuesCannotBreakOutOfTheScript() {
         String script = SignupFill.outlookScript("demo@outlook.com", "x\"</script><b>", "a", "b", "");
         assertFalse(script.contains("</script>"));

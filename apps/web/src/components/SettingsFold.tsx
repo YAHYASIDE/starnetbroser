@@ -7,7 +7,7 @@ import { settingsItem, type SettingsItemId } from "@/lib/settingsGroups";
 export function SettingsFold({ id, children }: { id: SettingsItemId; children: React.ReactNode }) {
   const item = settingsItem(id);
   return (
-    <details className="settings-fold" id={`fold-${id}`}>
+    <details className="settings-fold" id={`fold-${id}`} data-tour={`fold-${id}`}>
       <summary className="settings-fold-summary">
         <span className="settings-fold-icon" aria-hidden="true">
           {item.icon}
