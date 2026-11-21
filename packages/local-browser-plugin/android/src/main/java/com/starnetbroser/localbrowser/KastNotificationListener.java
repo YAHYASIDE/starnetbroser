@@ -270,6 +270,9 @@ public class KastNotificationListener extends NotificationListenerService {
         final long when = at;
         if (!WhatsAppMessage.emails(text).isEmpty()) WORK.execute(() -> WhatsAppStore.addMessage(context, id, phone, name, body, when));
         String key = WhatsAppMessage.key(phone);
+        // 💬 this customer's latest «رد»: his answer from «🎓 تدريب الوكيل» goes out through it later, even after the
+        // agent's own «لحظة…» made WhatsApp replace or clear the notification (his Nov 21 2026 «لم يُرسل»)
+        if (key != null && hasReply(n)) LAST_REPLY.put(key, n);
         noteSeen(context, title, conversation, found, at, WhatsAppStore.agentReason(context, key, phone == null && WhatsAppMessage.numberText(title) == null && !title.trim().isEmpty()));
         // 🤖 «وكيل واتساب»: the app writes the answer (Claude), this notification's «رد» sends it - never the fixed one too
         if (key != null && WhatsAppStore.agentAnswers(context, key)) {
@@ -349,6 +352,24 @@ public class KastNotificationListener extends NotificationListenerService {
             }
         });
 
+    /** Customer (last 8 digits) → his latest WhatsApp notification that has a «رد» (this process only). */
+    private static final java.util.Map<String, Notification> LAST_REPLY = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<String, Notification>() {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, Notification> eldest) {
+                return size() > 200;
+            }
+        });
+
+    /** The notification carries a «رد» (an action with a RemoteInput). */
+    private static boolean hasReply(Notification n) {
+        if (n.actions == null) return false;
+        for (Notification.Action a : n.actions) {
+            if (a != null && a.actionIntent != null && a.getRemoteInputs() != null && a.getRemoteInputs().length > 0) return true;
+        }
+        return false;
+    }
+
     private static void keepForAgent(String id, Notification n) {
         AGENT_NOTIFICATIONS.put(id, n);
     }
@@ -363,6 +384,11 @@ public class KastNotificationListener extends NotificationListenerService {
         if (key != null && !WhatsAppAgentRules.underHourlyLimit(WhatsAppStore.agentSentAt(context, key), now)) return false;
         Notification n = AGENT_NOTIFICATIONS.get(id);
         boolean sent = n != null && replyFrom(context, n, text);
+        // the customer's latest «رد» - still valid after WhatsApp cleared the notification (its PendingIntent lives on)
+        if (!sent && key != null) {
+            Notification last = LAST_REPLY.get(key);
+            sent = last != null && last != n && replyFrom(context, last, text);
+        }
         if (!sent && key != null) {
             KastNotificationListener listener = connected;
             if (listener != null) {

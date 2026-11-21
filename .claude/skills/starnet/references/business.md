@@ -3782,3 +3782,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   more than 6 h ago → background sync of at most 2 of his own devices, once per device per 6 h, wait ≤ 75 s, answer
   from the fresh result (applyPendingSyncs, not acked - the home screen merges it as usual). Needs «الظهور فوق
   التطبيقات» on the agent's phone; else a log line and the last known data.
+- Nov 21 2026, his screenshot (two «⚠️ لم يُرسل» answers to «سعر الجهاز»): after the agent's «لحظة…» WhatsApp replaced
+  the notification, so his answer found nothing to reply through. Fix: the reader keeps each customer's latest «رد»
+  (`LAST_REPLY`, this process only) and his answer goes through it. Also asked: «إذا سأل عن سعر أو اشتراك يسأله أي
+  سعر / أي اشتراك، وإذا سأل عن جهاز يسأله أي جهاز» → the agent asks ONE question back with numbered choices from
+  the facts / lessons (not a handoff). Open (explained, not built): answering while the app is closed (native
+  Claude call), a smarter model option, buttons / pictures and voice notes (not possible through notification
+  replies - only through Meta's Cloud API, followups 10).
