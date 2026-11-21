@@ -418,6 +418,32 @@ describe("the phone ↔ laptop link", () => {
     expect(JSON.parse(laptop.data.get("starnet_currencies_v1")!).EUR.pinnedAt).toBeUndefined();
   });
 
+  it("👥 two admins sync with each other while the main phone is off (his Nov 21 2026 report)", async () => {
+    const { firebase, phone } = await phoneAndLaptop({ starnet_clients_v1: ledger({ c1: { id: "c1", name: "زبون" } }) });
+    const made = loadLinkConfig(phone)!;
+    const a = memory();
+    const b = memory();
+    const ra = readLinkCode(linkCode(made));
+    const rb = readLinkCode(linkCode(made));
+    if (!ra.ok || !rb.ok) throw new Error();
+    joinAsMember(a, ra.config, "المسؤول 2");
+    joinAsMember(b, rb.config, "المسؤول 3");
+    await runLinkRound(a, firebase, new Date(Date.now() + 70_000));
+    await runLinkRound(b, firebase, new Date(Date.now() + 70_000));
+    await runLinkRound(a, firebase, new Date(Date.now() + 140_000));
+    expect(JSON.parse(b.data.get("starnet_clients_v1")!).c1.name).toBe("زبون");
+    // the main phone is off from here: A edits, B gets it
+    a.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون معدّل" } }));
+    await runLinkRound(a, firebase, new Date(Date.now() + 200_000));
+    await runLinkRound(b, firebase, new Date(Date.now() + 210_000));
+    expect(JSON.parse(b.data.get("starnet_clients_v1")!).c1.name).toBe("زبون معدّل");
+    // and a deletion on B reaches A (only the main phone holds deletions)
+    b.write("starnet_clients_v1", ledger({}));
+    await runLinkRound(b, firebase, new Date(Date.now() + 220_000));
+    await runLinkRound(a, firebase, new Date(Date.now() + 230_000));
+    expect(JSON.parse(a.data.get("starnet_clients_v1") ?? "{}").c1).toBeUndefined();
+  });
+
   it("⚡ many batches come in a few requests", async () => {
     const { firebase, stats, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({}) });
     for (let i = 0; i < 30; i++) {
