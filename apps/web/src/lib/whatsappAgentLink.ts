@@ -39,6 +39,7 @@ import {
   type AgentSettings,
   type AgentTurn,
 } from "./whatsappAgent";
+import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadQuestions, markSent, saveQuestions } from "./agentTraining";
 
 export const AGENT_EVENT = "starnet:whatsapp-agent";
 const CHATS_KEY = "starnet.whatsappAgentChats";
@@ -107,6 +108,36 @@ export async function pushAgentSetup(): Promise<void> {
   lastSetup = look;
 }
 
+/** The customer of this number and what the agent may tell him (null facts = not a registered customer). */
+function factsFor(phone: string): { client: ReturnType<typeof clientByPhone>; facts: string | null } {
+  const clients = loadClientStore();
+  const client = clientByPhone(clients, phone);
+  let facts: string | null = null;
+  if (client) {
+    const accounts = loadDemoAccounts(demoAccounts).filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt);
+    const ledger = loadLedgerStore();
+    const owed = Object.fromEntries(
+      Object.entries(computeClientCombinedTotals(loadInvoices(), loadPartyAdjustments(), client.id, accounts, ledger, loadClientMoves())).map(([c, t]) => [c, t.remaining]),
+    );
+    facts = customerFacts(client, accounts, owed, (d) => lastChargePrice(ledger[d.id] ?? []));
+  }
+  return { client, facts };
+}
+
+/** 🎓 «جرّب»: the agent's answer to a message he types, as a customer (a number = that customer's facts) - nothing is
+ * sent on WhatsApp. */
+export async function agentPreview(message: string, phone: string, chat: AgentTurn[]): Promise<{ ok: true; value: AgentAnswer; customer: string | null } | { ok: false; message: string }> {
+  const { client, facts } = phone.trim() ? factsFor(phone) : { client: null, facts: null };
+  const answer = await askClaudeJson<AgentAnswer>({
+    system: AGENT_SYSTEM,
+    user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: "", chat, message, lessons: lessonsText(loadLessons()) }),
+    schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
+    keys: AGENT_KEYS,
+    effort: "low",
+  });
+  return answer.ok ? { ok: true, value: answer.value, customer: client?.name ?? null } : answer;
+}
+
 let busy = false;
 
 /** Answers every waiting message. Returns how many answers went out. */
@@ -115,10 +146,20 @@ export async function runWhatsAppAgent(): Promise<number> {
   busy = true;
   let sentCount = 0;
   try {
+    // 🎓 his answers from «تدريب الوكيل» (any phone of the team) go to the customer first, through the message's «رد»
+    sentCount += await sendOwnerAnswers();
     const { messages } = await LocalBrowser.whatsappAgentPending();
-    if (!messages.length) return 0;
+    if (!messages.length) return sentCount;
     const settings = loadAgentSettings();
     const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
+    const lessons = lessonsText(loadLessons());
+    /** A question for «🎓 تدريب الوكيل»; true when the agent now stays silent with this customer (the 2nd one). */
+    const ask = (m: { id: string; key: string; phone?: string; name: string; text: string; at: number }, agentReply: string, reason: string): boolean => {
+      const before = loadQuestions();
+      const after = addQuestion(before, { messageId: m.id, key: m.key, phone: m.phone, name: m.name, text: m.text, at: m.at, agentReply, reason }, Date.now());
+      if (after !== before) saveQuestions(after);
+      return !isSilencedFor(before, m.key, Date.now()) && isSilencedFor(after, m.key, Date.now());
+    };
     for (const m of messages) {
       const done = () => LocalBrowser.whatsappAgentAck({ ids: [m.id] });
       // 🔍 a message left unanswered says why in «آخر ما فعله الوكيل» (it vanished silently before)
@@ -128,28 +169,26 @@ export async function runWhatsAppAgent(): Promise<number> {
         await done();
         continue;
       }
-      const clients = loadClientStore();
-      const client = clientByPhone(clients, m.phone ?? m.key);
-      let facts: string | null = null;
-      if (client) {
-        const accounts = loadDemoAccounts(demoAccounts).filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt);
-        const ledger = loadLedgerStore();
-        const owed = Object.fromEntries(
-          Object.entries(computeClientCombinedTotals(loadInvoices(), loadPartyAdjustments(), client.id, accounts, ledger, loadClientMoves())).map(([c, t]) => [c, t.remaining]),
-        );
-        facts = customerFacts(client, accounts, owed, (d) => lastChargePrice(ledger[d.id] ?? []));
+      // 🤐 two questions without his answer: silent with this customer (no Claude cost) until he answers - 24 h at most
+      if (isSilencedFor(loadQuestions(), m.key, Date.now())) {
+        ask(m, "", "سكت الوكيل: سؤالان قبله بلا جوابك");
+        addLog({ at: Date.now(), name: m.name, question: m.text, reply: "", handoff: true, sent: false, error: "🤐 سكت - ينتظر جوابك في «🎓 تدريب الوكيل»" });
+        await done();
+        continue;
       }
+      const { client, facts } = factsFor(m.phone ?? m.key);
       const chat = chats[m.key] ?? [];
       const answer = await askClaudeJson<AgentAnswer>({
         system: AGENT_SYSTEM,
-        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text }),
+        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text, lessons }),
         schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
         keys: AGENT_KEYS,
         effort: "low",
       });
       if (!answer.ok) {
         addLog({ at: Date.now(), name: m.name, question: m.text, reply: "", handoff: true, sent: false, error: answer.message });
-        await notifyPhone(handoffNotice(m.name, m.phone, m.text, `لم يرد الوكيل: ${answer.message}`), "/settings");
+        ask(m, "", `لم يرد الوكيل: ${answer.message}`);
+        await notifyPhone(handoffNotice(m.name, m.phone, m.text, `لم يرد الوكيل: ${answer.message}`), "/agent");
         await done();
         continue;
       }
@@ -159,7 +198,12 @@ export async function runWhatsAppAgent(): Promise<number> {
       writeJson(CHATS_KEY, chats);
       addLog({ at: Date.now(), name: client?.name ?? m.name, question: m.text, reply: answer.value.reply, handoff: answer.value.handoff, sent });
       if (answer.value.handoff || !sent) {
-        await notifyPhone(handoffNotice(client?.name ?? m.name, m.phone, m.text, sent ? answer.value.reason : "لم يُرسل الرد (الإشعار اختفى) - رد عليه بنفسك"), "/settings");
+        const reason = sent ? answer.value.reason : "لم يُرسل الرد (الإشعار اختفى) - رد عليه بنفسك";
+        const silent = answer.value.handoff ? ask({ ...m, name: client?.name ?? m.name }, sent ? answer.value.reply : "", reason) : false;
+        await notifyPhone(
+          handoffNotice(client?.name ?? m.name, m.phone, m.text, silent ? `${reason}\n🤐 سكت الوكيل معه حتى تجيبه في «🎓 تدريب الوكيل»` : reason),
+          "/agent",
+        );
       }
       await done();
     }
@@ -168,5 +212,25 @@ export async function runWhatsAppAgent(): Promise<number> {
   } finally {
     busy = false;
   }
+  return sentCount;
+}
+
+/** 🎓 His answers waiting to go out: each through its message's «رد» (or any WhatsApp notification of that customer
+ * still on the screen). Not found = «لم يُرسل» on the page, he sends it himself. */
+async function sendOwnerAnswers(): Promise<number> {
+  const waiting = answersToSend(loadQuestions());
+  if (!waiting.length) return 0;
+  let sentCount = 0;
+  const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
+  for (const q of waiting) {
+    const { sent } = await LocalBrowser.whatsappAgentReply({ id: q.messageId, key: q.key, text: q.answer! });
+    saveQuestions(markSent(loadQuestions(), q.id, sent, Date.now()));
+    if (sent) {
+      sentCount++;
+      chats[q.key] = withTurns(chats[q.key] ?? [], { from: "customer", text: q.text, at: q.at }, { from: "agent", text: q.answer!, at: Date.now() });
+    }
+    addLog({ at: Date.now(), name: q.name, question: q.text, reply: q.answer!, handoff: false, sent, ...(sent ? {} : { error: "جوابك لم يُرسل: إشعار المحادثة اختفى - أرسله بنفسك" }) });
+  }
+  writeJson(CHATS_KEY, chats);
   return sentCount;
 }

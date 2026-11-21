@@ -3756,3 +3756,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
   number or not, why. A waiting message the app leaves (agent off / no key / older than 15 min) now leaves a line in
   «آخر ما فعله الوكيل» too.
 - ✅ Nov 21 2026: confirmed on «المسؤول 2» - the agent answers the test number (his screenshot «تم وصار يرد»).
+
+## 🎓 «تدريب الوكيل» - he teaches the WhatsApp agent (Nov 21 2026)
+
+- His words: «أريد شات أو مكانًا خاصًا بردود الواتس أدرّبه فيه، وكل الأسئلة التي تأتيه يعطيها لي لأعلّمه كي يجاوب،
+  ولكي أعلّمه الرد بالعربية أو الفرنسية». Seeing its first answers he also asked: how to know the Claude balance, and
+  «لا يعيده إلا مرتين فقط لكي لا ينفد الرصيد».
+- His choices: (a) the customer's language - Arabic → simple standard Arabic (no Gulf words: it said الحين / زين /
+  شنهو), French → French; a page in «المزيد» (`/agent`); his answer to a waiting question is SENT to the customer at
+  once (through the message's «رد» on the agent's phone) and becomes a lesson; a question it doesn't know gets a short
+  «لحظة من فضلك، سأتأكد وأرد عليك»; the agent may know all of the customer's own device info (KIT, serial added).
+- My defaults (he didn't pick): after 2 questions of one customer without his answer the agent is silent with him (no
+  Claude call) until he answers, 24 h at most; one notification «🤐 سكت الوكيل معه». His answer to one question closes
+  that customer's other waiting ones. The agent reads the newest 60 lessons.
+- Stores `starnet_agent_questions_v1` / `starnet_agent_lessons_v1` (backup + team link: he trains from his phone, the
+  agent on «المسؤول 2» learns at once). Only the agent's phone sends his answers; gone notification = «⚠️ لم يُرسل» +
+  «📋 انسخ الجواب». «💬 جرّب» needs a Claude key on the phone used.
+- Still to decide (asked twice): the agent on the cheaper model (Haiku) + «💰 استهلاك تقديري» line; the agent asking
+  for a fresh Starlink sync of the customer's device before answering («مزامنة الجهاز عن طريق مشرف التطبيق»).
+  The real Claude balance is only at platform.claude.com ← Billing (no API for it).

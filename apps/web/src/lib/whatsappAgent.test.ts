@@ -17,6 +17,7 @@ describe("🤖 WhatsApp agent (his Nov 15 2026 ask)", () => {
     expect(text).toContain("«جهاز تجريبي»: ✅ يعمل");
     expect(text).toContain("سعر تجديده المعتاد: 15,000 سيفا");
     expect(text).toContain("He owes: 8,000 سيفا");
+    expect(customerFacts({ name: "x" }, [{ ...d, kitNumber: "KIT000000001", serialNumber: "SN0001" }], {}, () => null)).toContain("KIT: KIT000000001 · الرقم التسلسلي: SN0001");
     expect(customerFacts({ name: "x" }, [], {}, () => null)).toContain("He owes: لا شيء");
   });
 
@@ -26,6 +27,8 @@ describe("🤖 WhatsApp agent (his Nov 15 2026 ask)", () => {
     expect(text).toContain("Unknown sender");
     expect(text).toContain("Customer: السلام\nSTAR NET: مرحبا");
     expect(text).toContain("كم سعر التجديد؟");
+    expect(text).not.toContain("Owner's lessons");
+    expect(agentUserText({ business: "STAR NET", paymentLines: "", facts: null, senderName: "", chat: [], message: "كم؟", lessons: "- Q: كم\n  A: 20,000" })).toContain("Owner's lessons:\n- Q: كم\n  A: 20,000");
     const long = withTurns([], ...Array.from({ length: 20 }, (_, i) => ({ from: "customer" as const, text: String(i), at: i })));
     expect(long).toHaveLength(MAX_TURNS);
     expect(long[0]!.text).toBe("8");

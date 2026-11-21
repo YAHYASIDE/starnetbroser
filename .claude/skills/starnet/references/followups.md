@@ -44,6 +44,7 @@ into the working session) and whenever a task closes - short, the open lines onl
 1b. 🤖 WhatsApp agent (his agent 5): WORKS since Nov 21 2026 on «المسؤول 2» with his test number (his screenshot: it
    answered «ماذا تتيحون» and gave a device's end date, out-of-country days left and «ما عليك أي دين»). Next: he reads
    more answers on the test number, then decides «كل من يراسلني».
+   Nov 21 2026: «🎓 تدريب الوكيل» built (business.md). Open: Haiku + cost line? the agent asking for a device sync?
 2. 🔴 Unread count on «💬 الدردشة» in «المزيد» (said «لم يُبنَ بعد» when the chat shipped; only inside the chat page).
 3. Chat brief (SADAGHA, in his order): 🧾 rep statement period/type + Excel · ⚖️ disputes centre · 👥 member-to-member
    chats · 📎 Excel/Word/video files · ✏️ edit message + reactions · 🗂️ conversation tabs (المالية / الملفات /

@@ -61,17 +61,19 @@ export function withTurns(chat: AgentTurn[], ...turns: AgentTurn[]): AgentTurn[]
 
 export const AGENT_SYSTEM = `You are the WhatsApp assistant of STAR NET, a small Starlink reseller in Mauritania and Mali. You answer the customer's newest message on behalf of STAR NET.
 
-Write like a polite person on WhatsApp: short (1 to 4 short lines), warm, no long lists, in the customer's own language and dialect (Hassaniya or standard Arabic, French, or other). Never say you are an AI model; if asked, you are STAR NET's automatic assistant.
+Write like a polite person on WhatsApp: short (1 to 4 short lines), warm, no long lists. Answer in the customer's language: a customer writing Arabic (any dialect) gets simple standard Arabic (فصحى بسيطة) - never Gulf or other dialect words like الحين، زين، شنهو، وش، ابغى؛ a customer writing French gets French; anything else gets simple standard Arabic. Never say you are an AI model; if asked, you are STAR NET's automatic assistant.
 
 You may only talk about:
-1. The customer's own devices: whether each works, its renewal (expiry) date, a pending restriction.
+1. The customer's own devices: whether each works, its renewal (expiry) date, a pending restriction, its KIT and serial numbers.
 2. What the customer owes, per currency, exactly as given.
 3. Renewal prices (the customer's usual price as given) and how to pay (the payment lines given).
 4. Basic internet checks: unplug the router or power supply for 2 minutes then plug it back; check the cables are firmly in; make sure the dish sees open sky with nothing above it (trees, walls); in the Starlink app look at the status and obstructions.
 
+STAR NET's owner taught you answers ("Owner's lessons"): when one fits the customer's question, give its meaning in the customer's language - it is a fact you may use; follow its rules over your own wording.
+
 Use only the facts given. Never invent an amount, a date, a price or a device. Never promise anything (a date, a discount, a refund, a free month). Never mention other customers. Never ask for or repeat passwords, codes or card numbers.
 
-Set handoff to true, and reply that you passed the message to the STAR NET team who will answer soon, when: the facts do not hold the answer; the customer says he paid or sends a payment; he wants a new device, a cancellation, a plan change, a discount or a move; he complains or is angry; the message is about anything outside the four topics; or the sender is not a known customer and asks about a device or a debt. A greeting alone gets a short greeting and an offer to help (no handoff).
+Set handoff to true, and reply in one short line asking him to wait a little while you check with the STAR NET team (like «لحظة من فضلك، سأتأكد وأرد عليك» / «Un instant s'il vous plaît, je vérifie et je reviens vers vous»), when: neither the facts nor the owner's lessons hold the answer; the customer says he paid or sends a payment; he wants a new device, a cancellation, a plan change, a discount or a move; he complains or is angry; the message is about anything outside the four topics; or the sender is not a known customer and asks about a device or a debt. A greeting alone gets a short greeting and an offer to help (no handoff).
 
 reason is one short line in Arabic for the STAR NET owner saying why you handed off (empty when handoff is false).`;
 
@@ -111,6 +113,8 @@ export function customerFacts(
   for (const d of devices) {
     const price = usualPrice(d);
     const parts = [statusWords(d), renewalWords(d.rechargeDate)];
+    if (d.kitNumber) parts.push(`KIT: ${d.kitNumber}`);
+    if (d.serialNumber) parts.push(`الرقم التسلسلي: ${d.serialNumber}`);
     if (d.outsideHome?.daysRemaining !== undefined) parts.push(`خارج بلد الحساب: ${d.outsideHome.daysRemaining} يوم باقٍ قبل التقييد`);
     if (price) parts.push(`سعر تجديده المعتاد: ${formatAmount(price.amount)} ${LEDGER_CURRENCY_LABELS[price.currency as LedgerCurrency] ?? price.currency}`);
     lines.push(`- Device «${d.name}»: ${parts.filter(Boolean).join(" · ")}`);
@@ -127,6 +131,8 @@ export function agentUserText(input: {
   senderName: string;
   chat: AgentTurn[];
   message: string;
+  /** 🎓 His lessons (lib/agentTraining.ts lessonsText), "" when none. */
+  lessons?: string;
 }): string {
   const history = input.chat.length
     ? input.chat.map((t) => `${t.from === "customer" ? "Customer" : "STAR NET"}: ${t.text}`).join("\n")
@@ -135,6 +141,7 @@ export function agentUserText(input: {
     `Business: ${input.business}`,
     `How to pay:\n${input.paymentLines}`,
     input.facts ?? `Unknown sender (not a registered customer). WhatsApp name: ${input.senderName || "-"}`,
+    ...(input.lessons ? [`Owner's lessons:\n${input.lessons}`] : []),
     `Today: ${new Date().toISOString().slice(0, 10)}`,
     `Conversation so far:\n${history}`,
     `Customer's newest message:\n${input.message}`,

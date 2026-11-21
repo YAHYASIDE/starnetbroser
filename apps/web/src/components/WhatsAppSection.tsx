@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
@@ -187,6 +188,9 @@ function WhatsAppAgentPart() {
         </span>
       </label>
       <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      <Link href="/agent" className="text-action">
+        🎓 تدريب الوكيل: أجب عن أسئلته وعلّمه ←
+      </Link>
       {isRunningInAndroidApp() && (
         <div className="msg-item wa-agent-seen">
           <span className="msg-item-label">🔍 آخر رسالة رآها القارئ</span>
