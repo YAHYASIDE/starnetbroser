@@ -7,8 +7,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 👤 عليك أنت
 
-0. 💶 Correct the EUR rate in «💱 العملات» («1 USD = 0.86 €» or today's real one) - it sat at ~1.01, every euro bill
-   was ~15 % under its cost. Then decide whether past euro records (locked at the wrong rate) get corrected.
+0. 💶 Correct the EUR rate in «💱 العملات» - Nov 21 2026 it was PINNED at 1$ = 0.27 € (his screenshot: 9.98 € paid
+   11.45 $ was flagged «−25.86 $»). Steps given: «🔓 أزل التثبيت» ← «تعديل السعر» 1$ = 0.87 € ← «📌 ثبّت». Then
+   decide whether past euro records (locked at a wrong rate) get corrected.
 1. 🤖 Claude key WORKS (Nov 21 2026: key «STAR NET» created, saved, 🧪 «✓ يعمل - قال: جاهز»). Next for him: end
    «🛟 الوضع الآمن» (it was on - background parts, the WhatsApp agent included, don't run), switch on «🤖 وكيل واتساب»
    with 1-2 test numbers and tell me how the answers read; send his 10 daily commands for the foreman. If the key was

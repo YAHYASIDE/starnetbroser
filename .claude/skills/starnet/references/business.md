@@ -3688,6 +3688,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - «رمز العملات» (`lib/currencyPin.ts`): set / changed on the currencies page (the old code is needed to change it), 4+
   characters, only a SHA-256 kept in `starnet.currencyCode` (phone-only, each phone sets its own). Also needed to unpin.
 
+- Nov 21 2026 (his «ماهاذ الخطا هي فقط 9 زايد اورو ومقابلها 11 دولار»): his EUR was pinned at 1$ = 0.27 €, so a
+  correct 9.98 € = 11.45 $ payment was flagged −25.86 $ and blocked. Now an impossible rate (outside `RATE_BANDS`) is
+  never pinned («صحّحه أولًا»), and a pin already at such a rate is not trusted: the D payment shows «⚠️ سعر … المثبّت
+  خطأ» and goes through with what was really paid (no code asked).
+
 ## 🔗 Team link: a paid D no longer comes back, faster reads, a full phone said aloud (Nov 19 2026)
 
 - His «المزامنة بين الأجهزة فيها خسارة أو بطء كثير جدًا»; asked → «عملية لا تصل أبدًا، خاصةً D التي تُزال عن الأجهزة
