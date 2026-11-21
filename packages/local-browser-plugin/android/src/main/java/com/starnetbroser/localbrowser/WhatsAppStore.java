@@ -57,8 +57,6 @@ final class WhatsAppStore {
             m.put("name", name == null ? "" : name);
             m.put("text", text == null ? "" : text);
             m.put("at", at);
-            if (topic != null && !topic.isEmpty()) m.put("topic", topic);
-            if (suffix != null && !suffix.isEmpty()) m.put("suffix", suffix);
             all.put(m);
         } catch (JSONException e) {
             return;
@@ -210,6 +208,8 @@ final class WhatsAppStore {
             m.put("name", name == null ? "" : name);
             m.put("text", text == null ? "" : text);
             m.put("at", at);
+            if (topic != null && !topic.isEmpty()) m.put("topic", topic);
+            if (suffix != null && !suffix.isEmpty()) m.put("suffix", suffix);
             all.put(m);
         } catch (JSONException e) {
             return;
