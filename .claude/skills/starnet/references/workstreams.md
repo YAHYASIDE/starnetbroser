@@ -84,11 +84,11 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
 ## 4. 🔬 دراسات وأفكار جديدة (think first, build later)
 
 - 👷 «رئيس العمّال» + 🤖 WhatsApp worker on 22227268 (followups 🛠️ 10, council report
-  https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79): waits for the Claude key, his OK to keep customers' facts
+  https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79): the key is done; waits for his OK to keep customers' facts
   encrypted on his server, a Meta System User token, Firebase Blaze, and «ابدأ».
 - 📣 Ads: he asked «ماذا تقترح للإعلانات» - first idea is the «رابط الزبائن» link in every ad; budget not given yet.
 - 🌍 Global roaming as profit (customers who travel), the IP / local-service question, opening more to customers.
-- 🔑 Claude key: paid Nov 21 2026; he creates the key and tests it (followups 👤 1). Then the foreman plan below.
+- 🔑 Claude key: paid and working since Nov 21 2026 (followups 👤 1).
 - 👷 Plan told him Nov 21 2026 (studies chat): before building, switch on the built WhatsApp agent (5) on his test
   numbers; the FIRST worker to build = «رئيس العمّال» level 1 in his Telegram bot, read-only (answers + a morning
   briefing, repeats what it understood, only he commands it), on the phone - no server / Blaze; 2 weeks shadow.
