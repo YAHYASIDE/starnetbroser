@@ -7,7 +7,7 @@
  */
 
 import { sha256Hex, normalizeCode } from "./deleteCode";
-import type { Currency, CurrencyStore } from "./currencyStore";
+import { implausibleRate, type Currency, type CurrencyStore } from "./currencyStore";
 
 /** Phone-only (a code, never backed up). */
 export const CURRENCY_CODE_KEY = "starnet.currencyCode";
@@ -20,7 +20,8 @@ export function isPinned(currency: Pick<Currency, "pinnedAt"> | undefined): bool
 
 export function pinCurrency(store: CurrencyStore, code: string, now: string): CurrencyStore {
   const c = store[code];
-  if (!c || code === "USD" || c.pinnedAt) return store;
+  // an impossible rate (EUR at 0.27 instead of ~0.87, Nov 21 2026) is never pinned - it would block every D
+  if (!c || code === "USD" || c.pinnedAt || implausibleRate(code, c.rateFromUsd)) return store;
   return { ...store, [code]: { ...c, pinnedAt: now } };
 }
 
@@ -55,14 +56,19 @@ export interface PinnedPayCheck {
   diffUsd: number;
   /** Beyond PIN_TOLERANCE_USD: only with «رمز العملات». */
   needsCode: boolean;
+  /** The pinned rate itself is impossible (outside the currency's band): the pin is not trusted, the payment is not
+   * blocked, and he is told to correct the rate on the currencies page. */
+  wrongPin?: readonly [number, number];
 }
 
 /** A D paid in a pinned currency: how far the dollars paid are from the pinned rate. Null when the currency is not
  * pinned (or an amount is missing) - then nothing is checked. */
-export function pinnedPayCheck(currency: Pick<Currency, "pinnedAt" | "rateFromUsd"> | undefined, foreignAmount: number, paidUsd: number): PinnedPayCheck | null {
+export function pinnedPayCheck(currency: Pick<Currency, "code" | "pinnedAt" | "rateFromUsd"> | undefined, foreignAmount: number, paidUsd: number): PinnedPayCheck | null {
   if (!currency?.pinnedAt || !(currency.rateFromUsd > 0) || !(foreignAmount > 0) || !(paidUsd > 0)) return null;
   const expectedUsd = Math.round((foreignAmount / currency.rateFromUsd) * 100) / 100;
   const diffUsd = Math.round((paidUsd - expectedUsd) * 100) / 100;
+  const wrongPin = implausibleRate(currency.code, currency.rateFromUsd);
+  if (wrongPin) return { expectedUsd, diffUsd, needsCode: false, wrongPin };
   return { expectedUsd, diffUsd, needsCode: Math.abs(diffUsd) > PIN_TOLERANCE_USD + 0.004 };
 }
 

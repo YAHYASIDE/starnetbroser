@@ -230,6 +230,10 @@ export default function CurrenciesPage() {
   const [codeNote, setCodeNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   function pin(code: string) {
+    if (implausibleRate(code, store[code]?.rateFromUsd)) {
+      setSavedNote({ code, text: "⚠️ هذا السعر غير معقول - صحّحه أولًا («تعديل السعر») ثم ثبّته" });
+      return;
+    }
     persist(pinCurrency(store, code, new Date().toISOString()));
     setSavedNote({ code, text: "📌 ثُبّت السعر - لا يتغيّر إلا من هنا بعد إزالة التثبيت" });
   }

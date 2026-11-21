@@ -7,8 +7,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 👤 عليك أنت
 
-0. 💶 Correct the EUR rate in «💱 العملات» («1 USD = 0.86 €» or today's real one) - it sat at ~1.01, every euro bill
-   was ~15 % under its cost. Then decide whether past euro records (locked at the wrong rate) get corrected.
+0. 💶 Correct the EUR rate in «💱 العملات» - Nov 21 2026 it was PINNED at 1$ = 0.27 € (his screenshot: 9.98 € paid
+   11.45 $ was flagged «−25.86 $»). Steps given: «🔓 أزل التثبيت» ← «تعديل السعر» 1$ = 0.87 € ← «📌 ثبّت». Then
+   decide whether past euro records (locked at a wrong rate) get corrected.
 1. 🔑 تفعيل مساعد Claude - Claude payment page refused («Vos informations n'ont pas pu être enregistrées», a made-up
    tax number «Mrt001» was typed): leave the tax field empty → G Pay; else «Carte»; else «Ignorer pour le moment» and
    later Billing → Add credits (5$) with an international card (KAST) → API Keys → Create Key → paste in

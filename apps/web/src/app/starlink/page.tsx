@@ -1200,7 +1200,13 @@ function PayForm({
               {pinned?.pinnedAt ? <> · 📌 سعر {foreign} مثبّت فلا يتغيّر</> : <>{" "}· يصبح سعر {foreign} الحالي</>}
             </p>
           )}
-          {pinCheck && (
+          {pinCheck?.wrongPin && (
+            <p className="account-card-alert" data-tour="pinned-pay-check">
+              ⚠️ سعر {foreign} المثبّت خطأ: <bdi dir="ltr">1$ = {formatAmount(pinned?.rateFromUsd ?? 0)} {foreign}</bdi> (الطبيعي بين{" "}
+              <bdi dir="ltr">{pinCheck.wrongPin[0]}</bdi> و <bdi dir="ltr">{pinCheck.wrongPin[1]}</bdi>) - لم يُعتمد، والتسديد يُسجَّل بما دفعته فعلاً. صحّحه من صفحة العملات: «🔓 أزل التثبيت» ← «تعديل السعر».
+            </p>
+          )}
+          {pinCheck && !pinCheck.wrongPin && (
             <p className={pinCheck.needsCode ? "account-card-alert" : "settings-hint"} data-tour="pinned-pay-check">
               📌 بالسعر المثبّت: <bdi dir="ltr">{usd(pinCheck.expectedUsd)}</bdi> · الفرق{" "}
               <bdi dir="ltr">

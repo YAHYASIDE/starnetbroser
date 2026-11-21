@@ -51,6 +51,24 @@ describe("D paid in a pinned currency", () => {
   });
 });
 
+describe("📌 an impossible pinned rate (his Nov 21 2026 EUR at 0.27)", () => {
+  const eur: CurrencyStore = {
+    ...store,
+    EUR: { code: "EUR", name: "يورو", symbol: "€", rateFromUsd: 0.2675, updatedAt: NOW, enabled: true, pinnedAt: NOW },
+  };
+  it("does not block the payment and says the pin is wrong", () => {
+    const check = pinnedPayCheck(eur.EUR, 9.98, 11.45);
+    expect(check?.needsCode).toBe(false);
+    expect(check?.wrongPin).toEqual([0.75, 0.98]);
+  });
+  it("is never pinned; a believable rate is", () => {
+    const { pinnedAt: _p, ...unpinned } = eur.EUR;
+    const bad = { ...eur, EUR: unpinned };
+    expect(pinCurrency(bad, "EUR", NOW)).toBe(bad);
+    expect(pinCurrency({ ...bad, EUR: { ...unpinned, rateFromUsd: 0.87 } }, "EUR", NOW).EUR.pinnedAt).toBe(NOW);
+  });
+});
+
 describe("«رمز العملات»", () => {
   it("only the hash is compared; Arabic digits are the same code", () => {
     const hash = currencyCodeHash("4821");
