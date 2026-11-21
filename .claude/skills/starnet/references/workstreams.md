@@ -20,6 +20,9 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
   change only `.claude/` files unless he asks; «التسويق» only the message texts (section 3).
 - When a chat finishes something: remove it from `followups.md` / this file in the same commit; a new decision goes in
   `business.md`; a new open item goes HERE under its chat's section.
+- His Nov 21 2026 rule «دايما تأكد من الذي سيواجهني وأخبرني بالتفاصيل التي ستأتي وماذا أضع فيها لكي نعمل بسرعة»: for
+  any steps he does on a site / app, list EVERY screen and field ahead (what appears, what to pick or type, what to
+  leave), not one step at a time.
 - Reply to him in Arabic, short. Customer data, codes, keys and tokens never in chat or commits.
 
 ## 1. 🛠️ تطوير التطبيق (code, bugs, speed, security)
