@@ -278,7 +278,12 @@ public class KastNotificationListener extends NotificationListenerService {
         if (key != null && WhatsAppStore.agentAnswers(context, key)) {
             keepForAgent(id, n);
             final String agentKey = key;
-            WORK.execute(() -> WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when));
+            // 🤖 the app open (it said «I'm here» lately) answers it; closed → this reader answers by itself (WhatsAppAgentNative)
+            if (WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), System.currentTimeMillis()) || WhatsAppStore.agentPack(context) == null) {
+                WORK.execute(() -> WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when));
+            } else {
+                AGENT_WORK.execute(() -> answerNatively(context, id, phone, agentKey, name, body, when));
+            }
             return;
         }
         if (key == null || !WhatsAppStore.enabled(context) || !WhatsAppMessage.asksAboutDevice(text)) return;
@@ -286,6 +291,99 @@ public class KastNotificationListener extends NotificationListenerService {
         long now = System.currentTimeMillis();
         if (answer == null || !WhatsAppMessage.mayAnswer(WhatsAppStore.lastAnsweredAt(context, key), now)) return;
         if (replyFrom(n, answer)) WhatsAppStore.noteAnswered(context, key, name, body, now);
+    }
+
+    /** The agent's own calls to Claude (one at a time, off the main thread). */
+    private static final ExecutorService AGENT_WORK = Executors.newSingleThreadExecutor();
+
+    /**
+     * 🤖 The agent's answer while the app is closed (his Nov 21 2026 ask): the same words the app would write, from the
+     * app's pack, sent through the message's «رد»; a hand-off notifies him. Everything goes to the log the app takes in.
+     */
+    private static void answerNatively(Context context, String id, String phone, String key, String name, String text, long at) {
+        long now = System.currentTimeMillis();
+        org.json.JSONObject entry = new org.json.JSONObject();
+        try {
+            entry.put("id", id).put("key", key).put("name", name == null ? "" : name).put("text", text).put("at", at);
+            if (phone != null) entry.put("phone", phone);
+            org.json.JSONObject pack = WhatsAppStore.agentPack(context);
+            if (pack == null) return;
+            entry.put("model", pack.optString("model", ""));
+            if (now - at > WhatsAppAgentRules.FRESH_MS) {
+                entry.put("error", "قُرئت متأخرة - تُركت لك");
+                WhatsAppStore.agentNativeLog(context, entry);
+                return;
+            }
+            org.json.JSONObject waiting = pack.optJSONObject("open");
+            int open = waiting == null ? 0 : waiting.optInt(key, 0);
+            if (WhatsAppAgentNative.silenced(open, WhatsAppStore.agentNativeHandoffs(context, key), now)) {
+                entry.put("handoff", true).put("silent", true).put("reason", "سكت الوكيل: سؤالان قبله بلا جوابك");
+                WhatsAppStore.agentNativeLog(context, entry);
+                return;
+            }
+            org.json.JSONArray chat = WhatsAppAgentNative.chat(pack, key, WhatsAppStore.agentNativeChat(context, key));
+            String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new java.util.Date(now));
+            String user = WhatsAppAgentNative.userText(pack, key, name, text, chat, today);
+            WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), WhatsAppAgentNative.requestBody(pack, user).toString());
+            entry.put("input", answer.input).put("output", answer.output);
+            if (answer.error != null) {
+                entry.put("handoff", true).put("error", answer.error);
+                WhatsAppStore.agentNativeLog(context, entry);
+                AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, "لم يرد الوكيل: " + answer.error), "/agent");
+                return;
+            }
+            boolean sent = agentReply(context, id, key, answer.reply);
+            entry.put("reply", answer.reply).put("handoff", answer.handoff).put("reason", answer.reason).put("sent", sent);
+            org.json.JSONArray turns = new org.json.JSONArray().put(new org.json.JSONObject().put("from", "customer").put("text", text).put("at", at));
+            if (sent) turns.put(new org.json.JSONObject().put("from", "agent").put("text", answer.reply).put("at", System.currentTimeMillis()));
+            WhatsAppStore.agentNativeTurns(context, key, turns);
+            if (answer.handoff) WhatsAppStore.agentNativeHandoff(context, key, now);
+            WhatsAppStore.agentNativeLog(context, entry);
+            if (answer.handoff || !sent) {
+                AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, sent ? answer.reason : "لم يُرسل الرد (الإشعار اختفى) - رد عليه بنفسك"), "/agent");
+            }
+        } catch (org.json.JSONException | RuntimeException e) {
+            try {
+                entry.put("error", "تعذّر الرد والتطبيق مغلق");
+                WhatsAppStore.agentNativeLog(context, entry);
+            } catch (org.json.JSONException ignored) {
+                // nothing more to keep
+            }
+        }
+    }
+
+    /** POST /v1/messages with his key - never logged. */
+    private static WhatsAppAgentNative.Answer callClaude(String apiKey, String body) {
+        java.net.HttpURLConnection c = null;
+        try {
+            c = (java.net.HttpURLConnection) new java.net.URL("https://api.anthropic.com/v1/messages").openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(20_000);
+            c.setReadTimeout(90_000);
+            c.setDoOutput(true);
+            c.setRequestProperty("content-type", "application/json");
+            c.setRequestProperty("x-api-key", apiKey);
+            c.setRequestProperty("anthropic-version", "2023-06-01");
+            try (java.io.OutputStream out = c.getOutputStream()) {
+                out.write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            int status = c.getResponseCode();
+            java.io.InputStream in = status >= 200 && status < 300 ? c.getInputStream() : c.getErrorStream();
+            StringBuilder sb = new StringBuilder();
+            if (in != null) {
+                try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) sb.append(line).append('\n');
+                }
+            }
+            return WhatsAppAgentNative.parse(status, sb.toString());
+        } catch (java.io.IOException e) {
+            WhatsAppAgentNative.Answer a = new WhatsAppAgentNative.Answer();
+            a.error = "لا اتصال بالإنترنت";
+            return a;
+        } finally {
+            if (c != null) c.disconnect();
+        }
     }
 
     /** The MessagingStyle's last message (a Bundle with "text", "time", "sender", "sender_person"), or null. */

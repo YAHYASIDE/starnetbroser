@@ -8,7 +8,7 @@
  */
 
 import { LocalBrowser } from "@starnet/local-browser-plugin";
-import { AGENT_MODEL, askClaudeJson, hasClaudeKey } from "./claudeClient";
+import { askClaudeJson, hasClaudeKey, loadClaudeKey } from "./claudeClient";
 import { addSpend, allRead, asksAboutDevice, costOf, devicesToRefresh, newResults, NO_SPEND, REFRESH_WAIT_MS, type AgentSpend } from "./agentRefresh";
 import { listPendingAccountSyncs, startBackgroundSync } from "./localBrowser";
 import { applyPendingSyncs, type PendingSyncLike } from "./starlinkSync";
@@ -30,7 +30,9 @@ import {
   AGENT_SCHEMA,
   AGENT_SETTINGS_KEY,
   AGENT_SYSTEM,
+  agentModel,
   agentNumberKeys,
+  buildAgentPack,
   agentSkipReason,
   agentUserText,
   cleanAgentSettings,
@@ -42,7 +44,7 @@ import {
   type AgentSettings,
   type AgentTurn,
 } from "./whatsappAgent";
-import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadQuestions, markSent, saveQuestions } from "./agentTraining";
+import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadQuestions, markSent, openFrom, saveQuestions } from "./agentTraining";
 
 export const AGENT_EVENT = "starnet:whatsapp-agent";
 const CHATS_KEY = "starnet.whatsappAgentChats";
@@ -116,22 +118,25 @@ function devicesOf(client: ReturnType<typeof clientByPhone>) {
   return client ? loadDemoAccounts(demoAccounts).filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt) : [];
 }
 
+/** The stores the facts read (loaded once for many customers). */
+function factsData() {
+  return { accounts: loadDemoAccounts(demoAccounts), ledger: loadLedgerStore(), invoices: loadInvoices(), adjustments: loadPartyAdjustments(), moves: loadClientMoves() };
+}
+
+function clientFacts(client: NonNullable<ReturnType<typeof clientByPhone>>, data: ReturnType<typeof factsData>, fresh: PendingSyncLike[] = []): string {
+  const own = data.accounts.filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt);
+  const accounts = fresh.length ? applyPendingSyncs(own, fresh, new Set()).accounts : own;
+  const owed = Object.fromEntries(
+    Object.entries(computeClientCombinedTotals(data.invoices, data.adjustments, client.id, accounts, data.ledger, data.moves)).map(([c, t]) => [c, t.remaining]),
+  );
+  return customerFacts(client, accounts, owed, (d) => lastChargePrice(data.ledger[d.id] ?? []));
+}
+
 /** The customer of this number and what the agent may tell him (null facts = not a registered customer). `fresh`: what
  * Starlink just returned for his devices (applied on top, the home screen keeps it as usual). */
 function factsFor(phone: string, fresh: PendingSyncLike[] = []): { client: ReturnType<typeof clientByPhone>; facts: string | null } {
-  const clients = loadClientStore();
-  const client = clientByPhone(clients, phone);
-  let facts: string | null = null;
-  if (client) {
-    const own = devicesOf(client);
-    const accounts = fresh.length ? applyPendingSyncs(own, fresh, new Set()).accounts : own;
-    const ledger = loadLedgerStore();
-    const owed = Object.fromEntries(
-      Object.entries(computeClientCombinedTotals(loadInvoices(), loadPartyAdjustments(), client.id, accounts, ledger, loadClientMoves())).map(([c, t]) => [c, t.remaining]),
-    );
-    facts = customerFacts(client, accounts, owed, (d) => lastChargePrice(ledger[d.id] ?? []));
-  }
-  return { client, facts };
+  const client = clientByPhone(loadClientStore(), phone);
+  return { client, facts: client ? clientFacts(client, factsData(), fresh) : null };
 }
 
 /** 🎓 «جرّب»: the agent's answer to a message he types, as a customer (a number = that customer's facts) - nothing is
@@ -144,7 +149,7 @@ export async function agentPreview(message: string, phone: string, chat: AgentTu
     schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
     keys: AGENT_KEYS,
     effort: "low",
-    model: AGENT_MODEL,
+    model: agentModel(loadAgentSettings()),
   });
   if (answer.ok) recordSpend(answer.usage);
   return answer.ok ? { ok: true, value: answer.value, customer: client?.name ?? null } : answer;
@@ -198,7 +203,7 @@ export async function runWhatsAppAgent(): Promise<number> {
         schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
         keys: AGENT_KEYS,
         effort: "low",
-        model: AGENT_MODEL,
+        model: agentModel(loadAgentSettings()),
       });
       if (answer.ok) recordSpend(answer.usage);
       if (!answer.ok) {
@@ -298,4 +303,68 @@ function recordSpend(usage: { model: string; input: number; output: number } | u
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   writeJson(SPEND_KEY, addSpend(loadAgentSpend(), date, costOf(usage.model, usage.input, usage.output)));
   window.dispatchEvent(new Event(AGENT_EVENT));
+}
+
+// ---- 🤖 answering while the app is closed (WhatsAppAgentNative.java) ----
+
+/** «I'm here»: while the app runs, it answers the waiting messages itself. */
+export async function agentHeartbeat(): Promise<void> {
+  await LocalBrowser.whatsappAgentHeartbeat();
+}
+
+let lastPack = "";
+let lastPackAt = 0;
+const PACK_EVERY_MS = 60_000;
+
+/** Everything the reader needs to answer alone - pushed when it changed, at most once a minute (or `force`). */
+export async function pushAgentPack(force = false): Promise<void> {
+  const settings = loadAgentSettings();
+  if (!settings.on || !hasClaudeKey()) return;
+  if (!force && Date.now() - lastPackAt < PACK_EVERY_MS) return;
+  lastPackAt = Date.now();
+  const facts: Record<string, string> = {};
+  const data = factsData();
+  for (const c of Object.values(loadClientStore())) {
+    const key = phoneKey(c.phone);
+    if (!key || (c as { deletedAt?: string | null }).deletedAt) continue;
+    facts[key] = clientFacts(c, data);
+  }
+  const open: Record<string, number> = {};
+  const questions = loadQuestions();
+  for (const q of questions) open[q.key] = openFrom(questions, q.key, Date.now()).length;
+  const pack = buildAgentPack({
+    apiKey: loadClaudeKey(),
+    model: agentModel(settings),
+    business: loadBusinessProfile().name,
+    payment: paymentInstructions(),
+    lessons: lessonsText(loadLessons()),
+    facts,
+    chats: readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {}),
+    open,
+    now: Date.now(),
+  });
+  if (pack === lastPack) return;
+  await LocalBrowser.whatsappAgentPack({ pack });
+  lastPack = pack;
+}
+
+/** What the reader did while the app was closed → the log, the chats, the questions, the spend. */
+export async function importNativeAgent(): Promise<number> {
+  const { entries } = await LocalBrowser.whatsappAgentTakeNative();
+  if (!entries.length) return 0;
+  const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
+  for (const e of entries) {
+    const m = { id: e.id, key: e.key, phone: e.phone, name: e.name, text: e.text, at: e.at };
+    addLog({ at: e.at, name: e.name, question: e.text, reply: e.reply ?? "", handoff: e.handoff === true, sent: e.sent === true, ...(e.error ? { error: `📴 ${e.error}` } : e.silent ? { error: "🤐 سكت - ينتظر جوابك في «🎓 تدريب الوكيل»" } : {}) });
+    chats[e.key] = withTurns(chats[e.key] ?? [], { from: "customer", text: e.text, at: e.at }, ...(e.sent && e.reply ? [{ from: "agent" as const, text: e.reply, at: e.at }] : []));
+    if (e.model && (e.input || e.output)) recordSpend({ model: e.model, input: e.input ?? 0, output: e.output ?? 0 });
+    if (e.handoff || e.error) {
+      const before = loadQuestions();
+      const after = addQuestion(before, { messageId: m.id, key: m.key, phone: m.phone, name: m.name, text: m.text, at: m.at, agentReply: e.sent ? e.reply ?? "" : "", reason: e.silent ? "سكت الوكيل: سؤالان قبله بلا جوابك" : e.error ? `لم يرد الوكيل: ${e.error}` : e.reason ?? "" }, Date.now());
+      if (after !== before) saveQuestions(after);
+    }
+  }
+  writeJson(CHATS_KEY, chats);
+  lastPackAt = 0; // the reader starts its own turns again from the next pack
+  return entries.length;
 }

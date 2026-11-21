@@ -55,6 +55,7 @@ export function allRead(results: PendingSyncLike[], ids: string[]): boolean {
 /** $ per million tokens (Anthropic's price list, Nov 2026) - the estimate only; the real balance is in platform.claude.com. */
 const PRICES: Record<string, { input: number; output: number }> = {
   "claude-haiku-5-5": { input: 0.1, output: 0.5 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
   "claude-opus-5-5": { input: 4, output: 20 },
 };
 

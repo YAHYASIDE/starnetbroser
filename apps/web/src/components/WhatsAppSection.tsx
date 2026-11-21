@@ -180,6 +180,13 @@ function WhatsAppAgentPart() {
         {saved ? " · حُفظ" : ""}
       </p>
       <label className="toggle-switch-row">
+        <span>🧠 وكيل أذكى (Claude Sonnet - نحو 20 ضعف السعر)</span>
+        <span className={`toggle-switch${s.smart ? " toggle-switch-on" : ""}`}>
+          <input type="checkbox" checked={s.smart === true} onChange={(e) => save({ ...s, smart: e.target.checked || undefined })} />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <label className="toggle-switch-row">
         <span>يرد على كل من يراسلني (بعد التجربة)</span>
         <span className={`toggle-switch${s.everyone ? " toggle-switch-on" : ""}`}>
           <input
@@ -193,9 +200,9 @@ function WhatsAppAgentPart() {
           <span className="toggle-switch-thumb" />
         </span>
       </label>
-      <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      <p className="settings-hint">يرد والتطبيق مفتوح أو مغلق (ما دامت «قراءة الإشعارات» مفعّلة)؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
       <p className="settings-hint">
-        {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: Claude Haiku). الرصيد الحقيقي في platform.claude.com ← Billing.
+        {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: {s.smart ? "Claude Sonnet" : "Claude Haiku"}). الرصيد الحقيقي في platform.claude.com ← Billing.
       </p>
       <Link href="/agent" className="text-action">
         🎓 تدريب الوكيل: أجب عن أسئلته وعلّمه ←

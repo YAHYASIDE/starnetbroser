@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { agentNumberKeys, agentSeenLines, agentSkipReason, agentUserText, cleanAgentSettings, customerFacts, handoffNotice, MAX_TURNS, withTurns } from "./whatsappAgent";
+import { agentModel, buildAgentPack, agentNumberKeys, agentSeenLines, agentSkipReason, agentUserText, cleanAgentSettings, customerFacts, handoffNotice, MAX_TURNS, withTurns } from "./whatsappAgent";
 
 // Fake data only.
 describe("🤖 WhatsApp agent (his Nov 15 2026 ask)", () => {
@@ -57,5 +57,36 @@ describe("🔍 why the agent left a message (Nov 21 2026)", () => {
       match: "-",
       reason: "محفوظ باسم - لم يُقرأ رقمه",
     });
+  });
+});
+
+describe("🤖 answering while the app is closed (Nov 21 2026)", () => {
+  it("🧠 Sonnet only when he turned it on", () => {
+    expect(agentModel({})).toBe("claude-haiku-5-5");
+    expect(agentModel({ smart: true })).toBe("claude-sonnet-5-5");
+    expect(cleanAgentSettings({ on: true, smart: true }).smart).toBe(true);
+    expect(cleanAgentSettings({ on: true, smart: "yes" }).smart).toBeUndefined();
+  });
+
+  it("the reader's pack: the same words, the last day's chats only", () => {
+    const now = 10 * 24 * 3600_000;
+    const pack = JSON.parse(
+      buildAgentPack({
+        apiKey: "sk-ant-fake",
+        model: "claude-haiku-5-5",
+        business: "STAR NET",
+        payment: "• BANKILY : 0000",
+        lessons: "- x",
+        facts: { "70000001": "Known customer: زبون" },
+        chats: { "70000001": [{ from: "customer", text: "سلام", at: now - 1000 }], "70000002": [{ from: "customer", text: "قديم", at: now - 2 * 24 * 3600_000 }] },
+        open: { "70000001": 1 },
+        now,
+      }),
+    );
+    expect(pack.system).toContain("STAR NET");
+    expect(pack.schema.required).toEqual(["reply", "handoff", "reason"]);
+    expect(Object.keys(pack.chats)).toEqual(["70000001"]);
+    expect(pack.open).toEqual({ "70000001": 1 });
+    expect(pack.facts["70000001"]).toBe("Known customer: زبون");
   });
 });

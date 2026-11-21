@@ -23,6 +23,8 @@ export interface AgentSettings {
   everyone: boolean;
   /** His test numbers, as he typed them. */
   numbers: string[];
+  /** 🧠 «وكيل أذكى» (his Nov 21 2026 choice): Claude Sonnet instead of Haiku - smarter, about 20 times the cost. */
+  smart?: boolean;
 }
 
 export const NO_AGENT: AgentSettings = { on: false, everyone: false, numbers: [] };
@@ -30,7 +32,54 @@ export const NO_AGENT: AgentSettings = { on: false, everyone: false, numbers: []
 export function cleanAgentSettings(raw: unknown): AgentSettings {
   if (!raw || typeof raw !== "object") return NO_AGENT;
   const r = raw as Partial<AgentSettings>;
-  return { on: r.on === true, everyone: r.everyone === true, numbers: Array.isArray(r.numbers) ? r.numbers.filter((n): n is string => typeof n === "string") : [] };
+  return {
+    on: r.on === true,
+    everyone: r.everyone === true,
+    numbers: Array.isArray(r.numbers) ? r.numbers.filter((n): n is string => typeof n === "string") : [],
+    ...(r.smart === true ? { smart: true } : {}),
+  };
+}
+
+export const AGENT_FAST_MODEL = "claude-haiku-5-5";
+export const AGENT_SMART_MODEL = "claude-sonnet-5-5";
+
+/** The model the agent asks: Haiku, or Sonnet when he turned on «🧠 وكيل أذكى». */
+export function agentModel(s: Pick<AgentSettings, "smart">): string {
+  return s.smart ? AGENT_SMART_MODEL : AGENT_FAST_MODEL;
+}
+
+/**
+ * 🤖 The reader's pack for answering while the app is closed (WhatsAppAgentNative.java): everything the app would put in
+ * one request. `chats` only for the customers who wrote in the last 24 hours; `open` = his questions still waiting per
+ * customer (the silence rule). His key travels to the reader only - phone-only, never in a backup.
+ */
+export function buildAgentPack(input: {
+  apiKey: string;
+  model: string;
+  business: string;
+  payment: string;
+  lessons: string;
+  facts: Record<string, string>;
+  chats: Record<string, AgentTurn[]>;
+  open: Record<string, number>;
+  now: number;
+}): string {
+  const recent: Record<string, AgentTurn[]> = {};
+  for (const [k, turns] of Object.entries(input.chats)) {
+    if (turns.length && input.now - turns[turns.length - 1]!.at < 24 * 3600_000) recent[k] = turns.slice(-MAX_TURNS);
+  }
+  return JSON.stringify({
+    apiKey: input.apiKey,
+    model: input.model,
+    system: AGENT_SYSTEM,
+    schema: AGENT_SCHEMA,
+    business: input.business,
+    payment: input.payment,
+    lessons: input.lessons,
+    facts: input.facts,
+    chats: recent,
+    open: input.open,
+  });
 }
 
 /** «22 22 33 44» / «+222…» / one per line or comma → the last 8 digits of each, once. */

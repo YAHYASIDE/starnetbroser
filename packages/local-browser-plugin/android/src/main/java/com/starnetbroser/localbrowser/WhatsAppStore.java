@@ -221,4 +221,91 @@ final class WhatsAppStore {
         a.put(at);
         prefs(context).edit().putString("agent_sent_" + key, last(a, WhatsAppAgentRules.MAX_PER_HOUR).toString()).apply();
     }
+
+    // ---- 🤖 the agent while the app is closed (WhatsAppAgentNative): the app's pack, its «I'm here», what the reader did ----
+
+    /** The app's pack (his key, model, words, lessons, customers' facts, chats). Phone-only, never in a backup. A new
+     * pack holds everything the reader did before (the app took it in) - its own turns and hand-offs start again. */
+    static synchronized void agentSetPack(Context context, String pack) {
+        prefs(context).edit().putString("agent_pack", pack).remove("agent_native_chats").remove("agent_native_handoffs").apply();
+    }
+
+    static synchronized JSONObject agentPack(Context context) {
+        String raw = prefs(context).getString("agent_pack", null);
+        if (raw == null) return null;
+        try {
+            JSONObject p = new JSONObject(raw);
+            return p.optString("apiKey", "").startsWith("sk-ant-") ? p : null;
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    static void agentHeartbeat(Context context, long at) {
+        prefs(context).edit().putLong("agent_heartbeat", at).apply();
+    }
+
+    static long agentHeartbeatAt(Context context) {
+        return prefs(context).getLong("agent_heartbeat", 0L);
+    }
+
+    private static JSONObject object(Context context, String name) {
+        try {
+            return new JSONObject(prefs(context).getString(name, "{}"));
+        } catch (JSONException e) {
+            return new JSONObject();
+        }
+    }
+
+    /** The reader's own turns with this customer since the last pack. */
+    static synchronized JSONArray agentNativeChat(Context context, String key) {
+        JSONArray a = object(context, "agent_native_chats").optJSONArray(key);
+        return a == null ? new JSONArray() : a;
+    }
+
+    static synchronized void agentNativeTurns(Context context, String key, JSONArray turns) {
+        JSONObject all = object(context, "agent_native_chats");
+        JSONArray a = all.optJSONArray(key);
+        if (a == null) a = new JSONArray();
+        for (int i = 0; i < turns.length(); i++) a.put(turns.opt(i));
+        try {
+            all.put(key, last(a, WhatsAppAgentNative.MAX_TURNS));
+        } catch (JSONException ignored) {
+            return;
+        }
+        prefs(context).edit().putString("agent_native_chats", all.toString()).apply();
+    }
+
+    static synchronized java.util.List<Long> agentNativeHandoffs(Context context, String key) {
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        JSONArray a = object(context, "agent_native_handoffs").optJSONArray(key);
+        if (a != null) for (int i = 0; i < a.length(); i++) out.add(a.optLong(i, 0L));
+        return out;
+    }
+
+    static synchronized void agentNativeHandoff(Context context, String key, long at) {
+        JSONObject all = object(context, "agent_native_handoffs");
+        JSONArray a = all.optJSONArray(key);
+        if (a == null) a = new JSONArray();
+        a.put(at);
+        try {
+            all.put(key, last(a, 10));
+        } catch (JSONException ignored) {
+            return;
+        }
+        prefs(context).edit().putString("agent_native_handoffs", all.toString()).apply();
+    }
+
+    /** What the reader did (one entry per message) - the app takes them into its log / questions / spend. */
+    static synchronized void agentNativeLog(Context context, JSONObject entry) {
+        JSONArray a = array(context, "agent_native_log");
+        a.put(entry);
+        prefs(context).edit().putString("agent_native_log", last(a, 200).toString()).commit();
+    }
+
+    static synchronized JSONArray agentTakeNativeLog(Context context) {
+        JSONArray a = array(context, "agent_native_log");
+        prefs(context).edit().remove("agent_native_log").commit();
+        return a;
+    }
 }

@@ -3789,3 +3789,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the facts / lessons (not a handoff). Open (explained, not built): answering while the app is closed (native
   Claude call), a smarter model option, buttons / pictures and voice notes (not possible through notification
   replies - only through Meta's Cloud API, followups 10).
+- ✅ Nov 21 2026, his «نعم عدّلهم كلهم وبسرعة»: (1) the agent answers while STAR NET is closed - the app pushes a
+  «pack» (his Claude key, model, AGENT_SYSTEM + schema, payment lines, lessons, each registered customer's facts by
+  phone key, the last day's chats, waiting questions per customer) to the reader's SharedPreferences (phone-only); the
+  runner says «I'm here» every 5 s; with no heartbeat for 20 s the reader (WhatsAppAgentNative.java) calls the API
+  itself, replies through the «رد», notifies him on a hand-off, and logs everything for the app to take in when it
+  opens (log 📴, chats, questions, spend). No fresh Starlink read in that path. (2) «🧠 وكيل أذكى» toggle: Sonnet 5.5
+  ($2 / $10 per M) instead of Haiku. (3) the WhatsApp Cloud API study (buttons, pictures, voice in Hassaniya) → the
+  studies chat (workstreams 4), report first.

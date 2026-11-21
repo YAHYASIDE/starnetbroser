@@ -870,6 +870,16 @@ export interface LocalBrowserPlugin {
   /** 🤖 The messages waiting for the agent's answer, oldest first. */
   whatsappAgentPending(): Promise<{ messages: WhatsAppAgentMessageRaw[] }>;
 
+  /** 🤖 The agent's pack for answering while the app is closed (his key, model, words, lessons, customers' facts, chats -
+   * apps/web lib/whatsappAgent.ts buildAgentPack). Phone-only. */
+  whatsappAgentPack(options: { pack: string }): Promise<void>;
+
+  /** 🤖 «I'm here»: the app answers the waiting messages itself for the next ~20 s. */
+  whatsappAgentHeartbeat(): Promise<void>;
+
+  /** 🤖 What the reader answered while the app was closed (taken, then forgotten natively). */
+  whatsappAgentTakeNative(): Promise<{ entries: WhatsAppAgentNativeEntry[] }>;
+
   /** 🔍 The last WhatsApp message the reader saw: when, its title, the number read (and from where: «المحادثة» /
    * «العنوان» / «اسم المرسل» / «جهة الاتصال»), whether the chat had WhatsApp's hidden id (…@lid), whether the number is
    * one of his test numbers, and why the agent took / left it. */
@@ -999,4 +1009,23 @@ export interface WhatsAppAgentSeen {
   hiddenId: boolean;
   test: boolean;
   reason: string;
+}
+
+/** 🤖 One message the reader handled while the app was closed (LocalBrowser.whatsappAgentTakeNative). */
+export interface WhatsAppAgentNativeEntry {
+  id: string;
+  key: string;
+  phone?: string;
+  name: string;
+  text: string;
+  at: number;
+  model?: string;
+  reply?: string;
+  handoff?: boolean;
+  reason?: string;
+  sent?: boolean;
+  silent?: boolean;
+  error?: string;
+  input?: number;
+  output?: number;
 }
