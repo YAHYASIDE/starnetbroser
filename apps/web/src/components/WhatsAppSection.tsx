@@ -7,7 +7,8 @@ import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
 import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
-import { AGENT_EVENT, loadAgentLog, loadAgentSettings, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
+import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
+import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 
 type Status = { access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] };
 
@@ -102,6 +103,7 @@ function WhatsAppAgentPart() {
   const [key, setKey] = useState(true);
   const [saved, setSaved] = useState(false);
   const [seen, setSeen] = useState<AgentSeen | null>(null);
+  const [spend, setSpend] = useState<AgentSpend>(NO_SPEND);
 
   // 🔍 what the phone's reader saw last (his Nov 21 2026 ask) - read again every few seconds while this is open
   useEffect(() => {
@@ -128,7 +130,11 @@ function WhatsAppAgentPart() {
       setKey(hasClaudeKey());
     };
     load();
-    const reload = () => setLog(loadAgentLog());
+    setSpend(loadAgentSpend());
+    const reload = () => {
+      setLog(loadAgentLog());
+      setSpend(loadAgentSpend());
+    };
     window.addEventListener(AGENT_EVENT, reload);
     return () => window.removeEventListener(AGENT_EVENT, reload);
   }, []);
@@ -188,6 +194,9 @@ function WhatsAppAgentPart() {
         </span>
       </label>
       <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      <p className="settings-hint">
+        {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: Claude Haiku). الرصيد الحقيقي في platform.claude.com ← Billing.
+      </p>
       <Link href="/agent" className="text-action">
         🎓 تدريب الوكيل: أجب عن أسئلته وعلّمه ←
       </Link>
@@ -232,4 +241,9 @@ function WhatsAppAgentPart() {
       )}
     </div>
   );
+}
+
+function localDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

@@ -18,7 +18,8 @@ import {
   type AgentQuestion,
 } from "@/lib/agentTraining";
 import { hasClaudeKey } from "@/lib/claudeClient";
-import { agentPreview } from "@/lib/whatsappAgentLink";
+import { AGENT_EVENT, agentPreview, loadAgentSpend } from "@/lib/whatsappAgentLink";
+import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 import { withTurns, type AgentAnswer, type AgentTurn } from "@/lib/whatsappAgent";
 
 type Tab = "questions" | "lessons" | "try";
@@ -33,19 +34,23 @@ export default function AgentTrainingPage() {
   const [tab, setTab] = useState<Tab>("questions");
   const [questions, setQuestions] = useState<AgentQuestion[]>([]);
   const [lessons, setLessons] = useState<AgentLesson[]>([]);
+  const [spend, setSpend] = useState<AgentSpend>(NO_SPEND);
 
   useEffect(() => {
     const load = () => {
       setQuestions(loadQuestions());
       setLessons(loadLessons());
+      setSpend(loadAgentSpend());
     };
     load();
     window.addEventListener(TRAINING_EVENT, load);
+    window.addEventListener(AGENT_EVENT, load);
     // what the team link brings (another phone answered / the agent asked)
     window.addEventListener("storage", load);
     const timer = window.setInterval(load, 5000);
     return () => {
       window.removeEventListener(TRAINING_EVENT, load);
+      window.removeEventListener(AGENT_EVENT, load);
       window.removeEventListener("storage", load);
       window.clearInterval(timer);
     };
@@ -65,6 +70,7 @@ export default function AgentTrainingPage() {
         ما لا يعرفه وكيل واتساب يصل هنا. اكتب الجواب: يُرسل للزبون فورًا، ويتعلّمه الوكيل للمرات القادمة. يرد الوكيل بلغة الزبون: عربية فصحى بسيطة أو
         فرنسية.
       </p>
+      {spend.monthCalls > 0 && <p className="settings-hint">{spendLine(spend, `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`)} على هذا الهاتف</p>}
 
       <div className="mailbox-tabs" role="tablist">
         {(

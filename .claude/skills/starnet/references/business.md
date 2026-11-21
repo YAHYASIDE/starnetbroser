@@ -3775,3 +3775,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Still to decide (asked twice): the agent on the cheaper model (Haiku) + «💰 استهلاك تقديري» line; the agent asking
   for a fresh Starlink sync of the customer's device before answering («مزامنة الجهاز عن طريق مشرف التطبيق»).
   The real Claude balance is only at platform.claude.com ← Billing (no API for it).
+- ✅ Nov 21 2026, his «نعم انقله إلى Haiku وابنِ مزامنة الجهاز»: the agent (runner + «💬 جرّب») asks `claude-haiku-5-5`
+  (no server-side fallback there; the rest of the assistant stays on Opus 5.5) and each phone keeps «💰 استهلاك
+  تقديري» (today / month, from each reply's tokens, Haiku $0.10 / $0.50 per M) - phone-only `starnet.whatsappAgentSpend`.
+  🔄 Device read before answering (lib/agentRefresh.ts): a question about his device + the customer's device read
+  more than 6 h ago → background sync of at most 2 of his own devices, once per device per 6 h, wait ≤ 75 s, answer
+  from the fresh result (applyPendingSyncs, not acked - the home screen merges it as usual). Needs «الظهور فوق
+  التطبيقات» on the agent's phone; else a log line and the last known data.

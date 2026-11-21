@@ -8,7 +8,10 @@
  */
 
 import { LocalBrowser } from "@starnet/local-browser-plugin";
-import { askClaudeJson, hasClaudeKey } from "./claudeClient";
+import { AGENT_MODEL, askClaudeJson, hasClaudeKey } from "./claudeClient";
+import { addSpend, allRead, asksAboutDevice, costOf, devicesToRefresh, newResults, NO_SPEND, REFRESH_WAIT_MS, type AgentSpend } from "./agentRefresh";
+import { listPendingAccountSyncs, startBackgroundSync } from "./localBrowser";
+import { applyPendingSyncs, type PendingSyncLike } from "./starlinkSync";
 import { loadClientStore } from "./clientStore";
 import { computeClientCombinedTotals } from "./clientAccount";
 import { loadClientMoves } from "./clientMoves";
@@ -108,13 +111,20 @@ export async function pushAgentSetup(): Promise<void> {
   lastSetup = look;
 }
 
-/** The customer of this number and what the agent may tell him (null facts = not a registered customer). */
-function factsFor(phone: string): { client: ReturnType<typeof clientByPhone>; facts: string | null } {
+/** This customer's devices (none for an unknown number). */
+function devicesOf(client: ReturnType<typeof clientByPhone>) {
+  return client ? loadDemoAccounts(demoAccounts).filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt) : [];
+}
+
+/** The customer of this number and what the agent may tell him (null facts = not a registered customer). `fresh`: what
+ * Starlink just returned for his devices (applied on top, the home screen keeps it as usual). */
+function factsFor(phone: string, fresh: PendingSyncLike[] = []): { client: ReturnType<typeof clientByPhone>; facts: string | null } {
   const clients = loadClientStore();
   const client = clientByPhone(clients, phone);
   let facts: string | null = null;
   if (client) {
-    const accounts = loadDemoAccounts(demoAccounts).filter((a) => a.clientId === client.id && !a.deletedAt && !a.archivedAt);
+    const own = devicesOf(client);
+    const accounts = fresh.length ? applyPendingSyncs(own, fresh, new Set()).accounts : own;
     const ledger = loadLedgerStore();
     const owed = Object.fromEntries(
       Object.entries(computeClientCombinedTotals(loadInvoices(), loadPartyAdjustments(), client.id, accounts, ledger, loadClientMoves())).map(([c, t]) => [c, t.remaining]),
@@ -134,7 +144,9 @@ export async function agentPreview(message: string, phone: string, chat: AgentTu
     schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
     keys: AGENT_KEYS,
     effort: "low",
+    model: AGENT_MODEL,
   });
+  if (answer.ok) recordSpend(answer.usage);
   return answer.ok ? { ok: true, value: answer.value, customer: client?.name ?? null } : answer;
 }
 
@@ -176,7 +188,9 @@ export async function runWhatsAppAgent(): Promise<number> {
         await done();
         continue;
       }
-      const { client, facts } = factsFor(m.phone ?? m.key);
+      // 🔄 a question about his device, his data older than 6 hours: read it again from Starlink first (agentRefresh.ts)
+      const fresh = await refreshFor(m.phone ?? m.key, m.text);
+      const { client, facts } = factsFor(m.phone ?? m.key, fresh);
       const chat = chats[m.key] ?? [];
       const answer = await askClaudeJson<AgentAnswer>({
         system: AGENT_SYSTEM,
@@ -184,7 +198,9 @@ export async function runWhatsAppAgent(): Promise<number> {
         schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
         keys: AGENT_KEYS,
         effort: "low",
+        model: AGENT_MODEL,
       });
+      if (answer.ok) recordSpend(answer.usage);
       if (!answer.ok) {
         addLog({ at: Date.now(), name: m.name, question: m.text, reply: "", handoff: true, sent: false, error: answer.message });
         ask(m, "", `لم يرد الوكيل: ${answer.message}`);
@@ -233,4 +249,53 @@ async function sendOwnerAnswers(): Promise<number> {
   }
   writeJson(CHATS_KEY, chats);
   return sentCount;
+}
+
+// ---- 🔄 a fresh Starlink read before answering (lib/agentRefresh.ts) ----
+
+const REFRESH_ASKED_KEY = "starnet.whatsappAgentRefresh";
+
+/** Reads the customer's stale devices again (background sync) and waits for the results - [] when nothing was read
+ * (not about his device, fresh enough, asked lately, the sync could not start, or no result in time). */
+async function refreshFor(phone: string, text: string): Promise<PendingSyncLike[]> {
+  if (!asksAboutDevice(text)) return [];
+  const client = clientByPhone(loadClientStore(), phone);
+  const now = Date.now();
+  const asked = readJson<Record<string, number>>(REFRESH_ASKED_KEY, {});
+  const list = devicesToRefresh(devicesOf(client), asked, now);
+  if (!list.length) return [];
+  const ids = list.map((d) => d.id);
+  for (const id of ids) asked[id] = now;
+  writeJson(REFRESH_ASKED_KEY, asked);
+  const before = new Set((await listPendingAccountSyncs()).map((p) => p.syncId));
+  if (!(await startBackgroundSync(list.map((d) => ({ id: d.id, name: d.name })), "🤖 الوكيل يقرأ جهاز زبون"))) {
+    addLog({ at: Date.now(), name: client?.name ?? "", question: text, reply: "", handoff: false, sent: false, error: "🔄 لم يستطع قراءة الجهاز من Starlink (اسمح بـ«الظهور فوق التطبيقات»، أو مزامنة أخرى تعمل) - أجاب بآخر ما يعرفه" });
+    return [];
+  }
+  let got: PendingSyncLike[] = [];
+  while (Date.now() - now < REFRESH_WAIT_MS) {
+    await new Promise((r) => window.setTimeout(r, 3000));
+    got = newResults(await listPendingAccountSyncs(), ids, before);
+    if (allRead(got, ids)) break;
+    // the home screen may have merged (and cleared) the result already: then the store holds it
+    const stored = devicesOf(client).filter((d) => ids.includes(d.id));
+    if (stored.length && stored.every((d) => d.lastSuccessfulScanAt && Date.parse(d.lastSuccessfulScanAt) >= now)) break;
+  }
+  return got;
+}
+
+// ---- 💰 the estimated spend (phone-only, lib/agentRefresh.ts) ----
+
+const SPEND_KEY = "starnet.whatsappAgentSpend";
+
+export function loadAgentSpend(): AgentSpend {
+  return { ...NO_SPEND, ...readJson<Partial<AgentSpend>>(SPEND_KEY, {}) };
+}
+
+function recordSpend(usage: { model: string; input: number; output: number } | undefined): void {
+  if (!usage) return;
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  writeJson(SPEND_KEY, addSpend(loadAgentSpend(), date, costOf(usage.model, usage.input, usage.output)));
+  window.dispatchEvent(new Event(AGENT_EVENT));
 }
