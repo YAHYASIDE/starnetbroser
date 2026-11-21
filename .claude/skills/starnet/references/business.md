@@ -3755,3 +3755,4 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - 🔍 «آخر رسالة رآها القارئ» in the agent section: title, time, the number read and from where, @lid or not, test
   number or not, why. A waiting message the app leaves (agent off / no key / older than 15 min) now leaves a line in
   «آخر ما فعله الوكيل» too.
+- ✅ Nov 21 2026: confirmed on «المسؤول 2» - the agent answers the test number (his screenshot «تم وصار يرد»).

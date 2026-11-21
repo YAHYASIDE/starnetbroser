@@ -41,11 +41,9 @@ into the working session) and whenever a task closes - short, the open lines onl
    card (sheet). Waits only for the Billing snapshot.
 1. 💬 Auto-reply on the Starlink support page (#89, his agent 4) - waits for 1 + 2 above. Auto-send only when
    `safe_to_send`.
-1a. 🐛 WhatsApp agent does not answer - FIXED Nov 21 2026 (number read from WhatsApp's hidden «…@lid» id; see
-   business.md «🤖 WhatsApp agent: the sender's number»). Waiting for him: install on «المسؤول 2», send a new message
-   from 74646158, send a picture of «🔍 آخر رسالة رآها القارئ».
-1b. 🤖 WhatsApp agent (his agent 5, built Nov 15 2026): once his Claude key works, he turns it on with his test numbers
-   and tells me how the answers read; then «كل من يراسلني».
+1b. 🤖 WhatsApp agent (his agent 5): WORKS since Nov 21 2026 on «المسؤول 2» with his test number (his screenshot: it
+   answered «ماذا تتيحون» and gave a device's end date, out-of-country days left and «ما عليك أي دين»). Next: he reads
+   more answers on the test number, then decides «كل من يراسلني».
 2. 🔴 Unread count on «💬 الدردشة» in «المزيد» (said «لم يُبنَ بعد» when the chat shipped; only inside the chat page).
 3. Chat brief (SADAGHA, in his order): 🧾 rep statement period/type + Excel · ⚖️ disputes centre · 👥 member-to-member
    chats · 📎 Excel/Word/video files · ✏️ edit message + reactions · 🗂️ conversation tabs (المالية / الملفات /
