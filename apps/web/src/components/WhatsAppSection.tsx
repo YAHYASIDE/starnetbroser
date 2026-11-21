@@ -5,7 +5,7 @@ import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
-import { agentNumberKeys, type AgentSettings } from "@/lib/whatsappAgent";
+import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
 import { AGENT_EVENT, loadAgentLog, loadAgentSettings, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
 
 type Status = { access: boolean; enabled: boolean; log: { name: string; question: string; at: number }[] };
@@ -100,6 +100,23 @@ function WhatsAppAgentPart() {
   const [log, setLog] = useState<AgentLogLine[]>([]);
   const [key, setKey] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [seen, setSeen] = useState<AgentSeen | null>(null);
+
+  // 🔍 what the phone's reader saw last (his Nov 21 2026 ask) - read again every few seconds while this is open
+  useEffect(() => {
+    if (!isRunningInAndroidApp()) return;
+    let alive = true;
+    const read = () =>
+      LocalBrowser.whatsappAgentLastSeen()
+        .then((r) => alive && setSeen(r.seen ?? null))
+        .catch(() => undefined);
+    read();
+    const timer = window.setInterval(read, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const load = () => {
@@ -170,6 +187,28 @@ function WhatsAppAgentPart() {
         </span>
       </label>
       <p className="settings-hint">يعمل والتطبيق مفتوح أو في الخلفية؛ رسالة قرأها بعد أكثر من 15 دقيقة تُترك لك.</p>
+      {isRunningInAndroidApp() && (
+        <div className="msg-item wa-agent-seen">
+          <span className="msg-item-label">🔍 آخر رسالة رآها القارئ</span>
+          {seen ? (
+            <>
+              <small className="msg-item-hint">
+                «<bdi>{seen.title || "بلا عنوان"}</bdi>» · <bdi dir="ltr">{new Date(seen.at).toLocaleString("ar", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</bdi>
+              </small>
+              <small className="msg-item-hint">
+                الرقم المقروء: {agentSeenLines(seen).phone ? <bdi dir="ltr">{agentSeenLines(seen).phone}</bdi> : null}
+                {agentSeenLines(seen).note ? ` (${agentSeenLines(seen).note})` : ""}
+              </small>
+              <small className="msg-item-hint">{agentSeenLines(seen).match}</small>
+              <small className="msg-item-hint">
+                <strong>{agentSeenLines(seen).reason}</strong>
+              </small>
+            </>
+          ) : (
+            <small className="msg-item-hint">لم يرَ القارئ أي رسالة واتساب بعد - أرسل رسالة من رقم التجربة</small>
+          )}
+        </div>
+      )}
       {log.length > 0 && (
         <>
           <p className="settings-hint">آخر ما فعله الوكيل:</p>

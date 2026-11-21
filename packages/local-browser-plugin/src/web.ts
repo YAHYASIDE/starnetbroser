@@ -5,6 +5,7 @@ import type {
   AppEventRaw,
   BankNoticeRaw,
   WhatsAppAgentMessageRaw,
+  WhatsAppAgentSeen,
   WhatsAppMessageRaw,
   FillCardItem,
   KastDeposit,
@@ -433,6 +434,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async whatsappAgentPending(): Promise<{ messages: WhatsAppAgentMessageRaw[] }> {
     return { messages: [] };
+  }
+
+  async whatsappAgentLastSeen(): Promise<{ seen?: WhatsAppAgentSeen }> {
+    return {};
   }
 
   async whatsappAgentAck(_options: { ids: string[] }): Promise<void> {

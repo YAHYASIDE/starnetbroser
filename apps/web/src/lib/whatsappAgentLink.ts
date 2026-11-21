@@ -28,6 +28,7 @@ import {
   AGENT_SETTINGS_KEY,
   AGENT_SYSTEM,
   agentNumberKeys,
+  agentSkipReason,
   agentUserText,
   cleanAgentSettings,
   customerFacts,
@@ -120,7 +121,10 @@ export async function runWhatsAppAgent(): Promise<number> {
     const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
     for (const m of messages) {
       const done = () => LocalBrowser.whatsappAgentAck({ ids: [m.id] });
-      if (!settings.on || !hasClaudeKey() || Date.now() - m.at > FRESH_MS) {
+      // 🔍 a message left unanswered says why in «آخر ما فعله الوكيل» (it vanished silently before)
+      const skip = agentSkipReason({ on: settings.on, hasKey: hasClaudeKey(), ageMs: Date.now() - m.at, freshMs: FRESH_MS });
+      if (skip) {
+        addLog({ at: Date.now(), name: m.name, question: m.text, reply: "", handoff: false, sent: false, error: skip });
         await done();
         continue;
       }

@@ -1166,6 +1166,21 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🔍 The last WhatsApp message the reader saw and why the agent took / left it (null `seen` = none yet). */
+    @PluginMethod
+    public void whatsappAgentLastSeen(PluginCall call) {
+        JSObject ret = new JSObject();
+        org.json.JSONObject seen = WhatsAppStore.agentLastSeen(getContext());
+        if (seen != null) {
+            try {
+                ret.put("seen", JSObject.fromJSONObject(seen));
+            } catch (org.json.JSONException ignored) {
+                // no line
+            }
+        }
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void whatsappAgentAck(PluginCall call) {
         java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));

@@ -3735,3 +3735,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - His report «الإنترنت جيد، لكن المسؤولين يزيلون D أو يعدّلون أي شيء ولا يظهر عندي، وما أفعله لا يظهر عندهم
   أحيانًا». Cause: a send-only round never announced its batch (the head), so an edit made while busy stayed unseen
   until something else moved. Every round now announces (`headSeq`). Every linked phone needs this build.
+
+## 🤖 WhatsApp agent: the sender's number from the title, not WhatsApp's hidden id (Nov 21 2026)
+
+- His report: the agent never answered on «المسؤول 2» (key ok, agent on, test number 74646158, notification
+  «+223 74 64 61 58» arriving), «آخر ما فعله الوكيل» empty. Cause: `WhatsAppMessage.phoneOf` took the digits of the
+  chat id first, and newer WhatsApp gives many chats a hidden id «…@lid» whose digits are not a phone → a wrong
+  number, never one of his test numbers. Also the title carries invisible direction marks and «(3 رسائل)».
+- His choices (approved plan + his 3 additions): the number comes from the chat id ONLY when it is a phone
+  (`@s.whatsapp.net` / `@c.us`), else the title, else the last message's sender, else sender_person (uri `tel:` /
+  key); a saved contact with no number says «محفوظ باسم - لم يُقرأ رقمه». The same reading serves the fixed answer,
+  «📧 إيميل من واتساب» and finding the chat again to send the agent's «رد» (a `@lid` chat too); a customer answered
+  before (chat id = his phone) still is. 74646158 is his own Mali number, not a rep.
+- 🔍 «آخر رسالة رآها القارئ» in the agent section: title, time, the number read and from where, @lid or not, test
+  number or not, why. A waiting message the app leaves (agent off / no key / older than 15 min) now leaves a line in
+  «آخر ما فعله الوكيل» too.

@@ -145,3 +145,31 @@ export function agentUserText(input: {
 export function handoffNotice(name: string, phone: string | undefined, message: string, reason: string): string {
   return `🤖 زبون يحتاجك على واتساب\n${name}${phone ? ` (${phone})` : ""}: «${message.slice(0, 160)}»${reason ? `\nالسبب: ${reason}` : ""}`;
 }
+
+// ---- 🔍 why a message was left (his Nov 21 2026 ask: the agent never answered and nothing showed) ----
+
+/** Why the app left a waiting message unanswered - null = it answers it. Each one now leaves a line in the log. */
+export function agentSkipReason(input: { on: boolean; hasKey: boolean; ageMs: number; freshMs: number }): string | null {
+  if (!input.on) return "الوكيل متوقف";
+  if (!input.hasKey) return "لا مفتاح Claude";
+  if (input.ageMs > input.freshMs) return `قُرئت بعد ${Math.round(input.ageMs / 60_000)} دقيقة (أكثر من ${Math.round(input.freshMs / 60_000)}) - تُركت لك`;
+  return null;
+}
+
+/** What the phone's reader saw last (LocalBrowser.whatsappAgentLastSeen). */
+export interface AgentSeen {
+  at: number;
+  title: string;
+  phone?: string;
+  from?: string;
+  hiddenId: boolean;
+  test: boolean;
+  reason: string;
+}
+
+/** «🔍 آخر رسالة رآها القارئ»: its lines, in his words (`phone` goes in a left-to-right <bdi>). */
+export function agentSeenLines(seen: AgentSeen): { phone: string | null; note: string; match: string; reason: string } {
+  const notes = [seen.phone ? (seen.from ? `من ${seen.from}` : "") : "لا رقم", seen.hiddenId ? "المحادثة بمعرّف مخفي (@lid)" : ""].filter(Boolean);
+  const match = seen.phone ? (seen.test ? "✓ من أرقام التجربة" : "✗ ليس من أرقام التجربة") : "-";
+  return { phone: seen.phone ? `+${seen.phone}` : null, note: notes.join(" · "), match, reason: seen.reason };
+}

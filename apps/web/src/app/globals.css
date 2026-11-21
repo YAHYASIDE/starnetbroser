@@ -20721,6 +20721,7 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
   min-width: 0;
   box-sizing: border-box;
 }
+.wa-agent-seen { cursor: default; margin-block: 8px; }
 .wa-agent-line {
   display: grid;
   gap: 2px;

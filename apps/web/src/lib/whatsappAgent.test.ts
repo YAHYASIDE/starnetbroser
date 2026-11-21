@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { agentNumberKeys, agentUserText, cleanAgentSettings, customerFacts, handoffNotice, MAX_TURNS, withTurns } from "./whatsappAgent";
+import { agentNumberKeys, agentSeenLines, agentSkipReason, agentUserText, cleanAgentSettings, customerFacts, handoffNotice, MAX_TURNS, withTurns } from "./whatsappAgent";
 
 // Fake data only.
 describe("🤖 WhatsApp agent (his Nov 15 2026 ask)", () => {
@@ -30,5 +30,29 @@ describe("🤖 WhatsApp agent (his Nov 15 2026 ask)", () => {
     expect(long).toHaveLength(MAX_TURNS);
     expect(long[0]!.text).toBe("8");
     expect(handoffNotice("أحمد", "22230000002", "دفعت", "يقول إنه دفع")).toContain("السبب: يقول إنه دفع");
+  });
+});
+
+describe("🔍 why the agent left a message (Nov 21 2026)", () => {
+  it("says it in his words", () => {
+    expect(agentSkipReason({ on: false, hasKey: true, ageMs: 0, freshMs: 900_000 })).toBe("الوكيل متوقف");
+    expect(agentSkipReason({ on: true, hasKey: false, ageMs: 0, freshMs: 900_000 })).toBe("لا مفتاح Claude");
+    expect(agentSkipReason({ on: true, hasKey: true, ageMs: 20 * 60_000, freshMs: 900_000 })).toBe("قُرئت بعد 20 دقيقة (أكثر من 15) - تُركت لك");
+    expect(agentSkipReason({ on: true, hasKey: true, ageMs: 60_000, freshMs: 900_000 })).toBeNull();
+  });
+
+  it("shows the reader's last message", () => {
+    expect(agentSeenLines({ at: 1, title: "+223 70 00 00 01", phone: "22370000001", from: "العنوان", hiddenId: true, test: true, reason: "✓ دخلت للوكيل" })).toEqual({
+      phone: "+22370000001",
+      note: "من العنوان · المحادثة بمعرّف مخفي (@lid)",
+      match: "✓ من أرقام التجربة",
+      reason: "✓ دخلت للوكيل",
+    });
+    expect(agentSeenLines({ at: 1, title: "زبون", hiddenId: false, test: false, reason: "محفوظ باسم - لم يُقرأ رقمه" })).toEqual({
+      phone: null,
+      note: "لا رقم",
+      match: "-",
+      reason: "محفوظ باسم - لم يُقرأ رقمه",
+    });
   });
 });

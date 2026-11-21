@@ -27,6 +27,16 @@ final class WhatsAppAgentRules {
         return testNumbers != null && testNumbers.contains(key);
     }
 
+    /** 🔍 Why the agent took / left a message - the agent section's «آخر رسالة رآها القارئ» (his Nov 21 2026 ask).
+     * `savedName`: the title is a contact's name, not a number. */
+    static String reason(String key, boolean savedName, boolean on, boolean everyone, Collection<String> testNumbers, Collection<String> repKeys) {
+        if (key == null) return savedName ? "محفوظ باسم - لم يُقرأ رقمه" : "لم يُقرأ رقم المرسل";
+        if (!on) return "الوكيل متوقف (أو لا مفتاح Claude)";
+        if (repKeys != null && repKeys.contains(key)) return "رقم مندوب - لا يرد عليه الوكيل";
+        if (everyone || (testNumbers != null && testNumbers.contains(key))) return "✓ دخلت للوكيل";
+        return "ليس من أرقام التجربة";
+    }
+
     static boolean fresh(long messageAt, long now) {
         return messageAt > 0 && now - messageAt <= FRESH_MS;
     }

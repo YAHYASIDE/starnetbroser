@@ -146,6 +146,32 @@ final class WhatsAppStore {
         return WhatsAppAgentRules.answers(key, p.getBoolean("agent_on", false), p.getBoolean("agent_all", false), list(context, "agent_numbers"), list(context, "agent_reps"));
     }
 
+    /** 🔍 Why the agent would take / leave a message from `key` (WhatsAppAgentRules.reason) with his current settings. */
+    static String agentReason(Context context, String key, boolean savedName) {
+        SharedPreferences p = prefs(context);
+        return WhatsAppAgentRules.reason(key, savedName, p.getBoolean("agent_on", false), p.getBoolean("agent_all", false), list(context, "agent_numbers"), list(context, "agent_reps"));
+    }
+
+    /** Whether `key` is one of his test numbers. */
+    static boolean agentIsTest(Context context, String key) {
+        return key != null && list(context, "agent_numbers").contains(key);
+    }
+
+    /** 🔍 The last WhatsApp message the reader saw (phone only, never in a backup): for the agent section's line. */
+    static synchronized void agentNoteSeen(Context context, JSONObject seen) {
+        prefs(context).edit().putString("agent_last_seen", seen.toString()).apply();
+    }
+
+    static synchronized JSONObject agentLastSeen(Context context) {
+        String raw = prefs(context).getString("agent_last_seen", null);
+        if (raw == null) return null;
+        try {
+            return new JSONObject(raw);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     /** [{"id","phone","key","name","text","at"}], oldest first - for the app to answer. */
     static synchronized JSONArray agentInbox(Context context) {
         return array(context, "agent_inbox");

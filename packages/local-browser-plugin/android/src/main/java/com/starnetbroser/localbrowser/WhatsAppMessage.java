@@ -33,20 +33,83 @@ final class WhatsAppMessage {
         return groupFlag || (conversationId != null && conversationId.endsWith("@g.us"));
     }
 
-    /** The sender's number: the chat's id «22220000001@s.whatsapp.net», else a title that is a number. */
+    /** Where a sender's number was read from - shown in the agent's 🔍 line. */
+    static final String FROM_CHAT = "المحادثة";
+    static final String FROM_TITLE = "العنوان";
+    static final String FROM_SENDER = "اسم المرسل";
+    static final String FROM_PERSON = "جهة الاتصال";
+
+    /** A sender's number and where it came from (both null = not found). */
+    static final class Found {
+        final String phone;
+        final String from;
+
+        Found(String phone, String from) {
+            this.phone = phone;
+            this.from = from;
+        }
+    }
+
+    /**
+     * The sender's number (his Nov 21 2026 report: the agent never answered). Read, in order, from: the chat's id only
+     * when it IS a phone («22220000001@s.whatsapp.net» - never «…@lid», WhatsApp's hidden id whose digits are not a
+     * number); the notification's title («+223 74 64 61 58», with WhatsApp's invisible direction marks and a «(3
+     * رسائل)» tail removed); the last message's sender; its sender_person (uri «tel:…» or key). Same order for the
+     * agent, the fixed answer and «📧 إيميل من واتساب».
+     */
+    static Found find(String conversationId, String title, String sender, String personUri, String personKey) {
+        String p = chatPhone(conversationId);
+        if (p != null) return new Found(p, FROM_CHAT);
+        p = numberText(title);
+        if (p != null) return new Found(p, FROM_TITLE);
+        p = numberText(sender);
+        if (p != null) return new Found(p, FROM_SENDER);
+        p = personUri != null && personUri.startsWith("tel:") ? numberText(personUri.substring(4)) : chatPhone(personUri);
+        if (p == null) p = chatPhone(personKey);
+        if (p == null && personKey != null && !personKey.contains("@")) p = numberText(personKey);
+        if (p != null) return new Found(p, FROM_PERSON);
+        return new Found(null, null);
+    }
+
+    /** The sender's number from the chat's id and the title only (kept for callers with nothing more). */
     static String phoneOf(String conversationId, String title) {
-        if (conversationId != null) {
-            int at = conversationId.indexOf('@');
-            String head = at > 0 ? conversationId.substring(0, at) : conversationId;
-            String digits = head.replaceAll("[^0-9]", "");
-            if (digits.length() >= 8 && head.matches("[0-9+\\- ]+")) return digits;
+        return find(conversationId, title, null, null, null).phone;
+    }
+
+    /** WhatsApp's hidden chat id («…@lid») - its digits are not the sender's phone. */
+    static boolean isHiddenId(String conversationId) {
+        return conversationId != null && conversationId.endsWith("@lid");
+    }
+
+    /** A chat id that is a phone: «<digits>@s.whatsapp.net» / «@c.us», or bare digits. */
+    static String chatPhone(String id) {
+        if (id == null) return null;
+        int at = id.indexOf('@');
+        String head = at >= 0 ? id.substring(0, at) : id;
+        if (at >= 0) {
+            String server = id.substring(at + 1);
+            if (!server.equals("s.whatsapp.net") && !server.equals("c.us")) return null;
         }
-        if (title != null && title.trim().matches("\\+?[0-9][0-9 \\-]{6,}")) {
-            String digits = title.replaceAll("[^0-9]", "");
-            if (digits.startsWith("00")) digits = digits.substring(2);
-            if (digits.length() >= 8) return digits;
-        }
-        return null;
+        if (!head.matches("\\+?[0-9][0-9\\- ]*")) return null;
+        String digits = head.replaceAll("[^0-9]", "");
+        return digits.length() >= 8 ? digits : null;
+    }
+
+    /** WhatsApp's invisible direction marks / no-break spaces, and a «(3 رسائل)» / «(3 messages)» tail. */
+    static String clean(String s) {
+        if (s == null) return null;
+        String t = s.replaceAll("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\uFEFF]", "").replace('\u00A0', ' ').replace('\u202F', ' ');
+        t = t.replaceAll("\\s*[(（][^()（）]*[)）]\\s*$", "");
+        return t.trim();
+    }
+
+    /** A text that is just a phone number → its digits (no leading 00), else null. */
+    static String numberText(String s) {
+        String t = clean(s);
+        if (t == null || !t.matches("\\+?[0-9][0-9 \\-().]{6,}")) return null;
+        String digits = t.replaceAll("[^0-9]", "");
+        if (digits.startsWith("00")) digits = digits.substring(2);
+        return digits.length() >= 8 ? digits : null;
     }
 
     /** The last 8 digits - how the app keys a customer's answer. */
