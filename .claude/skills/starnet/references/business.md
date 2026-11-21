@@ -3741,6 +3741,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   أحيانًا». Cause: a send-only round never announced its batch (the head), so an edit made while busy stayed unseen
   until something else moved. Every round now announces (`headSeq`). Every linked phone needs this build.
 
+## 🔑 Activation password + domain-only email (Nov 21 2026)
+
+- «كلمة سر التفعيل»: one word he types in الإعدادات ← عام (`starnet.activationPassword`, phone only, never in code):
+  every new device starts with it as the email password, the Starlink password (Starlink's «تعيين كلمة مرور» page is
+  filled with it during the KIT activation) and the Wi-Fi code.
+- A new device's email is ONLY on his domain (@his domain in «بريد على نطاقي») - the «📧 أوتلوك» choice is gone from
+  «إنشاء حساب جديد» (an Outlook he couldn't open cost him a device); a typed address off the domain shows a red warning.
+- He dropped («اتركنا منها») the right-edge buttons / clean phone screenshot / top «نسخ الجلسة» request.
+- Session lost after a new KIT activation: the hand-typed Starlink password often differed from the saved one, so the
+  sign-in form was filled wrong; now filled by the app + cookies flushed when leaving the device browser. If it still
+  signs out, ask for «🔍 تقرير الجلسة» right after activating.
+
 ## 🤖 WhatsApp agent: the sender's number from the title, not WhatsApp's hidden id (Nov 21 2026)
 
 - His report: the agent never answered on «المسؤول 2» (key ok, agent on, test number 74646158, notification

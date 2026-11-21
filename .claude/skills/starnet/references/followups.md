@@ -7,6 +7,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 👤 عليك أنت
 
+- 🔑 Nov 21 2026: type the activation password in الإعدادات ← «🔑 كلمة سر التفعيل», activate one new KIT device and
+  say whether the session stays after the activation finishes (if not: «🔍 تقرير الجلسة» from that device).
+
 0. 💶 Correct the EUR rate in «💱 العملات» - Nov 21 2026 it was PINNED at 1$ = 0.27 € (his screenshot: 9.98 € paid
    11.45 $ was flagged «−25.86 $»). Steps given: «🔓 أزل التثبيت» ← «تعديل السعر» 1$ = 0.87 € ← «📌 ثبّت». Then
    decide whether past euro records (locked at a wrong rate) get corrected.

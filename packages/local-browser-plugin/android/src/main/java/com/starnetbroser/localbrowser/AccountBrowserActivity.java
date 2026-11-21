@@ -310,7 +310,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         autoLogin = getIntent().getBooleanExtra(EXTRA_AUTO_LOGIN, false);
         activationScript = SignupFill.starlinkScript(getIntent().getStringExtra(EXTRA_ACTIVATION_KIT),
             getIntent().getStringExtra(EXTRA_ACTIVATION_FIRST_NAME), getIntent().getStringExtra(EXTRA_ACTIVATION_LAST_NAME),
-            getIntent().getStringExtra(EXTRA_ACTIVATION_EMAIL), getIntent().getStringExtra(EXTRA_ACTIVATION_PHONE));
+            getIntent().getStringExtra(EXTRA_ACTIVATION_EMAIL), getIntent().getStringExtra(EXTRA_ACTIVATION_PHONE),
+            savedLoginPassword);
 
         // Defensive re-check: the plugin already verified this before
         // starting the Activity, but this screen must never silently fall
@@ -896,6 +897,18 @@ public class AccountBrowserActivity extends AppCompatActivity {
         super.onPause();
         twoStepHandler.removeCallbacks(twoStepPoll);
         twoStepHandler.removeCallbacks(loginWatchPoll);
+        // 🔑 the sign-in is written to the phone's storage now (his Nov 21 2026 report: a device just activated came
+        // back signed out) - Chromium otherwise keeps new cookies in memory for up to 30 s, lost if Android ends the app
+        flushCookies();
+    }
+
+    private void flushCookies() {
+        if (profileName == null) return;
+        try {
+            ProfileStore.getInstance().getOrCreateProfile(profileName).getCookieManager().flush();
+        } catch (RuntimeException e) {
+            // no profile (unsupported phone) - nothing to keep
+        }
     }
 
     /** Every 1.5 s on Starlink's pages: remembers the password typed in the sign-in form, says so

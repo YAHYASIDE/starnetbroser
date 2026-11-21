@@ -4,6 +4,7 @@ import { fallbackDeviceName } from "@/lib/deviceDisplay";
 import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
 import { isValidWifiCode, loadWifiDefault, saveWifiDefault } from "@/lib/wifiDefault";
 import { isOnMailDomain, loadMailDomain } from "@/lib/mailDomain";
+import { loadActivationPassword } from "@/lib/activationPassword";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
 import { shareText } from "@/lib/shareText";
@@ -198,7 +199,11 @@ export function AccountDialog({
   }
   // 📮 His own domain (lib/mailDomain.ts): the address is just a name on it - no Outlook signup.
   const [mailDomain] = useState(() => loadMailDomain());
-  const [onDomain, setOnDomain] = useState(() => Boolean(loadMailDomain()));
+  // his Nov 21 2026 rule: a new device's email is only on his domain - no Outlook / Gmail offered (an Outlook he
+  // can't open once cost him a device); Outlook stays only on a phone with no domain saved
+  const [onDomain] = useState(() => Boolean(loadMailDomain()));
+  // 🔑 his one activation password (settings, this phone only): the email, Starlink and the Wi-Fi start with it
+  const [activationPassword] = useState(() => loadActivationPassword());
   const emailDomain = onDomain && mailDomain ? mailDomain : "outlook.com";
 
   function changeCreationName(name: string) {
@@ -216,24 +221,15 @@ export function AccountDialog({
     // fixed Wi-Fi code (saved on this phone, lib/wifiDefault.ts) - both still editable.
     const code = draft.expectedEmailPassword ?? "";
     if (name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
-      suggestedCode.current = suggestPassword(Math.random, takenCodes());
+      suggestedCode.current = activationPassword || suggestPassword(Math.random, takenCodes());
       update("expectedEmailPassword", suggestedCode.current);
     }
-    if (name.trim() && !draft.wifiPassword && wifiDefault) update("wifiPassword", wifiDefault);
+    const wifiStart = activationPassword || wifiDefault;
+    if (name.trim() && !draft.wifiPassword && wifiStart) update("wifiPassword", wifiStart);
   }
 
   function takenCodes(): string[] {
     return (existingAccounts ?? []).flatMap((a) => [a.starlinkPassword, a.expectedEmailPassword]).filter((v): v is string => Boolean(v));
-  }
-
-  /** 📮 / 📧 switch: the suggestion moves to the other domain (a typed address stays). */
-  function switchDomain(domainMode: boolean) {
-    setOnDomain(domainMode);
-    const current = (draft.expectedEmail ?? "").trim();
-    if (current && current !== suggestedEmail.current) return;
-    const next = emailBaseFor(creationName) ? suggestEmail(creationName, Math.random, domainMode && mailDomain ? mailDomain : "outlook.com") : "";
-    suggestedEmail.current = next;
-    update("expectedEmail", next);
   }
 
   function anotherEmail() {
@@ -579,23 +575,21 @@ export function AccountDialog({
 
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b className="add-field-num" aria-hidden="true">5</b> {onDomain && mailDomain ? "البريد على نطاقك (يصل إلى Gmail) *" : "البريد الجديد (أوتلوك) *"}</span>
-              {mailDomain && (
-                <span className="mail-domain-switch" role="radiogroup" aria-label="نوع البريد">
-                  <button type="button" role="radio" aria-checked={onDomain} className={onDomain ? "active" : ""} onClick={() => switchDomain(true)}>📮 @{mailDomain}</button>
-                  <button type="button" role="radio" aria-checked={!onDomain} className={onDomain ? "" : "active"} onClick={() => switchDomain(false)}>📧 أوتلوك</button>
-                </span>
-              )}
+
               <div className="suggest-input-row">
-                <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
+                <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder={mailDomain ? `name@${mailDomain}` : "name@outlook.com"} autoCapitalize="none" />
                 <button type="button" className="suggest-again" onClick={anotherEmail} disabled={!emailBaseFor(creationName)} title="اقتراح آخر من الاسم">🔄 اقتراح آخر</button>
               </div>
+              {mailDomain && (draft.expectedEmail ?? "").trim() && !isOnMailDomain(draft.expectedEmail, mailDomain) && (
+                <small className="account-card-alert">⚠️ هذا البريد ليس على نطاقك @{mailDomain} - قد لا تستطيع الدخول إليه. استعمل «🔄 اقتراح آخر».</small>
+              )}
               <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-code">
               <span className="add-field-label"><b className="add-field-num" aria-hidden="true">6</b> {onDomain && mailDomain ? "🔑 كلمة مرور Starlink *" : "كود البريد وStarlink * (8 أحرف أو أكثر)"}</span>
               {onDomain && mailDomain && (
-                <small className="add-field-note">لحساب Starlink فقط (8 أحرف أو أكثر) - اكتبها عند رسالة «تعيين كلمة مرور». البريد على نطاقك لا كلمة مرور له.</small>
+                <small className="add-field-note">لحساب Starlink (8 أحرف أو أكثر) - تُكتب وحدها في صفحة «تعيين كلمة مرور» عند التفعيل. البريد على نطاقك لا كلمة مرور له.</small>
               )}
               <div className="suggest-input-row">
                 <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
