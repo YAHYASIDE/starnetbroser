@@ -3381,6 +3381,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - His «كيف أجعل في التطبيق الكلام مع دعم تلقائي ولو بربطه بك أو بشات جي بي تي» (a screenshot of a French Starlink
   support ticket) → service: **Claude**; places: **a chat assistant + the support page only + writing a new support
   ticket**; mode: **«يرد وحده تلقائيًا»**.
+- 💳 Paying for the key (Nov 21 2026): refused until the account / billing country was not Mali (Mali is not an Anthropic
+  supported region; Mauritania and Niger are) + the KAST card's exact billing address, an empty tax id, a private
+  window and 3DS approved in KAST; he paid 5$ credit. A claude.ai subscription gives no API key.
 - 🔑 His own Anthropic API key (console.anthropic.com), set in الإعدادات ← البوتات ← «🤖 مساعد Claude» (save / test /
   remove). Phone-only `starnet.claudeKey`: never in the backup, the team link or a rep's copy. The app calls the API
   straight from the phone (no server of ours). Model `claude-opus-5-5` with Anthropic's server-side fallbacks
@@ -3718,3 +3721,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - He asked me to choose the split and ask him; he approved 5 chats: 🛠️ التطوير والأمان، 📡 الأجهزة والزبائن والمندوبون
   والحسابات، 📣 التسويق والرسائل (new: WhatsApp statuses, TikTok / Facebook ad pictures, customer message texts)، 🔬
   الدراسات والأفكار، 🧩 المهارات. Sections, rules and his paste-in prompts: `references/workstreams.md`.
+
+## 🔐 Security audit and his answers (Nov 20 2026)
+
+- Report: https://claude.ai/artifact/F9EwuFvy3pR2n1yyvU8Gf4 (7 risks). His answers, in his order:
+  1. Cards over the team link: «نعم كل مندوب يمكنه ملء مكان البطاقة» - NOT built yet: ask him whether he means the
+     team phones (المسؤول 2, laptop - already receive them, sealed) or also the reps (today the rep copy never carries
+     card details; a rep holding number + CVC is a big change).
+  2. New private signing key + a release build: yes, but ONLY after a restore from a backup has been tried on one
+     phone, and he gets the reinstall steps first (backup → uninstall → install → restore, on every phone).
+  3. Lock the team Firebase rules to the team's uids: yes.
+  4. Remove customer data from the repo's files only; the repo stays public for now (no history rewrite).
+- Done Nov 20 2026: `@capacitor/android` / `core` / `cli` 6.2.0 → 6.2.3 (GHSA-rvm3-566m-v7fv), one `@capacitor/core`
+  for every workspace (root `overrides`).
+
+## 🔗 Team link: a change made while busy now reaches the others (Nov 20 2026)
+
+- His report «الإنترنت جيد، لكن المسؤولين يزيلون D أو يعدّلون أي شيء ولا يظهر عندي، وما أفعله لا يظهر عندهم
+  أحيانًا». Cause: a send-only round never announced its batch (the head), so an edit made while busy stayed unseen
+  until something else moved. Every round now announces (`headSeq`). Every linked phone needs this build.

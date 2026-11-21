@@ -7,35 +7,47 @@ tokens each chat starts fresh and reads ONLY its own section here + `followups.m
 
 ## Rules every chat follows
 
+- His Nov 20 2026 rule: «عندما أطرح عليك أي تعديل، دلّني دائمًا في أي محادثة أرسله لكي يعدّلها». A request that
+  belongs to another chat's section → don't build it here: name that chat («تطوير التطبيق»، «الأجهزة وزباين
+  والمندوب»، «تسويق وإعلانات»، «دراسات وأفكار»، «ملفات المهارات») and give him a ready message to paste there.
+
+- FIRST: `git fetch origin claude/app-control-wnkqnh && git checkout claude/app-control-wnkqnh` - this file and
+  every decision live on that branch only (the default branch does not have them).
+
 - One branch for all of them: `claude/app-control-wnkqnh` (CI builds the APK / EXE only from it). Before starting:
   `git fetch origin claude/app-control-wnkqnh && git merge --ff-only FETCH_HEAD` (or a merge if needed). On a rejected
   push: fetch + merge, never force-push. Only ONE chat writes app code at a time; «الدراسات» and «المهارات» chats
   change only `.claude/` files unless he asks; «التسويق» only the message texts (section 3).
 - When a chat finishes something: remove it from `followups.md` / this file in the same commit; a new decision goes in
   `business.md`; a new open item goes HERE under its chat's section.
+- His Nov 21 2026 rule «دايما تأكد من الذي سيواجهني وأخبرني بالتفاصيل التي ستأتي وماذا أضع فيها لكي نعمل بسرعة»: for
+  any steps he does on a site / app, list EVERY screen and field ahead (what appears, what to pick or type, what to
+  leave), not one step at a time.
 - Reply to him in Arabic, short. Customer data, codes, keys and tokens never in chat or commits.
 
 ## 1. 🛠️ تطوير التطبيق (code, bugs, speed, security)
 
+- 🔗 Nov 20 2026 «المسؤولون يعدّلون أو يزيلون D ولا يظهر عندي، وما أفعله لا يظهر عندهم أحيانًا» - FIXED: a
+  send-only round (the member busy: a sheet open / touched < 15 s ago) wrote the batch but not the head, and a later
+  full round re-wrote the head only when cursors / counts moved - so an edit (counts unchanged) made while busy was
+  never announced: the others read only up to the head's seq and listen to the head. Now every round announces new
+  batches (`LinkState.headSeq`; an older phone announces once after the update). Test in deviceLink.test.ts. Still to
+  confirm with his screenshots of «🔗 ربط الأجهزة» on his phone + an admin's after EVERY phone has the new build.
+  Remember: on YAHYA another member's deletions wait in «🗑️ حذف من الفريق بانتظار موافقتك» by design (Nov 6 choice);
+  while he is busy his phone only sends - the others' changes land after 15 s without touching.
+
 - Done Nov 19 2026: team link - a paid D wins over an unpaid copy (`preferPaidD`), batchGet reads, a full phone
   said aloud and no half-applied round; the browser balance strip shows $ / أوقية / سيفا. Still open below.
 
-- 🔐 **Security & data-safety audit** (his Nov 18 ask: «تأكّد من قواعد البيانات ونظام بناء التطبيق أنه آمن، لا يخسر
-  البيانات ولا يطيح تلقائيًا ولا يُخترق»). Known so far (from the work, not yet a full audit):
-  - All business data lives in the phone (localStorage). Loss risks: uninstall / «مسح البيانات» / a full storage.
-    Guards that exist: daily file backup, Google Drive copy, team link copy, the encrypted export. To check: the
-    restore really works end to end, a warning when no backup for N days, storage near full (`storageGuard.ts`).
-  - Team Firebase (live link, reps, chat, flags): everything is sealed with AES-256 before it leaves the phone
-    (deviceSyncCrypto / backupCrypto) - Firebase sees ciphertext. BUT its rules allow ANY anonymous user of that project
-    to read / write / delete `/starnet/**` → someone with the project's apiKey could delete or junk the synced copies
-    (not the phone's own data). Candidate fix: rules locked to the team's uids (as done for «رابط الزبائن»), or App
-    Check. Needs his OK (every team phone must sign in once more).
-  - Freezes: fixed Nov 18 (base64 + backups after 2 min) + 🛟 safe mode; confirm with him the main phone is fine.
-  - Secrets: Claude key `starnet.claudeKey`, bot tokens, Drive tokens are `starnet.*` (phone-only, not backed up). To
-    check: none leak into backups, logs, error reports, notifications or rep copies.
-  - Build: CI (preview.yml) runs typecheck + all tests before the APK; the APK is a debug build signed with the CI
-    key. To check: dependency audit (`npm audit`), the update check (`appUpdate.ts`) only trusts the release.
-  - Deliver: a report (Artifact, Arabic) with each risk = how likely, what it costs him, the fix; then fix in order.
+- 🔐 **Security audit** - report done Nov 20 2026 (https://claude.ai/artifact/F9EwuFvy3pR2n1yyvU8Gf4), his answers in
+  `business.md` «🔐 Security audit». Capacitor 6.2.3 done. Still open, in order:
+  - 💳 Cards in the team link (`starnet_card_fill_v1` travels to every linked phone): clarify his «كل مندوب» first.
+  - 💾 Backup gaps: Drive uploads don't count for «لا نسخة احتياطية منذ أيام»; the home banner only warns at 95 %
+    (add 80 %). He tries a Drive restore on a spare phone (not the main one) and writes the backup password on paper.
+  - 🔑 Private signing key in GitHub secrets + release build (not debuggable) - only after that restore test, and
+    after he has the reinstall steps (every phone: backup → uninstall → install → restore).
+  - 🔒 Team Firebase rules locked to the team's uids (approved) - every team phone signs in once more.
+  - 🧹 Remove customer data (e.g. a customer's e-mail) from `.claude/` files; repo stays public, no history rewrite.
 - 📊 Usage counter + remove dead code (followups 11).
 - 🔴 Unread count on «💬 الدردشة» (followups 🛠️ 2); chat brief items (followups 🛠️ 3).
 - 🤖 Bot buttons «🤲 سلّمت» / «🤝 وعودي» / «💰 ديون زبائني» (offered, not chosen).
@@ -72,11 +84,15 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
 ## 4. 🔬 دراسات وأفكار جديدة (think first, build later)
 
 - 👷 «رئيس العمّال» + 🤖 WhatsApp worker on 22227268 (followups 🛠️ 10, council report
-  https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79): waits for the Claude key, his OK to keep customers' facts
+  https://claude.ai/artifact/XMTLT5AE2wDQ4MRgXHBC79): the key is done; waits for his OK to keep customers' facts
   encrypted on his server, a Meta System User token, Firebase Blaze, and «ابدأ».
 - 📣 Ads: he asked «ماذا تقترح للإعلانات» - first idea is the «رابط الزبائن» link in every ad; budget not given yet.
 - 🌍 Global roaming as profit (customers who travel), the IP / local-service question, opening more to customers.
-- 🔑 Claude key payment refused (cards only - empty tax id, exact KAST billing address, 3DS, or another card).
+- 🔑 Claude key: paid and working since Nov 21 2026 (followups 👤 1).
+- 👷 Plan told him Nov 21 2026 (studies chat): before building, switch on the built WhatsApp agent (5) on his test
+  numbers; the FIRST worker to build = «رئيس العمّال» level 1 in his Telegram bot, read-only (answers + a morning
+  briefing, repeats what it understood, only he commands it), on the phone - no server / Blaze; 2 weeks shadow.
+  Waiting for his 10 daily commands in his own words + his OK, then a ready message for the «تطوير التطبيق» chat.
 - Use the `council` skill for any big idea before building.
 
 - 🧭 Control Center report 1 (https://claude.ai/artifact/A6bVVqGXqKEF7Z295UzXVR): his 4 answers are pending
@@ -96,10 +112,12 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
    `claude/app-control-wnkqnh`. ذكّرني بالمفتوح فيه باختصار، ثم ابدأ بما أختاره. لا تغيّر شيئًا قبل موافقتي.»
 2. 📡 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 2 (الأجهزة والزبائن والمندوبون والحسابات)
    و`followups.md`، واعمل على الفرع `claude/app-control-wnkqnh`. ذكّرني بالمعلّق باختصار، ثم انتظر طلبي.»
-3. 📣 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 3 (التسويق والرسائل). ساعدني في حالات واتساب
+3. 📣 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 3 (التسويق والرسائل) على الفرع
+   `claude/app-control-wnkqnh`. ساعدني في حالات واتساب
    وصور إعلانات تيك توك وفيسبوك ونصوص رسائل الزبائن. قل لي السعر قبل أي صورة أو فيديو.»
-4. 🔬 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 4 (الدراسات والأفكار). لا تعدّل كود التطبيق.
+4. 🔬 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 4 (الدراسات والأفكار) على الفرع
+   `claude/app-control-wnkqnh`. لا تعدّل كود التطبيق.
    ذكّرني بالأفكار المفتوحة، واستعمل المجلس للأفكار الكبيرة.»
-5. 🧩 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 5 (المهارات). حسّن ملفات `.claude/skills` فقط،
+5. 🧩 «اقرأ `.claude/skills/starnet/references/workstreams.md` القسم 5 (المهارات) على الفرع `claude/app-control-wnkqnh`. حسّن ملفات `.claude/skills` فقط،
    واقترح أولًا ما ستغيّره وانتظر موافقتي.»
 

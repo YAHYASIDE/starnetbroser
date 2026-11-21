@@ -379,6 +379,24 @@ describe("the phone ↔ laptop link", () => {
     expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c2).toEqual({ id: "c2", name: "جديد" });
   });
 
+  it("🔗 a change sent while busy reaches the others even when nothing else moves (his Nov 20 2026 report)", async () => {
+    const { firebase, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({ c1: { id: "c1", name: "زبون" } }) });
+    await runLinkRound(phone, firebase);
+    // the admin edits a client while busy (a sheet open): only a send-only round runs, then he leaves the app
+    laptop.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون معدّل" } }));
+    expect((await runLinkRound(laptop, firebase, new Date(), { sendOnly: true })).sent).toBe(1);
+    // the main phone's next round sees it at once - it was never announced before
+    const got = await runLinkRound(phone, firebase);
+    expect(got.changedKeys).toEqual(["starnet_clients_v1"]);
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c1.name).toBe("زبون معدّل");
+    // and the same the other way: the main phone busy, the admin's full round gets it
+    phone.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون 2" } }));
+    await runLinkRound(phone, firebase, new Date(), { sendOnly: true });
+    await runLinkRound(phone, firebase); // a later full round with nothing else new
+    expect((await runLinkRound(laptop, firebase)).changedKeys).toEqual(["starnet_clients_v1"]);
+    expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("زبون 2");
+  });
+
   it("⚡ many batches come in a few requests", async () => {
     const { firebase, stats, phone, laptop } = await phoneAndLaptop({ starnet_clients_v1: ledger({}) });
     for (let i = 0; i < 30; i++) {
