@@ -85,7 +85,11 @@ His words: «أضف شات لتطوير حالات الواتس وصور إعل�
   encrypted on his server, a Meta System User token, Firebase Blaze, and «ابدأ».
 - 📣 Ads: he asked «ماذا تقترح للإعلانات» - first idea is the «رابط الزبائن» link in every ad; budget not given yet.
 - 🌍 Global roaming as profit (customers who travel), the IP / local-service question, opening more to customers.
-- 🔑 Claude key payment refused (cards only - empty tax id, exact KAST billing address, 3DS, or another card).
+- 🔑 Claude key: paid Nov 21 2026; he creates the key and tests it (followups 👤 1). Then the foreman plan below.
+- 👷 Plan told him Nov 21 2026 (studies chat): before building, switch on the built WhatsApp agent (5) on his test
+  numbers; the FIRST worker to build = «رئيس العمّال» level 1 in his Telegram bot, read-only (answers + a morning
+  briefing, repeats what it understood, only he commands it), on the phone - no server / Blaze; 2 weeks shadow.
+  Waiting for his 10 daily commands in his own words + his OK, then a ready message for the «تطوير التطبيق» chat.
 - Use the `council` skill for any big idea before building.
 
 - 🧭 Control Center report 1 (https://claude.ai/artifact/A6bVVqGXqKEF7Z295UzXVR): his 4 answers are pending

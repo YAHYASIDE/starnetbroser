@@ -3381,6 +3381,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - His «كيف أجعل في التطبيق الكلام مع دعم تلقائي ولو بربطه بك أو بشات جي بي تي» (a screenshot of a French Starlink
   support ticket) → service: **Claude**; places: **a chat assistant + the support page only + writing a new support
   ticket**; mode: **«يرد وحده تلقائيًا»**.
+- 💳 Paying for the key (Nov 21 2026): refused until the account / billing country was not Mali (Mali is not an Anthropic
+  supported region; Mauritania and Niger are) + the KAST card's exact billing address, an empty tax id, a private
+  window and 3DS approved in KAST; he paid 5$ credit. A claude.ai subscription gives no API key.
 - 🔑 His own Anthropic API key (console.anthropic.com), set in الإعدادات ← البوتات ← «🤖 مساعد Claude» (save / test /
   remove). Phone-only `starnet.claudeKey`: never in the backup, the team link or a rep's copy. The app calls the API
   straight from the phone (no server of ours). Model `claude-opus-5-5` with Anthropic's server-side fallbacks

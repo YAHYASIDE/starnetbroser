@@ -9,13 +9,10 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 0. 💶 Correct the EUR rate in «💱 العملات» («1 USD = 0.86 €» or today's real one) - it sat at ~1.01, every euro bill
    was ~15 % under its cost. Then decide whether past euro records (locked at the wrong rate) get corrected.
-1. 🔑 تفعيل مساعد Claude - Claude payment page refused («Vos informations n'ont pas pu être enregistrées», a made-up
-   tax number «Mrt001» was typed): leave the tax field empty → G Pay; else «Carte»; else «Ignorer pour le moment» and
-   later Billing → Add credits (5$) with an international card (KAST) → API Keys → Create Key → paste in
-   الإعدادات ← البوتات ← «🤖 مساعد Claude» ← حفظ ← 🧪 اختبار. Never send the key in chat.
-   Nov 16: platform.claude.com still refused («unable to authenticate your payment method», with a fake tax id
-   12345678 typed). Told him: empty the tax id, the KAST card's exact billing address/country, approve 3D Secure in
-   KAST; else another card, or someone abroad pays once. Anthropic takes cards only (no USDT / Binance).
+1. 🔑 مفتاح Claude - **paid Nov 21 2026** (5$ credit on platform.claude.com, after: country not Mali - Mali is not a
+   supported region, Mauritania is -, exact KAST billing address, empty tax id, private window, 3DS approved). Left:
+   https://platform.claude.com/settings/keys → Create Key → paste in الإعدادات ← البوتات ← «🤖 مساعد Claude» ← حفظ ←
+   🧪 اختبار, then tell me the test result. Never send the key in chat.
 2. 🧪 «لقطة تشخيص» of a Starlink support-ticket page (unblocks the auto-reply).
 3. 🧾 «لقطة تشخيص» of a device's Starlink **Billing** page with a balance due (his example: 282.62 BBD) - unblocks
    «كشف الفوترة» below.
