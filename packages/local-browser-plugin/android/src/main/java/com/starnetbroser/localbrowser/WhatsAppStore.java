@@ -57,6 +57,8 @@ final class WhatsAppStore {
             m.put("name", name == null ? "" : name);
             m.put("text", text == null ? "" : text);
             m.put("at", at);
+            if (topic != null && !topic.isEmpty()) m.put("topic", topic);
+            if (suffix != null && !suffix.isEmpty()) m.put("suffix", suffix);
             all.put(m);
         } catch (JSONException e) {
             return;
@@ -190,6 +192,11 @@ final class WhatsAppStore {
     }
 
     static synchronized void agentAdd(Context context, String id, String phone, String key, String name, String text, long at) {
+        agentAdd(context, id, phone, key, name, text, at, "", "");
+    }
+
+    /** `topic` / `suffix`: the menu section the customer is in (WhatsAppMenu) and the line under the answer. */
+    static synchronized void agentAdd(Context context, String id, String phone, String key, String name, String text, long at, String topic, String suffix) {
         JSONArray all = agentInbox(context);
         for (int i = 0; i < all.length(); i++) {
             JSONObject m = all.optJSONObject(i);
@@ -239,7 +246,7 @@ final class WhatsAppStore {
     /** The app's pack (his key, model, words, lessons, customers' facts, chats). Phone-only, never in a backup. A new
      * pack holds everything the reader did before (the app took it in) - its own turns and hand-offs start again. */
     static synchronized void agentSetPack(Context context, String pack) {
-        prefs(context).edit().putString("agent_pack", pack).remove("agent_native_chats").remove("agent_native_handoffs").apply();
+        prefs(context).edit().putString("agent_pack", pack).remove("agent_native_chats").remove("agent_native_handoffs").remove("menu_handoffs").apply();
     }
 
     static synchronized JSONObject agentPack(Context context) {
@@ -319,5 +326,55 @@ final class WhatsAppStore {
         JSONArray a = array(context, "agent_native_log");
         prefs(context).edit().remove("agent_native_log").commit();
         return a;
+    }
+
+    // ---- 🗂️ menus (WhatsAppMenu): each customer's place, a person's conversations, messages already handled ----
+
+    /** {"at": section id or null, "w": last welcome ms} for this customer. */
+    static synchronized JSONObject menuState(Context context, String key) {
+        JSONObject s = object(context, "menu_states").optJSONObject(key);
+        return s == null ? new JSONObject() : s;
+    }
+
+    static synchronized void saveMenuState(Context context, String key, String at, long welcome) {
+        JSONObject all = object(context, "menu_states");
+        try {
+            JSONObject s = new JSONObject().put("w", welcome);
+            if (at != null) s.put("at", at);
+            all.put(key, s);
+        } catch (JSONException e) {
+            return;
+        }
+        prefs(context).edit().putString("menu_states", all.toString()).apply();
+    }
+
+    /** A person took this customer here (until the app's pack says otherwise). */
+    static synchronized void menuHandoff(Context context, String key, long at) {
+        JSONObject all = object(context, "menu_handoffs");
+        try {
+            all.put(key, at);
+        } catch (JSONException e) {
+            return;
+        }
+        prefs(context).edit().putString("menu_handoffs", all.toString()).apply();
+    }
+
+    /** The agent is silent with this customer: a person has him (the app's list, or a hand-off here since the pack). */
+    static synchronized boolean agentPaused(Context context, JSONObject pack, String key, long now) {
+        JSONObject paused = pack.optJSONObject("paused");
+        if (paused != null && paused.optLong(key, 0L) > now) return true;
+        long at = object(context, "menu_handoffs").optLong(key, 0L);
+        JSONObject settings = pack.optJSONObject("menuSettings");
+        long hours = settings == null ? 24 : settings.optLong("handoffHours", 24);
+        return at > 0 && now - at < hours * 3_600_000L;
+    }
+
+    /** A message seen for the first time (kept across restarts - a re-posted notification is never answered twice). */
+    static synchronized boolean firstTime(Context context, String id) {
+        JSONArray seen = array(context, "seen_ids");
+        for (int i = 0; i < seen.length(); i++) if (id.equals(seen.optString(i))) return false;
+        seen.put(id);
+        prefs(context).edit().putString("seen_ids", last(seen, 300).toString()).apply();
+        return true;
     }
 }

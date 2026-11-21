@@ -989,6 +989,9 @@ export interface WhatsAppAgentMessageRaw {
   name: string;
   text: string;
   at: number;
+  /** 🗂️ The menu section it came from, and the line to put under the answer (WhatsAppMenu). */
+  topic?: string;
+  suffix?: string;
 }
 
 /** 💬 One customer message kept by the phone's WhatsApp reader (it carried an email). */
@@ -1030,4 +1033,9 @@ export interface WhatsAppAgentNativeEntry {
   error?: string;
   input?: number;
   output?: number;
+  /** 🗂️ "menu" (the menus answered) / "handoff" (a person asked for) / "staff" (a person has him: silent). */
+  type?: "menu" | "handoff" | "staff";
+  node?: string;
+  /** From his message to the reply (ms). */
+  ms?: number;
 }

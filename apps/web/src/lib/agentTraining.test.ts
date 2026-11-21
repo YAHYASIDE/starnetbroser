@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addLesson,
+  approveLesson,
   cleanMenu,
   DEFAULT_MENU,
   menuText,
@@ -95,5 +96,16 @@ describe("📋 his fixed menu", () => {
     expect(menuText(cleanMenu(null))).toBe("");
     expect(menuText(cleanMenu({ on: true, text: " 1️⃣ جهازي \n2️⃣ الدفع " }))).toBe("1️⃣ جهازي \n2️⃣ الدفع");
     expect(cleanMenu({ on: true, text: "  " }).text).toBe(DEFAULT_MENU);
+  });
+});
+
+describe("✅ a lesson from another phone waits for his approval", () => {
+  it("is not read by the agent until approved", () => {
+    let ls = addLesson([], "كم سعر التجديد", "20,000", NOW, false, "المسؤول 2");
+    expect(ls[0]).toMatchObject({ approved: false, by: "المسؤول 2" });
+    expect(lessonsText(ls)).toBe("");
+    ls = approveLesson(ls, ls[0]!.id);
+    expect(ls[0]!.approved).toBeUndefined();
+    expect(lessonsText(ls)).toBe("- Q: كم سعر التجديد\n  A: 20,000");
   });
 });

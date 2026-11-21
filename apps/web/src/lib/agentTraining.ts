@@ -63,6 +63,11 @@ export interface AgentLesson {
   answer: string;
   createdAt: number;
   updatedAt: number;
+  /** ✅ His brief (Nov 21 2026): a lesson written on another phone of the team waits for his approval before the agent
+   * reads it (prices, payments, accounts). Missing = approved (older lessons, and his own). */
+  approved?: boolean;
+  /** The team phone that wrote it. */
+  by?: string;
 }
 
 /** After this many questions without his answer, the agent is silent with that customer. */
@@ -119,6 +124,8 @@ export function answerQuestion(
   id: string,
   answer: string,
   now: number,
+  approved = true,
+  by = "",
 ): { questions: AgentQuestion[]; lessons: AgentLesson[] } {
   const text = answer.trim();
   const q = questions.find((x) => x.id === id);
@@ -128,7 +135,7 @@ export function answerQuestion(
     if (x.key === q.key && x.status === "open") return { ...x, status: "dismissed" as const };
     return x;
   });
-  return { questions: next, lessons: addLesson(lessons, q.text, text, now) };
+  return { questions: next, lessons: addLesson(lessons, q.text, text, now, approved, by) };
 }
 
 /** «تجاهل»: no answer, no lesson - the customer is no longer counted as waiting. */
@@ -146,13 +153,33 @@ export function markSent(questions: AgentQuestion[], id: string, sent: boolean, 
 }
 
 /** A lesson (a correction from the test chat, or one he writes himself). The same question again replaces its answer. */
-export function addLesson(lessons: AgentLesson[], question: string, answer: string, now: number): AgentLesson[] {
+export function addLesson(lessons: AgentLesson[], question: string, answer: string, now: number, approved = true, by = ""): AgentLesson[] {
   const q = question.trim();
   const a = answer.trim();
   if (!a) return lessons;
+  const mark = { ...(approved ? {} : { approved: false }), ...(by ? { by } : {}) };
   const same = lessons.find((l) => q && l.question.trim() === q);
-  if (same) return lessons.map((l) => (l === same ? { ...l, answer: a, updatedAt: now } : l));
-  return [...lessons, { id: newId("l", now), question: q, answer: a, createdAt: now, updatedAt: now }];
+  if (same) {
+    return lessons.map((l) => {
+      if (l !== same) return l;
+      const { approved: _a, ...rest } = l;
+      return { ...rest, answer: a, updatedAt: now, ...mark };
+    });
+  }
+  return [...lessons, { id: newId("l", now), question: q, answer: a, createdAt: now, updatedAt: now, ...mark }];
+}
+
+/** ✓ «اعتمد». */
+export function approveLesson(lessons: AgentLesson[], id: string): AgentLesson[] {
+  return lessons.map((l) => {
+    if (l.id !== id) return l;
+    const { approved: _a, ...rest } = l;
+    return rest;
+  });
+}
+
+export function isApproved(l: AgentLesson): boolean {
+  return l.approved !== false;
 }
 
 export function updateLesson(lessons: AgentLesson[], id: string, question: string, answer: string, now: number): AgentLesson[] {
@@ -167,7 +194,7 @@ export function removeLesson(lessons: AgentLesson[], id: string): AgentLesson[] 
 
 /** What the agent reads: his lessons, newest first, at most MAX_PROMPT_LESSONS. "" when none. */
 export function lessonsText(lessons: AgentLesson[]): string {
-  const latest = [...lessons].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_PROMPT_LESSONS);
+  const latest = lessons.filter(isApproved).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_PROMPT_LESSONS);
   if (!latest.length) return "";
   return latest.map((l) => (l.question ? `- Q: ${l.question}\n  A: ${l.answer}` : `- ${l.answer}`)).join("\n");
 }

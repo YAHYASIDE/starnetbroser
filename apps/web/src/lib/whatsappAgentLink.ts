@@ -44,6 +44,8 @@ import {
   type AgentSettings,
   type AgentTurn,
 } from "./whatsappAgent";
+import { catalogText, loadMenus } from "./agentMenus";
+import { addHandoff, loadHandoffs, pausedUntil, recordEvents, saveHandoffs, type AgentEvent } from "./agentDesk";
 import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadMenu, loadQuestions, markSent, menuText, openFrom, saveQuestions } from "./agentTraining";
 
 export const AGENT_EVENT = "starnet:whatsapp-agent";
@@ -141,11 +143,26 @@ function factsFor(phone: string, fresh: PendingSyncLike[] = []): { client: Retur
 
 /** 🎓 «جرّب»: the agent's answer to a message he types, as a customer (a number = that customer's facts) - nothing is
  * sent on WhatsApp. */
-export async function agentPreview(message: string, phone: string, chat: AgentTurn[]): Promise<{ ok: true; value: AgentAnswer; customer: string | null } | { ok: false; message: string }> {
+export async function agentPreview(
+  message: string,
+  phone: string,
+  chat: AgentTurn[],
+  opts: { section?: string; catalog?: string } = {},
+): Promise<{ ok: true; value: AgentAnswer; customer: string | null } | { ok: false; message: string }> {
   const { client, facts } = phone.trim() ? factsFor(phone) : { client: null, facts: null };
   const answer = await askClaudeJson<AgentAnswer>({
     system: AGENT_SYSTEM,
-    user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: "", chat, message, lessons: lessonsText(loadLessons()), menu: menuText(loadMenu()) }),
+    user: agentUserText({
+      business: loadBusinessProfile().name,
+      paymentLines: paymentInstructions(),
+      facts,
+      senderName: "",
+      chat,
+      message,
+      lessons: lessonsText(loadLessons()),
+      ...(opts.catalog !== undefined ? { catalog: opts.catalog } : menuContext()),
+      ...(opts.section ? { section: opts.section } : {}),
+    }),
     schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
     keys: AGENT_KEYS,
     effort: "low",
@@ -199,7 +216,7 @@ export async function runWhatsAppAgent(): Promise<number> {
       const chat = chats[m.key] ?? [];
       const answer = await askClaudeJson<AgentAnswer>({
         system: AGENT_SYSTEM,
-        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text, lessons, menu: menuText(loadMenu()) }),
+        user: agentUserText({ business: loadBusinessProfile().name, paymentLines: paymentInstructions(), facts, senderName: m.name, chat, message: m.text, lessons, ...menuContext(), section: m.topic || undefined }),
         schema: AGENT_SCHEMA as unknown as Record<string, unknown>,
         keys: AGENT_KEYS,
         effort: "low",
@@ -207,14 +224,28 @@ export async function runWhatsAppAgent(): Promise<number> {
       });
       if (answer.ok) recordSpend(answer.usage);
       if (!answer.ok) {
+        recordEvents([{ id: m.id, at: Date.now(), key: m.key, type: "send_fail", text: m.text.slice(0, 120) }]);
         addLog({ at: Date.now(), name: m.name, question: m.text, reply: "", handoff: true, sent: false, error: answer.message });
         ask(m, "", `لم يرد الوكيل: ${answer.message}`);
         await notifyPhone(handoffNotice(m.name, m.phone, m.text, `لم يرد الوكيل: ${answer.message}`), "/agent");
         await done();
         continue;
       }
-      const { sent } = await LocalBrowser.whatsappAgentReply({ id: m.id, key: m.key, text: answer.value.reply });
+      // 🗂️ the line under the answer (back to the menu) when it came from a menu section / began the conversation
+      const out = m.suffix ? `${answer.value.reply}\n\n${m.suffix}` : answer.value.reply;
+      const { sent } = await LocalBrowser.whatsappAgentReply({ id: m.id, key: m.key, text: out });
       if (sent) sentCount++;
+      recordEvents([
+        {
+          id: m.id,
+          at: Date.now(),
+          key: m.key,
+          type: !sent ? "send_fail" : answer.value.handoff ? "ai_handoff" : "ai_answer",
+          text: m.text.slice(0, 120),
+          ms: Date.now() - m.at,
+          ...(answer.usage ? { model: answer.usage.model, input: answer.usage.input, output: answer.usage.output } : {}),
+        },
+      ]);
       chats[m.key] = withTurns(chat, { from: "customer", text: m.text, at: m.at }, ...(sent ? [{ from: "agent" as const, text: answer.value.reply, at: Date.now() }] : []));
       writeJson(CHATS_KEY, chats);
       addLog({ at: Date.now(), name: client?.name ?? m.name, question: m.text, reply: answer.value.reply, handoff: answer.value.handoff, sent });
@@ -347,6 +378,7 @@ export async function pushAgentPack(force = false): Promise<void> {
       // one customer's odd data never stops the copy
     }
   }
+  const menus = loadMenus();
   const open: Record<string, number> = {};
   const questions = loadQuestions();
   for (const q of questions) open[q.key] = openFrom(questions, q.key, Date.now()).length;
@@ -356,7 +388,10 @@ export async function pushAgentPack(force = false): Promise<void> {
     business: loadBusinessProfile().name,
     payment: paymentInstructions(),
     lessons: lessonsText(loadLessons()),
-    menu: menuText(loadMenu()),
+    ...menuContext(),
+    menus: menus.published,
+    menuSettings: menus.settings,
+    paused: pausedUntil(loadHandoffs(), menus.settings.handoffHours),
     facts,
     chats: readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {}),
     open,
@@ -378,8 +413,33 @@ export async function importNativeAgent(): Promise<number> {
   const { entries } = await LocalBrowser.whatsappAgentTakeNative();
   if (!entries.length) return 0;
   const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
+  const events: AgentEvent[] = [];
   for (const e of entries) {
     const m = { id: e.id, key: e.key, phone: e.phone, name: e.name, text: e.text, at: e.at };
+    // 🗂️ the menus answered / a person was asked for / a person has him (WhatsAppMenu)
+    if (e.type) {
+      if (e.type === "staff") continue;
+      events.push({ id: e.id, at: e.at, key: e.key, type: e.sent === false ? "send_fail" : e.type, ...(e.node ? { node: e.node } : {}), ...(typeof e.ms === "number" ? { ms: e.ms } : {}) });
+      addLog({ at: e.at, name: e.name, question: e.text, reply: e.reply ?? "", handoff: e.type === "handoff", sent: e.sent === true, ...(e.sent === false ? { error: "🗂️ لم يجد «رد» الإشعار" } : {}) });
+      chats[e.key] = withTurns(chats[e.key] ?? [], { from: "customer", text: e.text, at: e.at }, ...(e.sent && e.reply ? [{ from: "agent" as const, text: e.reply, at: e.at }] : []));
+      if (e.type === "handoff") {
+        const summary = (chats[e.key] ?? []).slice(-6).map((t) => `${t.from === "customer" ? "الزبون" : "الوكيل"}: ${t.text.slice(0, 80)}`).join("\n");
+        saveHandoffs(addHandoff(loadHandoffs(), { id: e.id, key: e.key, phone: e.phone, name: e.name, text: e.text, summary, at: e.at }));
+      }
+      continue;
+    }
+    if (!e.silent) {
+      const answered = Boolean(e.reply) && e.sent === true;
+      events.push({
+        id: e.id,
+        at: e.at,
+        key: e.key,
+        type: e.error || !answered ? "send_fail" : e.handoff ? "ai_handoff" : "ai_answer",
+        text: e.text.slice(0, 120),
+        ...(typeof e.ms === "number" ? { ms: e.ms } : {}),
+        ...(e.model ? { model: e.model, input: e.input ?? 0, output: e.output ?? 0 } : {}),
+      });
+    }
     addLog({ at: e.at, name: e.name, question: e.text, reply: e.reply ?? "", handoff: e.handoff === true, sent: e.sent === true, ...(e.error ? { error: `📴 ${e.error}` } : e.silent ? { error: "🤐 سكت - ينتظر جوابك في «🎓 تدريب الوكيل»" } : {}) });
     chats[e.key] = withTurns(chats[e.key] ?? [], { from: "customer", text: e.text, at: e.at }, ...(e.sent && e.reply ? [{ from: "agent" as const, text: e.reply, at: e.at }] : []));
     if (e.model && (e.input || e.output)) recordSpend({ model: e.model, input: e.input ?? 0, output: e.output ?? 0 });
@@ -390,6 +450,14 @@ export async function importNativeAgent(): Promise<number> {
     }
   }
   writeJson(CHATS_KEY, chats);
+  recordEvents(events);
   lastPackAt = 0; // the reader starts its own turns again from the next pack
   return entries.length;
+}
+
+/** 🗂️ What Claude reads of the menus: the price / product lists of the published menus (else the draft's, so the
+ * test chat knows them too), and his older simple menu only while no menus are published. */
+function menuContext(): { catalog: string; menu: string } {
+  const menus = loadMenus();
+  return { catalog: catalogText(menus.published ?? menus.draft), menu: menus.published ? "" : menuText(loadMenu()) };
 }

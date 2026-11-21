@@ -6,12 +6,12 @@ import {
   addLesson,
   answerQuestion,
   dismissQuestion,
+  approveLesson,
+  isApproved,
   loadLessons,
-  loadMenu,
   loadQuestions,
   removeLesson,
   saveLessons,
-  saveMenu,
   saveQuestions,
   trainingCounts,
   TRAINING_EVENT,
@@ -23,8 +23,19 @@ import { hasClaudeKey } from "@/lib/claudeClient";
 import { AGENT_EVENT, agentPreview, loadAgentSpend } from "@/lib/whatsappAgentLink";
 import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
 import { withTurns, type AgentAnswer, type AgentTurn } from "@/lib/whatsappAgent";
+import { AgentMenusAdmin } from "@/components/AgentMenusAdmin";
+import { HandoffsTab, StatsTab } from "@/components/AgentDeskTabs";
+import { teamMemberName } from "@/components/TeamFlagSheet";
+import { DESK_EVENT, loadHandoffs, openHandoffs } from "@/lib/agentDesk";
+import { browserLinkStorage, isMainMember, loadLinkConfig } from "@/lib/deviceLink";
 
-type Tab = "questions" | "lessons" | "menu" | "try";
+/** His phone (or one not in a team): its lessons need no approval, and it approves the others'. */
+function onMainPhone(): boolean {
+  const link = loadLinkConfig(browserLinkStorage());
+  return !link?.enabled || isMainMember(link.memberId);
+}
+
+type Tab = "questions" | "staff" | "lessons" | "menus" | "stats" | "try";
 
 const when = (at: number) => new Date(at).toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
 
@@ -37,22 +48,26 @@ export default function AgentTrainingPage() {
   const [questions, setQuestions] = useState<AgentQuestion[]>([]);
   const [lessons, setLessons] = useState<AgentLesson[]>([]);
   const [spend, setSpend] = useState<AgentSpend>(NO_SPEND);
+  const [staff, setStaff] = useState(0);
 
   useEffect(() => {
     const load = () => {
       setQuestions(loadQuestions());
       setLessons(loadLessons());
       setSpend(loadAgentSpend());
+      setStaff(openHandoffs(loadHandoffs()).length);
     };
     load();
     window.addEventListener(TRAINING_EVENT, load);
     window.addEventListener(AGENT_EVENT, load);
+    window.addEventListener(DESK_EVENT, load);
     // what the team link brings (another phone answered / the agent asked)
     window.addEventListener("storage", load);
     const timer = window.setInterval(load, 5000);
     return () => {
       window.removeEventListener(TRAINING_EVENT, load);
       window.removeEventListener(AGENT_EVENT, load);
+      window.removeEventListener(DESK_EVENT, load);
       window.removeEventListener("storage", load);
       window.clearInterval(timer);
     };
@@ -78,8 +93,10 @@ export default function AgentTrainingPage() {
         {(
           [
             ["questions", `❓ تنتظرك (${counts.open})`],
+            ["staff", `👨‍💼 المحوّلون (${staff})`],
+            ["menus", "🗂️ إدارة القوائم"],
             ["lessons", `📚 الدروس (${lessons.length})`],
-            ["menu", "📋 القائمة"],
+            ["stats", "📊 الإحصائيات"],
             ["try", "💬 جرّب"],
           ] as [Tab, string][]
         ).map(([t, label]) => (
@@ -91,7 +108,9 @@ export default function AgentTrainingPage() {
 
       {tab === "questions" && <QuestionsTab questions={questions} lessons={lessons} />}
       {tab === "lessons" && <LessonsTab lessons={lessons} />}
-      {tab === "menu" && <MenuTab />}
+      {tab === "staff" && <HandoffsTab />}
+      {tab === "menus" && <AgentMenusAdmin />}
+      {tab === "stats" && <StatsTab />}
       {tab === "try" && <TryTab />}
     </main>
   );
@@ -106,7 +125,7 @@ function QuestionsTab({ questions, lessons }: { questions: AgentQuestion[]; less
     .slice(0, 20);
 
   const answer = (q: AgentQuestion) => {
-    const next = answerQuestion(loadQuestions(), loadLessons(), q.id, drafts[q.id] ?? "", Date.now());
+    const next = answerQuestion(loadQuestions(), loadLessons(), q.id, drafts[q.id] ?? "", Date.now(), onMainPhone(), teamMemberName());
     saveLessons(next.lessons);
     saveQuestions(next.questions);
     setDrafts((d) => ({ ...d, [q.id]: "" }));
@@ -183,7 +202,7 @@ function LessonsTab({ lessons }: { lessons: AgentLesson[] }) {
 
   const save = () => {
     const now = Date.now();
-    saveLessons(editing ? updateLesson(loadLessons(), editing, q, a, now) : addLesson(loadLessons(), q, a, now));
+    saveLessons(editing ? updateLesson(loadLessons(), editing, q, a, now) : addLesson(loadLessons(), q, a, now, onMainPhone(), teamMemberName()));
     setQ("");
     setA("");
     setEditing(null);
@@ -228,7 +247,17 @@ function LessonsTab({ lessons }: { lessons: AgentLesson[] }) {
           <div key={l.id} className="msg-item agent-q">
             {l.question && <span className="msg-item-label">❓ {l.question}</span>}
             <p className="agent-q-text">{l.answer}</p>
+            {!isApproved(l) && (
+              <small className="msg-item-hint agent-pending">
+                ⏳ بانتظار اعتمادك{l.by ? ` - كتبه «${l.by}»` : ""} - لا يستعمله الوكيل قبل ذلك
+              </small>
+            )}
             <div className="agent-actions">
+              {!isApproved(l) && onMainPhone() && (
+                <button type="button" className="dialog-primary" onClick={() => saveLessons(approveLesson(loadLessons(), l.id))}>
+                  ✓ اعتمد
+                </button>
+              )}
               <button
                 type="button"
                 className="text-action"
@@ -261,58 +290,6 @@ function LessonsTab({ lessons }: { lessons: AgentLesson[] }) {
           </div>
         ))
       )}
-    </section>
-  );
-}
-
-/** 📋 His fixed menu: sent on a greeting / the first message of the day; the customer answers with a number. */
-function MenuTab() {
-  const [on, setOn] = useState(false);
-  const [text, setText] = useState("");
-  const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    const m = loadMenu();
-    setOn(m.on);
-    setText(m.text);
-  }, []);
-  const save = (next: { on: boolean; text: string }) => {
-    saveMenu(next);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1500);
-  };
-  return (
-    <section className="section agent-list">
-      <p className="settings-hint">
-        خيارات ثابتة يرسلها الوكيل للزبون عند التحية أو أول رسالة في اليوم، فيختار برقم. وعند «0» يعيد إرسالها. اكتب كل خيار في سطر برقمه، والوكيل
-        يجيب عن كل خيار من الدروس ومعلومات الزبون.
-      </p>
-      <label className="toggle-switch-row">
-        <span>📋 أرسل القائمة للزبائن</span>
-        <span className={`toggle-switch${on ? " toggle-switch-on" : ""}`}>
-          <input
-            type="checkbox"
-            checked={on}
-            onChange={(e) => {
-              setOn(e.target.checked);
-              save({ on: e.target.checked, text });
-            }}
-          />
-          <span className="toggle-switch-thumb" />
-        </span>
-      </label>
-      <div className="msg-item agent-q">
-        <label className="add-field-label" htmlFor="agent-menu-text">
-          القائمة
-        </label>
-        <textarea id="agent-menu-text" className="search-input" rows={8} value={text} onChange={(e) => setText(e.target.value)} />
-        <div className="agent-actions">
-          <button type="button" className="dialog-primary" disabled={!text.trim()} onClick={() => save({ on, text })}>
-            💾 احفظ القائمة
-          </button>
-          {saved && <small className="msg-item-hint">✓ حُفظت</small>}
-        </div>
-      </div>
-      <p className="settings-hint">علّمه جواب كل خيار في «📚 الدروس»، مثلًا: «سعر التجديد» ← «20,000 أوقية شهريًا».</p>
     </section>
   );
 }
@@ -378,7 +355,7 @@ function TryTab() {
             className="dialog-primary"
             disabled={!fix.trim()}
             onClick={() => {
-              saveLessons(addLesson(loadLessons(), last.question, fix, Date.now()));
+              saveLessons(addLesson(loadLessons(), last.question, fix, Date.now(), onMainPhone(), teamMemberName()));
               setFix("");
               setFixed(true);
             }}

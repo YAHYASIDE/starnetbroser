@@ -48,6 +48,11 @@ final class WhatsAppAgentNative {
 
     /** Exactly what the app's agentUserText writes for one message. */
     static String userText(JSONObject pack, String key, String senderName, String message, JSONArray chat, String today) {
+        return userText(pack, key, senderName, message, chat, today, "");
+    }
+
+    /** `section`: what the customer chose in the menus (WhatsAppMenu topic), "" = none. */
+    static String userText(JSONObject pack, String key, String senderName, String message, JSONArray chat, String today, String section) {
         StringBuilder history = new StringBuilder();
         if (chat == null || chat.length() == 0) {
             history.append("(no earlier messages)");
@@ -62,15 +67,18 @@ final class WhatsAppAgentNative {
         JSONObject facts = pack.optJSONObject("facts");
         String known = facts == null ? "" : facts.optString(key, "");
         String lessons = pack.optString("lessons", "");
+        String catalog = pack.optString("catalog", "");
         StringBuilder sb = new StringBuilder();
         sb.append("Business: ").append(pack.optString("business", "")).append("\n\n");
         sb.append("How to pay:\n").append(pack.optString("payment", "")).append("\n\n");
         sb.append(known.isEmpty() ? "Unknown sender (not a registered customer). WhatsApp name: " + (senderName == null || senderName.isEmpty() ? "-" : senderName) : known).append("\n\n");
         if (!lessons.isEmpty()) sb.append("Owner's lessons:\n").append(lessons).append("\n\n");
+        if (!catalog.isEmpty()) sb.append(catalog).append("\n\n");
         String menu = pack.optString("menu", "");
         if (!menu.isEmpty()) sb.append("Owner's menu:\n").append(menu).append("\n\n");
         sb.append("Today: ").append(today).append("\n\n");
         sb.append("Conversation so far:\n").append(history).append("\n\n");
+        if (section != null && !section.isEmpty()) sb.append("Customer chose in the menu: ").append(section).append("\n\n");
         sb.append("Customer's newest message:\n").append(message);
         return sb.toString();
     }

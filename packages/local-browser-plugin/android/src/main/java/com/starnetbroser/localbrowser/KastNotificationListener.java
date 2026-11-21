@@ -265,6 +265,8 @@ public class KastNotificationListener extends NotificationListenerService {
         synchronized (WHATSAPP_SEEN) {
             if (!WHATSAPP_SEEN.add(id)) return;
         }
+        // 🔁 never twice, even after a restart re-posts the notifications (his Nov 21 2026 brief)
+        if (!WhatsAppStore.firstTime(getApplicationContext(), id)) return;
         final String name = title;
         final String body = text;
         final long when = at;
@@ -278,19 +280,7 @@ public class KastNotificationListener extends NotificationListenerService {
         if (key != null && WhatsAppStore.agentAnswers(context, key)) {
             keepForAgent(id, n);
             final String agentKey = key;
-            // 🤖 the app open (it said «I'm here» lately) answers it; closed → this reader answers by itself (WhatsAppAgentNative)
-            boolean alive = WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), System.currentTimeMillis());
-            boolean packed = WhatsAppStore.agentPack(context) != null;
-            if (alive || !packed) {
-                final String path = alive ? "👉 التطبيق مفتوح - يرد هو" : "⚠️ التطبيق مغلق ولا نسخة عند القارئ - افتح قسم الوكيل دقيقة ثم أغلقه";
-                WORK.execute(() -> {
-                    WhatsAppStore.agentAdd(context, id, phone, agentKey, name, body, when);
-                    WhatsAppStore.agentSeenPath(context, path);
-                });
-            } else {
-                WORK.execute(() -> WhatsAppStore.agentSeenPath(context, "📴 التطبيق مغلق - القارئ يرد وحده…"));
-                AGENT_WORK.execute(() -> answerNatively(context, id, phone, agentKey, name, body, when));
-            }
+            AGENT_WORK.execute(() -> routeAgent(context, id, phone, agentKey, name, body, when));
             return;
         }
         if (key == null || !WhatsAppStore.enabled(context) || !WhatsAppMessage.asksAboutDevice(text)) return;
@@ -307,7 +297,7 @@ public class KastNotificationListener extends NotificationListenerService {
      * 🤖 The agent's answer while the app is closed (his Nov 21 2026 ask): the same words the app would write, from the
      * app's pack, sent through the message's «رد»; a hand-off notifies him. Everything goes to the log the app takes in.
      */
-    private static void answerNatively(Context context, String id, String phone, String key, String name, String text, long at) {
+    private static void answerNatively(Context context, String id, String phone, String key, String name, String text, long at, String topic, String suffix) {
         long now = System.currentTimeMillis();
         org.json.JSONObject entry = new org.json.JSONObject();
         try {
@@ -331,7 +321,7 @@ public class KastNotificationListener extends NotificationListenerService {
             }
             org.json.JSONArray chat = WhatsAppAgentNative.chat(pack, key, WhatsAppStore.agentNativeChat(context, key));
             String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new java.util.Date(now));
-            String user = WhatsAppAgentNative.userText(pack, key, name, text, chat, today);
+            String user = WhatsAppAgentNative.userText(pack, key, name, text, chat, today, topic);
             WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), WhatsAppAgentNative.requestBody(pack, user).toString());
             entry.put("input", answer.input).put("output", answer.output);
             if (answer.error != null) {
@@ -341,7 +331,9 @@ public class KastNotificationListener extends NotificationListenerService {
                 AppEventNotifier.post(context, WhatsAppAgentNative.handoffNotice(name, phone, text, "لم يرد الوكيل: " + answer.error), "/agent");
                 return;
             }
-            boolean sent = agentReply(context, id, key, answer.reply);
+            String out = suffix == null || suffix.isEmpty() ? answer.reply : answer.reply + "\n\n" + suffix;
+            boolean sent = agentReply(context, id, key, out);
+            entry.put("ms", System.currentTimeMillis() - at);
             WhatsAppStore.agentSeenPath(context, sent ? "📴 ✓ ردّ القارئ وحده والتطبيق مغلق" : "📴 ✗ كتب القارئ الرد لكن لم يجد «رد» الإشعار");
             entry.put("reply", answer.reply).put("handoff", answer.handoff).put("reason", answer.reason).put("sent", sent);
             org.json.JSONArray turns = new org.json.JSONArray().put(new org.json.JSONObject().put("from", "customer").put("text", text).put("at", at));
@@ -360,6 +352,61 @@ public class KastNotificationListener extends NotificationListenerService {
             } catch (org.json.JSONException ignored) {
                 // nothing more to keep
             }
+        }
+    }
+
+    /**
+     * 🗂️ One message to the agent: a person has this customer → silent; the published menus answer a number / «0» /
+     * «رجوع» / «موظف» / a greeting at once (no Claude, the app open or closed); anything else → Claude, in the app
+     * when it is on the screen, else here - with the menu section it came from.
+     */
+    private static void routeAgent(Context context, String id, String phone, String key, String name, String text, long at) {
+        long now = System.currentTimeMillis();
+        org.json.JSONObject pack = WhatsAppStore.agentPack(context);
+        String topic = "";
+        String suffix = "";
+        if (pack != null) {
+            try {
+                if (WhatsAppStore.agentPaused(context, pack, key, now)) {
+                    WhatsAppStore.agentSeenPath(context, "👨‍💼 مع موظف - الوكيل صامت مع هذا الزبون");
+                    WhatsAppStore.agentNativeLog(context, new org.json.JSONObject().put("id", id).put("key", key).put("name", name == null ? "" : name).put("text", text).put("at", at).put("type", "staff"));
+                    return;
+                }
+                org.json.JSONObject menus = pack.optJSONObject("menus");
+                org.json.JSONObject settings = pack.optJSONObject("menuSettings");
+                if (menus != null && settings != null) {
+                    org.json.JSONObject st = WhatsAppStore.menuState(context, key);
+                    java.util.Calendar cal = java.util.Calendar.getInstance();
+                    int minutes = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE);
+                    WhatsAppMenu.Step step = WhatsAppMenu.step(menus, settings, st.isNull("at") ? null : st.optString("at", null), st.optLong("w", 0L), text, now, minutes, pack.optString("payment", ""));
+                    WhatsAppStore.saveMenuState(context, key, step.at, step.lastWelcomeAt);
+                    if ("reply".equals(step.kind) || "handoff".equals(step.kind)) {
+                        boolean sent = agentReply(context, id, key, step.text);
+                        org.json.JSONObject entry = new org.json.JSONObject().put("id", id).put("key", key).put("name", name == null ? "" : name).put("text", text).put("at", at)
+                            .put("type", step.kind.equals("reply") ? "menu" : "handoff").put("node", step.node).put("reply", step.text).put("sent", sent).put("ms", System.currentTimeMillis() - at);
+                        if (phone != null) entry.put("phone", phone);
+                        WhatsAppStore.agentNativeLog(context, entry);
+                        if ("handoff".equals(step.kind)) {
+                            WhatsAppStore.menuHandoff(context, key, now);
+                            AppEventNotifier.post(context, "👨‍💼 زبون طلب موظف على واتساب\n" + (name == null ? "" : name) + (phone == null ? "" : " (" + phone + ")") + ": «" + (text.length() > 160 ? text.substring(0, 160) : text) + "»", "/agent");
+                        }
+                        WhatsAppStore.agentSeenPath(context, sent ? ("reply".equals(step.kind) ? "🗂️ ✓ ردّت القائمة" : "👨‍💼 ✓ حُوّل إلى موظف") : "🗂️ ✗ لم يجد «رد» الإشعار");
+                        return;
+                    }
+                    topic = step.topic;
+                    suffix = step.suffix;
+                }
+            } catch (org.json.JSONException | RuntimeException e) {
+                // the menus failed: Claude answers as before
+            }
+        }
+        boolean alive = WhatsAppAgentNative.appAlive(WhatsAppStore.agentHeartbeatAt(context), now);
+        if (alive || pack == null) {
+            WhatsAppStore.agentAdd(context, id, phone, key, name, text, at, topic, suffix);
+            WhatsAppStore.agentSeenPath(context, alive ? "👉 التطبيق مفتوح - يرد هو" : "⚠️ التطبيق مغلق ولا نسخة عند القارئ - افتح قسم الوكيل دقيقة ثم أغلقه");
+        } else {
+            WhatsAppStore.agentSeenPath(context, "📴 التطبيق مغلق - القارئ يرد وحده…");
+            answerNatively(context, id, phone, key, name, text, at, topic, suffix);
         }
     }
 
@@ -444,7 +491,8 @@ public class KastNotificationListener extends NotificationListenerService {
             String key = WhatsAppMessage.key(found.phone);
             seen.put("test", WhatsAppStore.agentIsTest(context, key));
             seen.put("reason", reason);
-            WORK.execute(() -> WhatsAppStore.agentNoteSeen(context, seen));
+            // at once (not on WORK): the agent's thread adds «who answered» to this same line right after
+            WhatsAppStore.agentNoteSeen(context, seen);
         } catch (org.json.JSONException ignored) {
             // only the diagnostic line
         }

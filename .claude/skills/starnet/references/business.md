@@ -3837,3 +3837,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   other phones in «📜 ماذا وصل من الفريق».
 - Limit: a phone still on an OLD build keeps doing what it did on itself until it is updated (its change is refused
   everywhere else and corrected back). Every team phone must install this build.
+
+## 🗂️ Customer-service menus («إدارة القوائم», Nov 21 2026)
+
+- His brief «أمر تطوير قوائم خدمة العملاء الذكية»: six sections (حساباتي وأجهزتي، الأسعار والاشتراكات، الأجهزة
+  والإكسسوارات، الدفع والفواتير، الدعم الفني، التحدث مع موظف) with his sub-items, his welcome text, an editor (add /
+  edit / order / disable / delete, icons, optional picture, what each item does), WhatsApp preview, draft → publish
+  after review, restore a version, sending settings (auto / keyword / off, no repeated welcome within N hours, staff
+  hours, back to the agent after N hours), a person's conversations (take / give back), statistics from real events
+  only, lessons from another phone wait for his approval, no bulk or promotional sending.
+- Reality said to him: the project has NO WhatsApp Business Platform link - replies go through the notification's
+  «رد» = text only. So menus go as numbered text lines; interactive lists / reply buttons / product pictures in
+  WhatsApp / webhooks / Flows / templates wait for the Cloud API study (workstreams 4). Every item has a stable id for
+  that day. Pictures show in the app only.
+- Built: lib/agentMenus.ts (tree, draft / publish / versions, settings, menuStep: number / «0» / keywords / «رجوع» /
+  «موظف» / greeting → welcome; a question first → Claude + «اكتب 0…»), WhatsAppMenu.java (the same rules and strings,
+  tested on the same menu-default.json), the reader runs the menus itself (app open or closed, no Claude cost) and
+  sends Claude the section chosen; lib/agentDesk.ts (handoffs `starnet_agent_handoffs_v1`, events
+  `starnet_agent_events_v1`, stats); prices / products lists (Claude takes prices only from them); payment ways = his
+  business profile's payment lines; a message is never answered twice (`seen_ids` kept across restarts).
+- Left as a DRAFT: nothing reaches customers until he presses «🚀 انشر القوائم للعملاء».

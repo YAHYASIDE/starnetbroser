@@ -6,6 +6,8 @@ import { isRepWorkspace } from "@/lib/repMode";
 import { drainWhatsApp, pushWhatsAppAnswers, WHATSAPP_EVENT } from "@/lib/whatsappLink";
 import { AGENT_EVENT, agentAway, agentHeartbeat, importNativeAgent, loadAgentSettings, pushAgentPack, pushAgentSetup, runWhatsAppAgent } from "@/lib/whatsappAgentLink";
 import { TRAINING_EVENT } from "@/lib/agentTraining";
+import { MENUS_EVENT } from "@/lib/agentMenus";
+import { DESK_EVENT } from "@/lib/agentDesk";
 
 const EVERY_MS = 60_000;
 /** 🤖 How often the agent looks for waiting messages (a customer on WhatsApp expects an answer within seconds). */
@@ -50,6 +52,9 @@ export function WhatsAppRunner() {
     // a new lesson / answer: the reader's pack at once
     const onTraining = () => void pushAgentPack(true).catch(() => undefined);
     window.addEventListener(TRAINING_EVENT, onTraining);
+    // 🗂️ a published menu / a conversation taken or given back: the reader knows at once
+    window.addEventListener(MENUS_EVENT, onTraining);
+    window.addEventListener(DESK_EVENT, onTraining);
     // 📴 off the screen: the reader takes over at once; back: the app again
     const onAgentVisible = () => {
       if (document.visibilityState === "visible") void agent();
@@ -70,6 +75,8 @@ export function WhatsAppRunner() {
       window.clearInterval(agentTimer);
       window.removeEventListener(AGENT_EVENT, onAgent);
       window.removeEventListener(TRAINING_EVENT, onTraining);
+      window.removeEventListener(MENUS_EVENT, onTraining);
+      window.removeEventListener(DESK_EVENT, onTraining);
       document.removeEventListener("visibilitychange", onAgentVisible);
     };
   }, []);

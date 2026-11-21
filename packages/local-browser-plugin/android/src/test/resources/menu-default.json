@@ -1,0 +1,391 @@
+{
+ "welcome": "🌐 مرحبًا بك في STAR NET\n\nيسعدنا خدمتك في جميع خدمات Starlink 🛰️\n\nكيف يمكننا مساعدتك اليوم؟\n\nاختر الخدمة المطلوبة من القائمة 👇",
+ "nodes": [
+  {
+   "id": "accounts",
+   "parentId": null,
+   "icon": "📡",
+   "title": "حساباتي وأجهزتي",
+   "enabled": true,
+   "action": {
+    "type": "submenu"
+   }
+  },
+  {
+   "id": "acc_new",
+   "parentId": "accounts",
+   "icon": "🆕",
+   "title": "إنشاء حساب جديد",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "إنشاء حساب Starlink جديد: اشرح ما نحتاجه منه خطوة خطوة (الاسم، البريد، البلد، رقم KIT إن وجد) ولا تنشئ شيئًا - موظف يكمل"
+   }
+  },
+  {
+   "id": "acc_add",
+   "parentId": "accounts",
+   "icon": "➕",
+   "title": "إضافة حساب موجود",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "ربط حساب Starlink موجود: اطلب البريد ورقم KIT فقط، أبدًا كلمة السر، وموظف يكمل الربط"
+   }
+  },
+  {
+   "id": "acc_find",
+   "parentId": "accounts",
+   "icon": "🔎",
+   "title": "البحث عن أجهزتي",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "قائمة أجهزة هذا الزبون المسجّلة باسمه"
+   }
+  },
+  {
+   "id": "acc_info",
+   "parentId": "accounts",
+   "icon": "ℹ️",
+   "title": "معلومات الجهاز",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "معلومات أجهزة هذا الزبون: الحالة، KIT، الرقم التسلسلي"
+   }
+  },
+  {
+   "id": "acc_status",
+   "parentId": "accounts",
+   "icon": "📶",
+   "title": "حالة الاشتراك",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "حالة اشتراك أجهزة هذا الزبون"
+   }
+  },
+  {
+   "id": "acc_renew",
+   "parentId": "accounts",
+   "icon": "📅",
+   "title": "موعد التجديد",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "موعد تجديد أجهزة هذا الزبون"
+   }
+  },
+  {
+   "id": "prices",
+   "parentId": null,
+   "icon": "💰",
+   "title": "الأسعار والاشتراكات",
+   "enabled": true,
+   "action": {
+    "type": "submenu"
+   }
+  },
+  {
+   "id": "pr_renew",
+   "parentId": "prices",
+   "icon": "🔄",
+   "title": "أسعار تجديد الاشتراك",
+   "enabled": true,
+   "action": {
+    "type": "prices"
+   }
+  },
+  {
+   "id": "pr_roam100",
+   "parentId": "prices",
+   "icon": "🌍",
+   "title": "تجوال 100GB",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "باقة تجوال 100GB من قائمة الأسعار"
+   }
+  },
+  {
+   "id": "pr_roamunl",
+   "parentId": "prices",
+   "icon": "♾️",
+   "title": "تجوال غير محدود",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "باقة التجوال غير المحدود من قائمة الأسعار"
+   }
+  },
+  {
+   "id": "pr_priority",
+   "parentId": "prices",
+   "icon": "⚡",
+   "title": "باقات Priority",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "باقات Priority من قائمة الأسعار"
+   }
+  },
+  {
+   "id": "pr_offers",
+   "parentId": "prices",
+   "icon": "🎁",
+   "title": "العروض الحالية",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "العروض الحالية من قائمة الأسعار والدروس فقط"
+   }
+  },
+  {
+   "id": "pr_compare",
+   "parentId": "prices",
+   "icon": "⚖️",
+   "title": "مقارنة الباقات",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "مقارنة الباقات من قائمة الأسعار"
+   }
+  },
+  {
+   "id": "devices",
+   "parentId": null,
+   "icon": "🛰️",
+   "title": "الأجهزة والإكسسوارات",
+   "enabled": true,
+   "action": {
+    "type": "submenu"
+   }
+  },
+  {
+   "id": "dv_mini",
+   "parentId": "devices",
+   "icon": "📦",
+   "title": "شراء Starlink Mini",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "شراء Starlink Mini من قائمة المنتجات: السعر والتوفر"
+   }
+  },
+  {
+   "id": "dv_other",
+   "parentId": "devices",
+   "icon": "🛰️",
+   "title": "شراء أجهزة Starlink الأخرى",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "أجهزة Starlink الأخرى من قائمة المنتجات"
+   }
+  },
+  {
+   "id": "dv_list",
+   "parentId": "devices",
+   "icon": "🛒",
+   "title": "مشاهدة الأجهزة المتوفرة",
+   "enabled": true,
+   "action": {
+    "type": "products"
+   }
+  },
+  {
+   "id": "dv_acc",
+   "parentId": "devices",
+   "icon": "🔌",
+   "title": "الإكسسوارات",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "الإكسسوارات من قائمة المنتجات"
+   }
+  },
+  {
+   "id": "dv_ship",
+   "parentId": "devices",
+   "icon": "🚚",
+   "title": "تكلفة الشحن",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "تكلفة الشحن من الدروس فقط - إن لم تُذكر فحوّل لموظف"
+   }
+  },
+  {
+   "id": "dv_track",
+   "parentId": "devices",
+   "icon": "📍",
+   "title": "متابعة طلب شراء",
+   "enabled": true,
+   "action": {
+    "type": "handoff"
+   }
+  },
+  {
+   "id": "pay",
+   "parentId": null,
+   "icon": "💳",
+   "title": "الدفع والفواتير",
+   "enabled": true,
+   "action": {
+    "type": "submenu"
+   }
+  },
+  {
+   "id": "py_ways",
+   "parentId": "pay",
+   "icon": "🏦",
+   "title": "طرق الدفع المتاحة",
+   "enabled": true,
+   "action": {
+    "type": "payments"
+   }
+  },
+  {
+   "id": "py_proof",
+   "parentId": "pay",
+   "icon": "🧾",
+   "title": "إرسال إثبات الدفع",
+   "enabled": true,
+   "action": {
+    "type": "answer",
+    "text": "أرسل صورة إثبات التحويل هنا مع اسمك ورقم KIT أو البريد، وسيتحقق موظف من وصول المبلغ ويؤكد لك. 🙏"
+   }
+  },
+  {
+   "id": "py_invoice",
+   "parentId": "pay",
+   "icon": "📄",
+   "title": "طلب فاتورة",
+   "enabled": true,
+   "action": {
+    "type": "handoff"
+   }
+  },
+  {
+   "id": "py_state",
+   "parentId": "pay",
+   "icon": "⏳",
+   "title": "حالة عملية الدفع",
+   "enabled": true,
+   "action": {
+    "type": "handoff"
+   }
+  },
+  {
+   "id": "py_history",
+   "parentId": "pay",
+   "icon": "📊",
+   "title": "سجل المدفوعات",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "ما على هذا الزبون الآن حسب المعلومات فقط - لا تذكر تفاصيل غيرها"
+   }
+  },
+  {
+   "id": "support",
+   "parentId": null,
+   "icon": "🛠️",
+   "title": "الدعم الفني",
+   "enabled": true,
+   "action": {
+    "type": "submenu"
+   }
+  },
+  {
+   "id": "sp_down",
+   "parentId": "support",
+   "icon": "🔴",
+   "title": "الإنترنت مقطوع",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "تشخيص انقطاع الإنترنت خطوة خطوة: الكهرباء، الأسلاك، حالة الطبق في تطبيق Starlink، حالة الاشتراك - واطلب صورة الشاشة إن لزم"
+   }
+  },
+  {
+   "id": "sp_slow",
+   "parentId": "support",
+   "icon": "🐢",
+   "title": "الإنترنت ضعيف",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "تشخيص بطء الإنترنت: العوائق فوق الطبق، إعادة التشغيل، عدد المتصلين، حالة الاشتراك"
+   }
+  },
+  {
+   "id": "sp_limited",
+   "parentId": "support",
+   "icon": "⛔",
+   "title": "الجهاز مقيد",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "جهاز مقيد: خارج بلد الحساب أو اشتراك منتهٍ - من المعلومات فقط، وإلا حوّل لموظف"
+   }
+  },
+  {
+   "id": "sp_activate",
+   "parentId": "support",
+   "icon": "⚙️",
+   "title": "مشكلة في التفعيل",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "مشكلة تفعيل: اطلب رقم KIT وصورة الشاشة، ثم حوّل لموظف"
+   }
+  },
+  {
+   "id": "sp_account",
+   "parentId": "support",
+   "icon": "👤",
+   "title": "مشكلة في الحساب",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "مشكلة في حساب Starlink: اطلب البريد وصورة الخطأ، أبدًا كلمة السر، ثم حوّل لموظف"
+   }
+  },
+  {
+   "id": "sp_mail",
+   "parentId": "support",
+   "icon": "📧",
+   "title": "مشكلة في البريد الإلكتروني",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "مشكلة البريد المرتبط بالحساب: اطلب البريد وصورة الخطأ ثم حوّل لموظف"
+   }
+  },
+  {
+   "id": "sp_pay",
+   "parentId": "support",
+   "icon": "💳",
+   "title": "مشكلة في الدفع",
+   "enabled": true,
+   "action": {
+    "type": "ai",
+    "topic": "مشكلة في الدفع: اطلب صورة الإثبات والمبلغ، ولا تؤكد الاستلام أبدًا - حوّل لموظف"
+   }
+  },
+  {
+   "id": "staff",
+   "parentId": null,
+   "icon": "👨‍💼",
+   "title": "التحدث مع موظف",
+   "enabled": true,
+   "action": {
+    "type": "handoff"
+   }
+  }
+ ],
+ "plans": [],
+ "products": []
+}
