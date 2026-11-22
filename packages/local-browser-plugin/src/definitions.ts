@@ -883,7 +883,7 @@ export interface LocalBrowserPlugin {
   /** 🔍 The last WhatsApp message the reader saw: when, its title, the number read (and from where: «المحادثة» /
    * «العنوان» / «اسم المرسل» / «جهة الاتصال»), whether the chat had WhatsApp's hidden id (…@lid), whether the number is
    * one of his test numbers, and why the agent took / left it. */
-  whatsappAgentLastSeen(): Promise<{ seen?: WhatsAppAgentSeen }>;
+  whatsappAgentLastSeen(): Promise<{ seen?: WhatsAppAgentSeen; batteryUnrestricted?: boolean }>;
 
   /** 🤖 Answered (or skipped) - forget them on the native side. */
   whatsappAgentAck(options: { ids: string[] }): Promise<void>;

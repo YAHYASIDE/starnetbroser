@@ -3857,3 +3857,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `starnet_agent_events_v1`, stats); prices / products lists (Claude takes prices only from them); payment ways = his
   business profile's payment lines; a message is never answered twice (`seen_ids` kept across restarts).
 - Left as a DRAFT: nothing reaches customers until he presses «🚀 انشر القوائم للعملاء».
+- Nov 22 2026, his «عندما أفتح التطبيق سيجيب، لكن الهاتف الآن مغلق فلا يمكنه الإجابة»: a locked phone sleeps
+  (Doze) and the reader's call to Claude died. Now the reader holds a wake lock while it answers one message (3 min
+  max), retries a network failure twice (8 s apart), and the agent section shows «🔋 اسمح له بالعمل بلا قيود» when
+  Android still limits STAR NET's battery. A phone switched OFF can't answer - only a server (Cloud API study) can.

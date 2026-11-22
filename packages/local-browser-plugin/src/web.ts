@@ -449,7 +449,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { entries: [] };
   }
 
-  async whatsappAgentLastSeen(): Promise<{ seen?: WhatsAppAgentSeen }> {
+  async whatsappAgentLastSeen(): Promise<{ seen?: WhatsAppAgentSeen; batteryUnrestricted?: boolean }> {
     return {};
   }
 

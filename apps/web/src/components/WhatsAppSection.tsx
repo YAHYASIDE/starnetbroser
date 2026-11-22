@@ -6,6 +6,7 @@ import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
+import { requestBatteryUnrestricted } from "@/lib/telegram";
 import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
 import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, loadPackStatus, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
 import { NO_SPEND, spendLine, type AgentSpend } from "@/lib/agentRefresh";
@@ -103,6 +104,7 @@ function WhatsAppAgentPart() {
   const [key, setKey] = useState(true);
   const [saved, setSaved] = useState(false);
   const [seen, setSeen] = useState<AgentSeen | null>(null);
+  const [battery, setBattery] = useState<boolean | null>(null);
   const [spend, setSpend] = useState<AgentSpend>(NO_SPEND);
 
   // 🔍 what the phone's reader saw last (his Nov 21 2026 ask) - read again every few seconds while this is open
@@ -111,7 +113,11 @@ function WhatsAppAgentPart() {
     let alive = true;
     const read = () =>
       LocalBrowser.whatsappAgentLastSeen()
-        .then((r) => alive && setSeen(r.seen ?? null))
+        .then((r) => {
+          if (!alive) return;
+          setSeen(r.seen ?? null);
+          setBattery(typeof r.batteryUnrestricted === "boolean" ? r.batteryUnrestricted : null);
+        })
         .catch(() => undefined);
     read();
     const timer = window.setInterval(read, 5000);
@@ -204,6 +210,17 @@ function WhatsAppAgentPart() {
       <p className="settings-hint">
         {spendLine(spend, localDate())} - تقدير من حجم كل رد (النموذج: {s.smart ? "Claude Sonnet" : "Claude Haiku"}). الرصيد الحقيقي في platform.claude.com ← Billing.
       </p>
+      {isRunningInAndroidApp() && s.on && battery === false && (
+        <div className="settings-actions">
+          <p className="settings-hint agent-pending">
+            🔋 الهاتف مقفل = أندرويد يوقف STAR NET فلا يرد الوكيل. اضغط ثم اختر «سماح» ليرد والهاتف مقفل والتطبيق مغلق.
+          </p>
+          <button type="button" className="dialog-primary" onClick={() => void requestBatteryUnrestricted()}>
+            🔋 اسمح له بالعمل بلا قيود
+          </button>
+        </div>
+      )}
+      {isRunningInAndroidApp() && s.on && battery === true && <p className="settings-hint">🔋 ✓ يعمل بلا قيود - يرد والهاتف مقفل</p>}
       {isRunningInAndroidApp() && s.on && (
         <p className="settings-hint">
           {(() => {

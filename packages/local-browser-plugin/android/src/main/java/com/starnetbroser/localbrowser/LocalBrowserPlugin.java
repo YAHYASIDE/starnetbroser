@@ -1197,6 +1197,8 @@ public class LocalBrowserPlugin extends Plugin {
     @PluginMethod
     public void whatsappAgentLastSeen(PluginCall call) {
         JSObject ret = new JSObject();
+        // 🔋 a locked phone answers only when Android lets STAR NET run without battery limits
+        ret.put("batteryUnrestricted", isIgnoringBatteryOptimizations());
         org.json.JSONObject seen = WhatsAppStore.agentLastSeen(getContext());
         if (seen != null) {
             try {

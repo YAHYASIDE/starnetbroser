@@ -322,7 +322,18 @@ public class KastNotificationListener extends NotificationListenerService {
             org.json.JSONArray chat = WhatsAppAgentNative.chat(pack, key, WhatsAppStore.agentNativeChat(context, key));
             String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new java.util.Date(now));
             String user = WhatsAppAgentNative.userText(pack, key, name, text, chat, today, topic);
-            WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), WhatsAppAgentNative.requestBody(pack, user).toString());
+            String body = WhatsAppAgentNative.requestBody(pack, user).toString();
+            WhatsAppAgentNative.Answer answer = callClaude(pack.optString("apiKey"), body);
+            // the network wakes up a few seconds after the screen is locked: twice more before giving up
+            for (int retry = 0; retry < 2 && "لا اتصال بالإنترنت".equals(answer.error); retry++) {
+                try {
+                    Thread.sleep(8_000L);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                answer = callClaude(pack.optString("apiKey"), body);
+            }
             entry.put("input", answer.input).put("output", answer.output);
             if (answer.error != null) {
                 WhatsAppStore.agentSeenPath(context, "📴 ✗ القارئ لم يرد: " + answer.error);
@@ -361,6 +372,30 @@ public class KastNotificationListener extends NotificationListenerService {
      * when it is on the screen, else here - with the menu section it came from.
      */
     private static void routeAgent(Context context, String id, String phone, String key, String name, String text, long at) {
+        // 🔒 the phone locked (his Nov 22 2026 «الهاتف مغلق فلا يجيب»): keep the processor awake while this message is
+        // answered - a locked phone otherwise sleeps in the middle of Claude's call
+        android.os.PowerManager.WakeLock lock = null;
+        try {
+            android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (power != null) {
+                lock = power.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "starnet:whatsapp-agent");
+                lock.acquire(3 * 60 * 1000L);
+            }
+        } catch (RuntimeException ignored) {
+            lock = null;
+        }
+        try {
+            routeAgentAwake(context, id, phone, key, name, text, at);
+        } finally {
+            try {
+                if (lock != null && lock.isHeld()) lock.release();
+            } catch (RuntimeException ignored) {
+                // released by its timeout
+            }
+        }
+    }
+
+    private static void routeAgentAwake(Context context, String id, String phone, String key, String name, String text, long at) {
         long now = System.currentTimeMillis();
         org.json.JSONObject pack = WhatsAppStore.agentPack(context);
         String topic = "";
