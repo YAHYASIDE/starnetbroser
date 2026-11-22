@@ -3877,3 +3877,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   CLOUDFLARE_ACCOUNT_ID, WA_PACK_KEY), the app's «☁️ واتساب الرسمي» (settings phone-only `starnet.waCloud`, pack sealed
   with the shared key, events every 20 s into log / «المحوّلون» (reply from the app) / «تنتظرك» / stats / spend).
 - Not yet: voice notes (phase 2), message templates (outside 24 h), Telegram alert when the app is closed.
+
+## 📮 Never Outlook: his domain and his activation password on every phone (Nov 22 2026)
+
+- His screenshots (a new-device form offering an outlook.com address, then Microsoft's page for a device on his domain):
+  «لا تظهر لي outlook مرة أخرى أبدًا، أظهر لي تلقائيًا starnet، والكود اجعله يأتي تلقائيًا، وعند التالي لا يظهر outlook».
+  Cause: that phone had no `starnet.mailDomain` / `starnet.activationPassword` (both phone-only). Now:
+  `DEFAULT_MAIL_DOMAIN = "starnet-om.com"` when a phone saved none; both settings travel sealed in the team link
+  (LINK_SHARED_SETTINGS); a device whose email is on his domain never opens a mailbox page (creation → «تفعيل
+  Starlink» directly; «إضافة الحساب» → Starlink directly, codes from his Gmail). The activation password is typed once
+  in الإعدادات ← «🔑 كلمة سر التفعيل» - never written in the code or these notes (the repo is public).

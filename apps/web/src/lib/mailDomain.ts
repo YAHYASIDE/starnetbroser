@@ -21,11 +21,15 @@ export function isOnMailDomain(email: string | undefined, domain: string): boole
   return Boolean(domain && email?.trim().toLowerCase().endsWith(`@${domain}`));
 }
 
+/** 📮 His domain (his Nov 22 2026 rule «لا تُظهر لي أوتلوك أبدًا، اجعله تلقائيًا starnet-om.com»): a phone of the
+ * team that never saved one uses it - Outlook is never offered for a new device. */
+export const DEFAULT_MAIL_DOMAIN = "starnet-om.com";
+
 export function loadMailDomain(): string {
   try {
-    return normalizeMailDomain(window.localStorage.getItem(KEY) ?? "");
+    return normalizeMailDomain(window.localStorage.getItem(KEY) ?? "") || DEFAULT_MAIL_DOMAIN;
   } catch {
-    return "";
+    return DEFAULT_MAIL_DOMAIN;
   }
 }
 

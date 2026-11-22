@@ -1,5 +1,6 @@
 "use client";
 
+import { isOnMailDomain, loadMailDomain } from "./mailDomain";
 import { customerMessages, loadMessageEdits, messagesForBrowser } from "./customerMessages";
 import { Capacitor, PluginListenerHandle } from "@capacitor/core";
 import {
@@ -413,7 +414,13 @@ export async function openAutoSignIn(account: StarlinkAccountSummary, accounts: 
     const { supported } = await LocalBrowser.isSupported();
     if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
     markInternalLeave();
-    await LocalBrowser.openMailBrowser(autoSignInOptionsFor(account, accounts));
+    const options = autoSignInOptionsFor(account, accounts);
+    // 📮 an email on his domain has no mailbox to open (its codes come from the Gmail): Starlink directly
+    if (isOnMailDomain(account.starlinkAccountEmail || account.expectedEmail, loadMailDomain())) {
+      await LocalBrowser.openAccountBrowser({ accountId: account.id, ...options.then!, ...balanceRatesOption() });
+      return { ok: true };
+    }
+    await LocalBrowser.openMailBrowser(options);
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح البريد" };
@@ -442,7 +449,8 @@ export async function openAccountCreation(account: StarlinkAccountSummary, step:
     const { supported } = await LocalBrowser.isSupported();
     if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
     markInternalLeave();
-    if (step === "starlink") {
+    // 📮 an email on his domain needs no mailbox signup - never Microsoft's page (his Nov 22 2026 rule)
+    if (step === "starlink" || isOnMailDomain(signup.email, loadMailDomain())) {
       await LocalBrowser.openAccountBrowser({ accountId: account.id, ...starlink, ...balanceRatesOption() });
     } else {
       await LocalBrowser.openMailBrowser({

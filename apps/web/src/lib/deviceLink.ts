@@ -722,7 +722,8 @@ export function startAsPhone(s: LinkStorage, config: LinkConfig): void {
  * (💬 every phone of the team talks with the reps - lib/chatTransport.ts). They travel only inside the link, sealed
  * with the team's key - never in a backup.
  */
-export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys", "starnet.repFlagChannels", "starnet.callTurn"] as const;
+// 📮🔑 his Nov 22 2026 «اجعله تلقائيًا في كل الأجهزة»: the mail domain and the activation password too (sealed in the link)
+export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys", "starnet.repFlagChannels", "starnet.callTurn", "starnet.mailDomain", "starnet.activationPassword"] as const;
 
 /** 💬 Stores that travel on their own channel, never in the link (the chat: lib/chatTransport.ts - in the link every
  * message would also remount the others' open page). */
