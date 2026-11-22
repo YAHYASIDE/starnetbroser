@@ -20965,3 +20965,5 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .wa-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer; }
 .wa-input { display: flex; gap: 6px; padding: 8px 10px; background: var(--surface); }
 .wa-input .search-input { flex: 1 1 auto; min-width: 0; }
+.menus-mono { font-family: ui-monospace, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
+.wa-thread { display: flex; flex-direction: column; gap: 4px; }

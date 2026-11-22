@@ -5,6 +5,7 @@ import { closeHandoff, DESK_EVENT, loadEvents, loadHandoffs, menuStats, openHand
 import { loadMenus } from "@/lib/agentMenus";
 import { costOf, spendWords } from "@/lib/agentRefresh";
 import { teamMemberName } from "@/components/TeamFlagSheet";
+import { cloudRelease, cloudSend } from "@/lib/waCloud";
 
 const when = (at: number) => new Date(at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const isNumber = (s: string) => /^[+\d\s()-]+$/.test(s);
@@ -35,7 +36,8 @@ export function HandoffsTab() {
   return (
     <section className="section agent-list">
       <p className="settings-hint">
-        من طلب «موظف»: الوكيل صامت معه حتى تعيده له أو تمرّ المدة المحددة. ردّ عليه من واتساب نفسه. لا يقول الوكيل للزبون إن موظفًا متاح الآن.
+        من طلب «موظف»: الوكيل صامت معه حتى تعيده له أو تمرّ المدة المحددة. زبون رقمك الحالي: ردّ عليه من واتساب نفسه. زبون الرقم الرسمي ☁️: ردّ عليه من
+        هنا. لا يقول الوكيل للزبون إن موظفًا متاح الآن.
       </p>
       {list.length === 0 ? (
         <p className="empty-state">لا محادثة محوّلة لموظف الآن.</p>
@@ -53,13 +55,21 @@ export function HandoffsTab() {
             )}
             <p className="agent-q-text">«{h.text}»</p>
             {h.summary && <small className="msg-item-hint menus-summary">{h.summary}</small>}
+            {h.wa && <CloudThread h={h} />}
             <div className="agent-actions">
               {h.status === "waiting" && (
                 <button type="button" className="dialog-primary" onClick={() => saveHandoffs(takeHandoff(loadHandoffs(), h.id, teamMemberName(), Date.now()))}>
                   ✋ استلام المحادثة
                 </button>
               )}
-              <button type="button" className="dialog-secondary" onClick={() => saveHandoffs(closeHandoff(loadHandoffs(), h.id, Date.now()))}>
+              <button
+                type="button"
+                className="dialog-secondary"
+                onClick={() => {
+                  saveHandoffs(closeHandoff(loadHandoffs(), h.id, Date.now()));
+                  if (h.wa) void cloudRelease(h.wa);
+                }}
+              >
                 🤖 إعادة المحادثة للوكيل
               </button>
             </div>
@@ -132,6 +142,40 @@ function Stat({ label, value }: { label: string; value: number | string }) {
     <div className="menus-stat">
       <strong>{value}</strong>
       <small>{label}</small>
+    </div>
+  );
+}
+
+/** ☁️ A customer of the official number: his messages since he asked for a person, and the staff's reply box. */
+function CloudThread({ h }: { h: Handoff }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <div className="wa-thread">
+      {(h.thread ?? []).slice(-10).map((m, i) => (
+        <div key={i} className={`wa-bubble ${m.from === "customer" ? "wa-bubble-customer" : "wa-bubble-agent"}`}>
+          {m.from === "staff" && m.by ? `«${m.by}»: ` : ""}
+          {m.text}
+        </div>
+      ))}
+      <textarea className="search-input menus-text" rows={2} aria-label="ردّك على الزبون" placeholder="ردّك على الزبون (يصله من الرقم الرسمي)" value={text} onChange={(e) => setText(e.target.value)} />
+      <button
+        type="button"
+        className="dialog-primary"
+        disabled={busy || !text.trim()}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          const r = await cloudSend(h.wa!, text.trim(), teamMemberName());
+          setBusy(false);
+          if (r.ok) setText("");
+          else setError(r.error ?? "لم يُرسل");
+        }}
+      >
+        {busy ? "يرسل…" : "📤 أرسل"}
+      </button>
+      {error && <small className="msg-item-hint agent-pending">{error}</small>}
     </div>
   );
 }

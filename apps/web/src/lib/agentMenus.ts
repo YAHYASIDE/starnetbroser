@@ -304,9 +304,13 @@ export interface MenuState {
 
 export const NO_STATE: MenuState = { at: null, lastWelcomeAt: 0 };
 
+/** What a reply shows (for WhatsApp's official interactive messages - lib/waInteractive.ts): a menu (its section, null =
+ * the main one, with the welcome or not), the product cards, or a plain answer. */
+export type MenuView = { type: "menu"; parent: string | null; welcome: boolean } | { type: "products" } | { type: "text" };
+
 export type MenuStep =
   /** Send this text. */
-  | { kind: "reply"; text: string; node?: string; state: MenuState }
+  | { kind: "reply"; text: string; node?: string; state: MenuState; view?: MenuView }
   /** Claude answers (with `topic` when an item asked it); `suffix` goes under its answer. */
   | { kind: "ai"; topic?: string; node?: string; suffix?: string; state: MenuState }
   /** A person takes the conversation; `text` tells the customer. */
@@ -358,13 +362,13 @@ export function menuStep(doc: MenuDoc, settings: MenuSettings, state: MenuState,
   const t = norm(text);
   const at = state.at && doc.nodes.some((n) => n.id === state.at && n.enabled) ? state.at : null;
   const keep = { ...state, at };
-  const main = (s: MenuState): MenuStep => ({ kind: "reply", text: renderMenu(doc, null), state: { ...s, at: null } });
+  const main = (s: MenuState): MenuStep => ({ kind: "reply", text: renderMenu(doc, null), state: { ...s, at: null }, view: { type: "menu", parent: null, welcome: false } });
   if (settings.mode === "off") return { kind: "ai", state: keep };
   if (t === "موظف" || t === "employe" || t === "agent") return { kind: "handoff", text: handoffText(settings, minutes), node: "staff", state: keep };
   if (t === "0" || settings.keywords.some((k) => norm(k) === t)) return main(keep);
   if (t === "رجوع" || t === "retour") {
     const parent = at ? doc.nodes.find((n) => n.id === at)?.parentId ?? null : null;
-    return { kind: "reply", text: renderMenu(doc, parent), node: parent ?? undefined, state: { ...keep, at: parent } };
+    return { kind: "reply", text: renderMenu(doc, parent), node: parent ?? undefined, state: { ...keep, at: parent }, view: { type: "menu", parent, welcome: false } };
   }
   const num = /^[1-9]$/.test(t) ? Number(t) : 0;
   if (num) {
@@ -376,7 +380,7 @@ export function menuStep(doc: MenuDoc, settings: MenuSettings, state: MenuState,
   if (settings.mode === "auto") {
     const due = now - state.lastWelcomeAt >= settings.welcomeEveryHours * 3600_000;
     // a new conversation: a greeting gets the welcome and the menu; a question is answered first (no forced menu)
-    if (due && isGreeting(text)) return { kind: "reply", text: `${doc.welcome}\n\n${renderMenu(doc, null)}`, state: { at: null, lastWelcomeAt: now } };
+    if (due && isGreeting(text)) return { kind: "reply", text: `${doc.welcome}\n\n${renderMenu(doc, null)}`, state: { at: null, lastWelcomeAt: now }, view: { type: "menu", parent: null, welcome: true } };
     if (due) return { kind: "ai", ...(topic ? { topic } : {}), suffix: MENU_HINT, state: { ...keep, lastWelcomeAt: now } };
     if (isGreeting(text)) return main(keep);
   }
@@ -386,23 +390,30 @@ export function menuStep(doc: MenuDoc, settings: MenuSettings, state: MenuState,
 /** Under the first answer of a conversation that began with a question. */
 export const MENU_HINT = "اكتب 0 لعرض قائمة خدمات STAR NET 👇";
 
+/** A tapped row / button of WhatsApp's interactive messages (its stable id) → the same step as typing its number. */
+export function menuSelect(doc: MenuDoc, settings: MenuSettings, state: MenuState, id: string, minutes: number, paymentText: string): MenuStep | null {
+  const n = doc.nodes.find((x) => x.id === id && x.enabled);
+  if (!n) return null;
+  return pick(doc, settings, { ...state, at: n.parentId }, n, minutes, paymentText);
+}
+
 function pick(doc: MenuDoc, settings: MenuSettings, state: MenuState, n: MenuNode, minutes: number, paymentText: string): MenuStep {
   const back = `\n\n${NAV_LINE}`;
   switch (n.action.type) {
     case "submenu":
-      return { kind: "reply", text: renderMenu(doc, n.id), node: n.id, state: { ...state, at: n.id } };
+      return { kind: "reply", text: renderMenu(doc, n.id), node: n.id, state: { ...state, at: n.id }, view: { type: "menu", parent: n.id, welcome: false } };
     case "answer":
-      return { kind: "reply", text: n.action.text + back, node: n.id, state };
+      return { kind: "reply", text: n.action.text + back, node: n.id, state, view: { type: "text" } };
     case "prices": {
       const p = renderPrices(doc);
-      return p ? { kind: "reply", text: `💰 ${n.title}\n\n${p}${back}`, node: n.id, state } : { kind: "ai", topic: n.title, node: n.id, state };
+      return p ? { kind: "reply", text: `💰 ${n.title}\n\n${p}${back}`, node: n.id, state, view: { type: "text" } } : { kind: "ai", topic: n.title, node: n.id, state };
     }
     case "products": {
       const p = renderProducts(doc);
-      return p ? { kind: "reply", text: `🛰️ ${n.title}\n\n${p}${back}`, node: n.id, state } : { kind: "ai", topic: n.title, node: n.id, state };
+      return p ? { kind: "reply", text: `🛰️ ${n.title}\n\n${p}${back}`, node: n.id, state, view: { type: "products" } } : { kind: "ai", topic: n.title, node: n.id, state };
     }
     case "payments":
-      return paymentText.trim() ? { kind: "reply", text: `💳 ${n.title}\n\n${paymentText.trim()}${back}`, node: n.id, state } : { kind: "ai", topic: n.title, node: n.id, state };
+      return paymentText.trim() ? { kind: "reply", text: `💳 ${n.title}\n\n${paymentText.trim()}${back}`, node: n.id, state, view: { type: "text" } } : { kind: "ai", topic: n.title, node: n.id, state };
     case "handoff":
       return { kind: "handoff", text: handoffText(settings, minutes), node: n.id, state };
     case "ai":

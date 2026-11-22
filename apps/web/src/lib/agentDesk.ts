@@ -19,6 +19,10 @@ export interface Handoff {
   summary: string;
   at: number;
   status: "waiting" | "taken" | "closed";
+  /** ☁️ A customer of the official number: his WhatsApp id (the app answers him through the Worker) and the messages
+   * since he asked for a person. */
+  wa?: string;
+  thread?: { from: "customer" | "staff"; text: string; at: number; by?: string }[];
   takenBy?: string;
   takenAt?: number;
   closedAt?: number;
@@ -202,4 +206,11 @@ export function recordEvents(more: AgentEvent[]): void {
   } catch {
     // a full phone: only the statistics miss it
   }
+}
+
+/** A message in a person's conversation (☁️ official number): the customer's, or the staff's reply. */
+export function addToThread(list: Handoff[], wa: string, m: { from: "customer" | "staff"; text: string; at: number; by?: string }): Handoff[] {
+  const open = [...list].reverse().find((h) => h.wa === wa && h.status !== "closed");
+  if (!open) return list;
+  return list.map((h) => (h === open ? { ...h, thread: [...(h.thread ?? []), m].slice(-50) } : h));
 }

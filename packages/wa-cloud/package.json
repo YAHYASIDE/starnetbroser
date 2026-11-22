@@ -1,0 +1,16 @@
+{
+  "name": "@starnet/wa-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "STAR NET's WhatsApp agent on the official Cloud API - a Cloudflare Worker (webhook, menus, Claude, staff replies).",
+  "scripts": {
+    "build": "esbuild src/worker.ts --bundle --format=esm --target=es2022 --outfile=dist/worker.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "0.21.5",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

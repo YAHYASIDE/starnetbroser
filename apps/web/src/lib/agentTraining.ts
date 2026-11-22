@@ -41,6 +41,8 @@ export interface AgentQuestion {
   /** The sender's last 8 digits. */
   key: string;
   phone?: string;
+  /** ☁️ A customer of the official number (Cloud API): his full WhatsApp id - answers go through the Worker. */
+  wa?: string;
   name: string;
   text: string;
   at: number;
@@ -96,7 +98,7 @@ export function cleanLessons(raw: unknown): AgentLesson[] {
  * dismissed ones go first when the list is long. */
 export function addQuestion(
   questions: AgentQuestion[],
-  input: { messageId: string; key: string; phone?: string; name: string; text: string; at: number; agentReply: string; reason: string },
+  input: { messageId: string; key: string; phone?: string; wa?: string; name: string; text: string; at: number; agentReply: string; reason: string },
   now: number,
 ): AgentQuestion[] {
   if (questions.some((q) => q.messageId === input.messageId)) return questions;

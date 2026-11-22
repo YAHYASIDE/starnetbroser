@@ -7,6 +7,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 👤 عليك أنت
 
+- ☁️ WhatsApp Cloud API (Nov 22 2026): a new SIM for the agent → Meta app + number → Cloudflare token + GitHub secrets
+  (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, WA_PACK_KEY) → paste Meta's ids in «☁️ واتساب الرسمي» → webhook in Meta.
+
 - 🔑 Nov 21 2026: type the activation password in الإعدادات ← «🔑 كلمة سر التفعيل», activate one new KIT device and
   say whether the session stays after the activation finishes (if not: «🔍 تقرير الجلسة» from that device).
 

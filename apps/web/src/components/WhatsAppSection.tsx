@@ -6,6 +6,7 @@ import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { setWhatsappAnswerOn, whatsappAnswerOn } from "@/lib/whatsappLink";
 import { hasClaudeKey } from "@/lib/claudeClient";
+import { WaCloudSection } from "@/components/WaCloudSection";
 import { requestBatteryUnrestricted } from "@/lib/telegram";
 import { agentNumberKeys, agentSeenLines, type AgentSeen, type AgentSettings } from "@/lib/whatsappAgent";
 import { AGENT_EVENT, loadAgentLog, loadAgentSettings, loadAgentSpend, loadPackStatus, saveAgentSettings, type AgentLogLine } from "@/lib/whatsappAgentLink";
@@ -89,6 +90,7 @@ export function WhatsAppSection() {
           <WhatsAppAgentPart />
         </>
       )}
+      <WaCloudSection />
     </section>
   );
 }

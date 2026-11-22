@@ -19,6 +19,7 @@ import { RouteRepair } from "@/components/RouteRepair";
 import { BrowserActionsRunner } from "@/components/BrowserActionsRunner";
 import { ChatRunner } from "@/components/ChatRunner";
 import { WhatsAppRunner } from "@/components/WhatsAppRunner";
+import { WaCloudRunner } from "@/components/WaCloudRunner";
 import { CallManager } from "@/components/CallManager";
 import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </BackgroundPart>
             <BackgroundPart part="whatsapp">
               <WhatsAppRunner />
+              <WaCloudRunner />
             </BackgroundPart>
             <RepOpFlagsBanner />
             <WhatsAppSuggestionsBadge />

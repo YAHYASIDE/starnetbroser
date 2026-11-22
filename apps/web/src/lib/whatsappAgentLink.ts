@@ -45,6 +45,7 @@ import {
   type AgentTurn,
 } from "./whatsappAgent";
 import { catalogText, loadMenus } from "./agentMenus";
+import { cloudSend } from "./waCloud";
 import { addHandoff, loadHandoffs, pausedUntil, recordEvents, saveHandoffs, type AgentEvent } from "./agentDesk";
 import { addQuestion, answersToSend, isSilencedFor, lessonsText, loadLessons, loadMenu, loadQuestions, markSent, menuText, openFrom, saveQuestions } from "./agentTraining";
 
@@ -95,7 +96,7 @@ export function loadAgentLog(): AgentLogLine[] {
   return Array.isArray(v) ? (v as AgentLogLine[]) : [];
 }
 
-function addLog(line: AgentLogLine): void {
+export function addLog(line: AgentLogLine): void {
   writeJson(LOG_KEY, [line, ...loadAgentLog()].slice(0, 40));
   window.dispatchEvent(new Event(AGENT_EVENT));
 }
@@ -275,7 +276,8 @@ async function sendOwnerAnswers(): Promise<number> {
   let sentCount = 0;
   const chats = readJson<Record<string, AgentTurn[]>>(CHATS_KEY, {});
   for (const q of waiting) {
-    const { sent } = await LocalBrowser.whatsappAgentReply({ id: q.messageId, key: q.key, text: q.answer! });
+    // ☁️ a customer of the official number: his answer goes through the Worker
+    const { sent } = q.wa ? await cloudSend(q.wa, q.answer!, "").then((r) => ({ sent: r.ok })) : await LocalBrowser.whatsappAgentReply({ id: q.messageId, key: q.key, text: q.answer! });
     saveQuestions(markSent(loadQuestions(), q.id, sent, Date.now()));
     if (sent) {
       sentCount++;
@@ -328,7 +330,7 @@ export function loadAgentSpend(): AgentSpend {
   return { ...NO_SPEND, ...readJson<Partial<AgentSpend>>(SPEND_KEY, {}) };
 }
 
-function recordSpend(usage: { model: string; input: number; output: number } | undefined): void {
+export function recordSpend(usage: { model: string; input: number; output: number } | undefined): void {
   if (!usage) return;
   const d = new Date();
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -362,11 +364,9 @@ let lastPackAt = 0;
 const PACK_EVERY_MS = 60_000;
 
 /** Everything the reader needs to answer alone - pushed when it changed, at most once a minute (or `force`). */
-export async function pushAgentPack(force = false): Promise<void> {
+/** Everything an agent away from this screen needs (the phone's reader, the Cloud API Worker), as one JSON text. */
+export function buildPackJson(): { json: string; customers: number } {
   const settings = loadAgentSettings();
-  if (!settings.on || !hasClaudeKey()) return;
-  if (!force && Date.now() - lastPackAt < PACK_EVERY_MS) return;
-  lastPackAt = Date.now();
   const facts: Record<string, string> = {};
   const data = factsData();
   for (const c of Object.values(loadClientStore())) {
@@ -397,11 +397,20 @@ export async function pushAgentPack(force = false): Promise<void> {
     open,
     now: Date.now(),
   });
+  return { json: pack, customers: Object.keys(facts).length };
+}
+
+export async function pushAgentPack(force = false): Promise<void> {
+  const settings = loadAgentSettings();
+  if (!settings.on || !hasClaudeKey()) return;
+  if (!force && Date.now() - lastPackAt < PACK_EVERY_MS) return;
+  lastPackAt = Date.now();
+  const { json: pack, customers } = buildPackJson();
   if (pack === lastPack) return;
   try {
     await LocalBrowser.whatsappAgentPack({ pack });
     lastPack = pack;
-    writeJson(PACK_STATUS_KEY, { at: Date.now(), customers: Object.keys(facts).length });
+    writeJson(PACK_STATUS_KEY, { at: Date.now(), customers });
   } catch (err) {
     writeJson(PACK_STATUS_KEY, { at: Date.now(), customers: 0, error: err instanceof Error ? err.message : "تعذّر" });
   }

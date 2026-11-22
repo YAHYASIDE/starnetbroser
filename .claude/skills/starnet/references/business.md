@@ -3861,3 +3861,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (Doze) and the reader's call to Claude died. Now the reader holds a wake lock while it answers one message (3 min
   max), retries a network failure twice (8 s apart), and the agent section shows «🔋 اسمح له بالعمل بلا قيود» when
   Android still limits STAR NET's battery. A phone switched OFF can't answer - only a server (Cloud API study) can.
+
+## ☁️ The WhatsApp agent on the official Cloud API (Nov 22 2026)
+
+- His «أريده احترافيًا مثل Alibaba وبسرعة» + «نعم للثلاث» (customer facts sealed on a server, a paid-as-used server
+  OK, start) + «اختر أنت الأسرع والأأمن». Read from Meta's docs (developers.facebook.com, Nov 22 2026): list ≤ 10 rows
+  (title 24, description 72, button 20), reply buttons ≤ 3 (title 20, image header OK), media carousel 2-10 cards
+  without a template inside the 24 h window (card body 160, same buttons on every card, card type "cta_url" even with
+  quick replies); service replies: first 1,000 a month free per number; keeping a number in the WhatsApp Business app
+  AND on Cloud API (coexistence) needs a Solution Partner / Tech Provider → I chose for him: a NEW number for the agent
+  on Cloud API (his 22227268 untouched) and a Cloudflare Worker (free, no card; his domain is on Cloudflare).
+- Built: packages/wa-cloud (Worker: webhook verify + X-Hub-Signature-256, never twice, the menus as interactive
+  list / buttons / carousel via apps/web lib/waInteractive.ts, Claude on the pack, «موظف» / a product order → a person,
+  silence after 2, events for the app), .github/workflows/wa-cloud.yml (deploys with CLOUDFLARE_API_TOKEN,
+  CLOUDFLARE_ACCOUNT_ID, WA_PACK_KEY), the app's «☁️ واتساب الرسمي» (settings phone-only `starnet.waCloud`, pack sealed
+  with the shared key, events every 20 s into log / «المحوّلون» (reply from the app) / «تنتظرك» / stats / spend).
+- Not yet: voice notes (phase 2), message templates (outside 24 h), Telegram alert when the app is closed.

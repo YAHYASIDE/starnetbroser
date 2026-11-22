@@ -1,0 +1,88 @@
+name: WhatsApp Cloud agent (Cloudflare Worker)
+
+# ☁️ Deploys packages/wa-cloud - STAR NET's WhatsApp agent on the official Cloud API (his Nov 22 2026 choice) - to his
+# Cloudflare account. Needs three repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN  - a Cloudflare API token with "Edit Cloudflare Workers" (template)
+#   CLOUDFLARE_ACCOUNT_ID - his Cloudflare account id
+#   WA_PACK_KEY           - the app's «🔑 مفتاح الربط» (الإعدادات ← البوتات ← واتساب ← ☁️ واتساب الرسمي)
+# Without them the job only tests and says what is missing.
+
+on:
+  push:
+    branches: [claude/app-control-wnkqnh]
+    paths:
+      - "packages/wa-cloud/**"
+      - "apps/web/src/lib/agentMenus.ts"
+      - "apps/web/src/lib/waInteractive.ts"
+      - ".github/workflows/wa-cloud.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wa-cloud
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WA_PACK_KEY: ${{ secrets.WA_PACK_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Test the Worker
+        run: npm run test --workspace=@starnet/wa-cloud && npm run typecheck --workspace=@starnet/wa-cloud
+      - name: Bundle
+        run: npm run build --workspace=@starnet/wa-cloud
+      - name: Secrets present?
+        id: ready
+        run: |
+          missing=""
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -z "$WA_PACK_KEY" ] && missing="$missing WA_PACK_KEY"
+          if [ -n "$missing" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "⏸️ Not deployed - missing secrets:$missing" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: KV namespace + wrangler.toml
+        if: steps.ready.outputs.ready == 'true'
+        working-directory: packages/wa-cloud
+        run: |
+          W="npx --yes wrangler@4.156.0"
+          ID=$($W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const l=JSON.parse(s.slice(s.indexOf("[")));const n=l.find(x=>x.title==="starnet-wa-kv");process.stdout.write(n?n.id:"")}catch{process.stdout.write("")}})')
+          if [ -z "$ID" ]; then
+            $W kv namespace create starnet-wa-kv > kv.txt 2>&1 || true
+            ID=$($W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s.slice(s.indexOf("[")));const n=l.find(x=>x.title==="starnet-wa-kv");process.stdout.write(n?n.id:"")})')
+          fi
+          [ -n "$ID" ] || { echo "Could not create the KV namespace"; cat kv.txt || true; exit 1; }
+          cat > wrangler.toml <<TOML
+          name = "starnet-wa"
+          main = "dist/worker.js"
+          compatibility_date = "2026-10-01"
+          workers_dev = true
+
+          [[kv_namespaces]]
+          binding = "KV"
+          id = "$ID"
+          TOML
+      - name: Deploy
+        if: steps.ready.outputs.ready == 'true'
+        working-directory: packages/wa-cloud
+        run: |
+          W="npx --yes wrangler@4.156.0"
+          $W deploy | tee deploy.txt
+          printf '%s' "$WA_PACK_KEY" | $W secret put PACK_KEY
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.txt | head -1)
+          echo "✅ Deployed: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Webhook for Meta: $URL/webhook" >> "$GITHUB_STEP_SUMMARY"
