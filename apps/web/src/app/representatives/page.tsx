@@ -3,6 +3,8 @@
 import { useKeptState } from "@/lib/dataReload";
 import { rowDeviceEmail, rowHasPhoto, rowProofPlan } from "@/lib/repRowExtras";
 import { loadOpLog, type OpLogStore } from "@/lib/repOpLog";
+import { RepProfitAuditSheet } from "@/components/RepProfitAuditSheet";
+import { accountEmail as deviceEmail } from "@/lib/dayActions";
 import { getProof, listProofIds } from "@/lib/paymentProofStore";
 import { downloadRepImage } from "@/lib/telegram";
 
@@ -756,6 +758,7 @@ type RepSheet =
   | { kind: "repClient"; clientId: string }
   | { kind: "transfer" }
   | { kind: "doubles" }
+  | { kind: "audit" }
   | null;
 
 function RepCard({
@@ -1151,6 +1154,11 @@ function RepCard({
           {doubleShares.length > 0 && !readOnly && (
             <button type="button" className="rep-double-banner" data-tour="rep-double-shares" onClick={() => setSheet({ kind: "doubles" })}>
               ⚠️ {doubleShares.length === 1 ? "جهاز له" : `${doubleShares.length} أجهزة لها`} حصتان في نفس الشهر - راجعها
+            </button>
+          )}
+          {!readOnly && (
+            <button type="button" className="text-action rep-audit-open" data-tour="rep-profit-audit" onClick={() => setSheet({ kind: "audit" })}>
+              🔍 فحص حساب الربح
             </button>
           )}
           {/* 🧾 His Oct 29 2026 design: only what's on him / his profit now, each with the last 24 hours as a
@@ -1563,6 +1571,23 @@ function RepCard({
               if (!error) setSheet(null);
               return error;
             }}
+          />
+        </PartySheet>
+      )}
+
+      {sheet?.kind === "audit" && (
+        <PartySheet title="🔍 فحص حساب الربح" onClose={() => setSheet(null)}>
+          <RepProfitAuditSheet
+            rows={allDeviceRows}
+            ops={opLog[rep.id]?.ops ?? []}
+            convert={fx.convert}
+            list={fx.list}
+            accountName={accountName}
+            accountEmail={(id) => {
+              const a = accounts.find((x) => x.id === id);
+              return a ? deviceEmail(a) : "";
+            }}
+            onOpen={(row) => setSheet({ kind: "shipment", row })}
           />
         </PartySheet>
       )}

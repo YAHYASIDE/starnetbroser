@@ -7,6 +7,9 @@ into the working session) and whenever a task closes - short, the open lines onl
 
 ## 👤 عليك أنت
 
+- 🔍 Nov 23 2026: a rep's profit jump - open the rep's «🔍 فحص حساب الربح» from 21/11 21:50 on the main phone, «📤 أرسل القائمة»
+  to me; then he decides what to delete / fix (nothing touched before his OK).
+
 - ☁️ WhatsApp Cloud API (Nov 22 2026): a new SIM for the agent → Meta app + number → Cloudflare token + GitHub secrets
   (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, WA_PACK_KEY) → paste Meta's ids in «☁️ واتساب الرسمي» → webhook in Meta.
 

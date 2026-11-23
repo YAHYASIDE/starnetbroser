@@ -3887,3 +3887,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (LINK_SHARED_SETTINGS); a device whose email is on his domain never opens a mailbox page (creation → «تفعيل
   Starlink» directly; «إضافة الحساب» → Starlink directly, codes from his Gmail). The activation password is typed once
   in الإعدادات ← «🔑 كلمة سر التفعيل» - never written in the code or these notes (the repo is public).
+
+## 🔍 «فحص حساب الربح» (Nov 23 2026)
+
+- His report: the bot told one device's operation #250 (21/11) a balance-before and share, the app later showed both
+  higher for the same operation. He asked for a list BEFORE any delete/edit: shares that landed after 21/11 21:50 with older days (who,
+  which phone, when), doubles per device/month, and why #250 changed (the wrong EUR?).
+- Built read-only on the rep's statement: «🔍 فحص حساب الربح» (`lib/repProfitAudit.ts`). Nothing changes by itself;
+  each line opens its operation. Who/when comes from the team marks (`starnet.deviceLinkOrigins`, phone only - not in
+  the backup), so the list must be read on the phone that received them.
+
