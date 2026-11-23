@@ -21,6 +21,7 @@ import { DeviceLinkSection } from "@/components/DeviceLinkSection";
 import { ScheduledSyncsSection } from "@/components/ScheduledSyncsSection";
 import { ActivationPasswordSection, MailDomainSection } from "@/components/MailDomainSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
+import { applyCleanup, cleanupPlan, type CleanupAction } from "@/lib/storageCleanup";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
@@ -2274,13 +2275,59 @@ function StorageUsageSection() {
         {usage.level !== "ok" && " - خذ نسخة احتياطية الآن، ثم احذف صور المنتجات غير الضرورية أو السجلات القديمة من سلة المحذوفات."}
       </p>
       <ul className="storage-keys">
-        {usage.keys.slice(0, 5).map((entry) => (
+        {usage.keys.slice(0, 10).map((entry) => (
           <li key={entry.key}>
             <span>{storageKeyLabel(entry.key)}</span>
             <span>{formatChars(entry.chars)}</span>
           </li>
         ))}
       </ul>
+      <StorageCleanup onDone={() => setUsage(measureStorage(window.localStorage))} />
     </section>
+  );
+}
+
+/** 🧹 «تفريغ المساحة» (his Nov 23 2026 ask): what can go (logs, old copies - never money / devices / customers), then
+ * one tap. lib/storageCleanup.ts. */
+function StorageCleanup({ onDone }: { onDone: () => void }) {
+  const [plan, setPlan] = useState<CleanupAction[]>([]);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    try {
+      setPlan(cleanupPlan(window.localStorage, Date.now()));
+    } catch {
+      setPlan([]);
+    }
+  }, [note]);
+  const total = plan.reduce((sum, a) => sum + a.before - a.after, 0);
+  return (
+    <div className="storage-cleanup">
+      {plan.length === 0 ? (
+        <p className="settings-hint">🧹 لا شيء يُفرَّغ بأمان الآن.{note ? ` ${note}` : ""}</p>
+      ) : (
+        <>
+          <p className="settings-hint">🧹 يمكن تفريغ {formatChars(total)} بأمان - سجلات ونسخ قديمة فقط، لا أموال ولا أجهزة ولا زبائن:</p>
+          <ul className="storage-keys">
+            {plan.map((a) => (
+              <li key={a.key}>
+                <span>{a.label}</span>
+                <span>−{formatChars(a.before - a.after)}</span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="dialog-primary"
+            onClick={() => {
+              const freed = applyCleanup(window.localStorage, cleanupPlan(window.localStorage, Date.now()));
+              setNote(`✓ فُرّغ ${formatChars(freed)}.`);
+              onDone();
+            }}
+          >
+            🧹 تفريغ المساحة
+          </button>
+        </>
+      )}
+    </div>
   );
 }

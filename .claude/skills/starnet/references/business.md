@@ -3897,3 +3897,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   each line opens its operation. Who/when comes from the team marks (`starnet.deviceLinkOrigins`, phone only - not in
   the backup), so the list must be read on the phone that received them.
 
+
+## 🧹 «تفريغ المساحة» - his main phone full (Nov 23 2026)
+
+- His «عاجل جدًا: ذاكرة التطبيق ممتلئة - آخر تغيير لم يُحفظ… أضف زر تفريغ المساحة يحذف ما لا يلزم فقط. لا تحذف بيانات
+  مالية»; he also asked to move the data from localStorage to IndexedDB with a safe plan (backup first, test on a copy).
+- Built now: lib/storageCleanup.ts (only listed keys: link conflicts / log / origins, notifications log, search history,
+  the WhatsApp agent's log / old chats / events > 60 days / closed questions > 30 days / old menu versions without
+  pictures, the assistant chat beyond 30; PROTECTED never touched: ledger, cash, invoices, store moves, clients,
+  devices, reps, settlements, allocations, adjustments, previous debts, card top-ups, currencies, the link's base /
+  state / pending deletions) + its button in الإعدادات ← مساحة التخزين (top 10 keys named). Prevention: menu versions
+  keep no pictures (5 max), agent events 800 max.
+- Waiting for him: the IndexedDB move (plan sent, phases), and his screenshot of «مساحة التخزين» (the biggest keys).

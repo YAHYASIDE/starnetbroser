@@ -100,6 +100,21 @@ const KEY_LABELS: Record<string, string> = {
   starnet_synced_fields_cache_v1: "بيانات Starlink المحفوظة",
   starnet_business_profile_v1: "بيانات النشاط",
   starnet_profit_reset_v1: "تصفير الأرباح",
+  "starnet.deviceLinkBase": "ربط الأجهزة: بصمة كل سجل (لازمة للمزامنة)",
+  "starnet.deviceLinkLog": "ربط الأجهزة: سجل ماذا وصل",
+  "starnet.deviceLinkConflicts": "ربط الأجهزة: التعارضات",
+  "starnet.deviceLinkOrigins": "ربط الأجهزة: علامات «سجّله فلان»",
+  "starnet.deviceLinkPendingDeletes": "ربط الأجهزة: حذف ينتظر موافقتك",
+  "starnet.eventLog": "سجل الإشعارات",
+  starnet_chat_v1: "الدردشة",
+  starnet_device_shots_v1: "لقطات الأجهزة",
+  starnet_agent_menus_v1: "قوائم وكيل واتساب (مع الصور)",
+  starnet_agent_events_v1: "إحصائيات وكيل واتساب",
+  starnet_agent_questions_v1: "أسئلة وكيل واتساب",
+  starnet_agent_lessons_v1: "دروس وكيل واتساب",
+  "starnet.whatsappAgentChats": "محادثات وكيل واتساب",
+  starnet_rep_op_log_v1: "سجل عمليات المندوبين",
+  starnet_customer_message_log_v1: "سجل رسائل الزبائن",
 };
 
 export function storageKeyLabel(key: string): string {

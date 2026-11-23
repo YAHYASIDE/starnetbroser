@@ -98,7 +98,8 @@ export interface MenusStore {
   settings: MenuSettings;
 }
 
-export const MAX_VERSIONS = 10;
+/** 🧹 A version keeps no pictures (the live menus have them) - his Nov 23 2026 «الذاكرة ممتلئة». */
+export const MAX_VERSIONS = 5;
 
 export const DEFAULT_WELCOME = "🌐 مرحبًا بك في STAR NET\n\nيسعدنا خدمتك في جميع خدمات Starlink 🛰️\n\nكيف يمكننا مساعدتك اليوم؟\n\nاختر الخدمة المطلوبة من القائمة 👇";
 
@@ -247,8 +248,13 @@ export function docProblems(doc: MenuDoc): string[] {
 }
 
 /** Publish the draft: customers get it; the previous published one is kept as a version. */
+/** A document without its pictures (an old version: the pictures stay in the live menus). */
+export function withoutImages(doc: MenuDoc): MenuDoc {
+  return { ...doc, nodes: doc.nodes.map(({ image: _i, ...n }) => n), products: doc.products.map(({ image: _i, ...p }) => p) };
+}
+
 export function publishMenus(store: MenusStore, at: string, by: string): MenusStore {
-  const versions = store.published ? [{ at: store.publishedAt ?? at, by: store.publishedBy ?? "", doc: store.published }, ...store.versions].slice(0, MAX_VERSIONS) : store.versions;
+  const versions = store.published ? [{ at: store.publishedAt ?? at, by: store.publishedBy ?? "", doc: withoutImages(store.published) }, ...store.versions].slice(0, MAX_VERSIONS) : store.versions;
   return { ...store, published: store.draft, publishedAt: at, publishedBy: by, versions };
 }
 
@@ -261,7 +267,7 @@ export function restoreVersion(store: MenusStore, index: number): MenusStore {
 /** Stop sending menus to customers (the draft stays). */
 export function unpublishMenus(store: MenusStore): MenusStore {
   const { publishedAt: _a, publishedBy: _b, ...rest } = store;
-  return { ...rest, published: null, versions: store.published ? [{ at: store.publishedAt ?? "", by: store.publishedBy ?? "", doc: store.published }, ...store.versions].slice(0, MAX_VERSIONS) : store.versions };
+  return { ...rest, published: null, versions: store.published ? [{ at: store.publishedAt ?? "", by: store.publishedBy ?? "", doc: withoutImages(store.published) }, ...store.versions].slice(0, MAX_VERSIONS) : store.versions };
 }
 
 // ---- what the customer reads (the same strings as WhatsAppMenu.java) ----

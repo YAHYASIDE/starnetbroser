@@ -47,7 +47,8 @@ export interface AgentEvent {
   output?: number;
 }
 
-export const MAX_EVENTS = 2000;
+/** 🧹 Small enough for a full phone (his Nov 23 2026 «الذاكرة ممتلئة»). */
+export const MAX_EVENTS = 800;
 
 /** A customer the agent leaves to a person until this time (ms) - the reader's `paused`. */
 export function pausedUntil(handoffs: Handoff[], handoffHours: number): Record<string, number> {
