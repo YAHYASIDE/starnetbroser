@@ -40,6 +40,7 @@ import {
 } from "@/lib/deviceLink";
 import { readDocument, writeDocument } from "@/lib/firestoreRest";
 import { loadLiveSyncConfig } from "@/lib/liveSyncConfig";
+import { CloudDbSection } from "@/components/CloudDbSection";
 
 const RULES = `rules_version = '2';
 service cloud.firestore {
@@ -202,7 +203,7 @@ export function DeviceLinkSection() {
     <section className="section device-link">
       <p className="settings-hint">
         البيانات نفسها على كل أجهزة الفريق (هاتفك، اللابتوب، هاتف «المسؤول 2»…): ما يسجّله أحدهم يظهر عند الكل خلال ثوانٍ (نحو 10)،
-        والتطبيق مفتوح. عبر Firebase الخاص بك، والبيانات مشفّرة قبل أن تخرج من الجهاز.
+        والتطبيق مفتوح. عبر Firebase الخاص بك، الربط مشفّر؛ وبعد «☁️ انقل الفريق إلى Firebase» تُحفظ السجلات على الخادم مقروءة له ومحميّة بقواعد لا تسمح إلا لهواتف فريقك.
       </p>
 
       {!config && !desktop && (
@@ -301,6 +302,7 @@ export function DeviceLinkSection() {
               {team.some((m) => isMainMember(m.id)) && <span className="device-link-main-note"> · ⭐ الرئيسي: نسخته تفوز في التعارض، والحذف من غيره ينتظر موافقته</span>}
             </p>
           )}
+          <CloudDbSection config={config} />
           <div className="device-link-code-box">
             <span>لإضافة عضو (اللابتوب، المسؤول 2…): انسخ رمز الربط وأرسله له - سرّي، من يملكه يرى كل شيء.</span>
             <button type="button" className="dialog-secondary" onClick={() => void copy(linkCode(config), "code")}>

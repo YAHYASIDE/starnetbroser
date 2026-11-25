@@ -18,6 +18,7 @@ import { isQuotaError } from "./storageGuard";
 import { COUNTED_STORES, describeOp, isNotableStore, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
 import { checkConfigInput, newSpaceId } from "./liveSyncConfig";
 import { addRefusedChanges, guardPinnedOp, refusedChange } from "./currencyPin";
+import { EMPTY_CURSOR, commit, countRecords, getDoc, myUid, newJoinCode, planCommits, putDoc, readSince, type CloudCursor } from "./cloudDb";
 
 export type LinkRole = "phone" | "laptop";
 
@@ -107,6 +108,8 @@ const TEAM = "starnet.deviceLinkTeam";
 const ORIGINS = "starnet.deviceLinkOrigins";
 const LOG = "starnet.deviceLinkLog";
 const PENDING = "starnet.deviceLinkPendingDeletes";
+const CLOUD = "starnet.deviceLinkCloud";
+const CLOUD_OUTBOX = "starnet.deviceLinkCloudOutbox";
 const LOG_SIZE = 300;
 /** The team list is read again this often (Firebase's free reads are counted per day) - a member who just joined
  * is seen within a minute (his Nov 5 2026 «ليس بالسرعة المطلوبة»). */
@@ -127,6 +130,8 @@ const MAX_PART_BATCHES = 400;
 const headPath = (c: LinkConfig, member: string) => `starnet/${c.spaceId}/link/${member}`;
 const batchPath = (c: LinkConfig, member: string, seq: number) => `starnet/${c.spaceId}/link/${member}/batches/${seq}`;
 const teamPath = (c: LinkConfig) => `starnet/${c.spaceId}/team/members`;
+/** ☁️ The main phone's sealed note «the team is on Firebase now» (+ the join code) - read with the team list. */
+const cloudNotePath = (c: LinkConfig) => `starnet/${c.spaceId}/team/cloud`;
 /** An older link's two members, before anyone wrote the team list. */
 const LEGACY_TEAM: TeamMember[] = [
   { id: "phone", name: "الهاتف", at: "" },
@@ -425,6 +430,42 @@ export const STORAGE_FULL_MESSAGE = "📵 ذاكرة التطبيق ممتلئة
 
 const parsedBase: { raw: string | null; value: Baseline } = { raw: null, value: {} };
 
+// ---- ☁️ Firebase as the main database (lib/cloudDb.ts) ----
+
+/** This phone on the team's Firebase database (phone-only: never in a backup, never in the link). */
+export interface CloudState {
+  on: boolean;
+  /** The join code (the rules check it when a member joins). */
+  code?: string;
+  cursor: CloudCursor;
+  /** When the team's note was last read (ms) - every TEAM_EVERY_MS while not on. */
+  checkedAt?: number;
+  /** The first upload (main phone): records sent / counted back by the server. */
+  moved?: { at: string; sent: number; counted: number };
+  lastAt?: string;
+  lastMessage?: string;
+  /** Records too big for one document (kept on the old link only). */
+  tooBig?: string[];
+}
+
+export function loadCloud(s: LinkStorage): CloudState {
+  return { on: false, cursor: EMPTY_CURSOR, ...parse<Partial<CloudState>>(s.getSetting(CLOUD), {}) };
+}
+
+function saveCloud(s: LinkStorage, c: CloudState): void {
+  s.setSetting(CLOUD, JSON.stringify(c));
+}
+
+/** Only business records go to the readable database - the shared settings (reps' codes, passwords) stay sealed in
+ * the old link. */
+const isCloudKey = (k: string) => k.startsWith("starnet_");
+
+/** A remote change that only repeats what this phone already has (the first full read) - nothing to apply. */
+function sameAsHere(op: SyncOp, here: FlatData): boolean {
+  const cur = here[op.k]?.records[op.r];
+  return op.v === null ? cur === undefined : cur === op.v;
+}
+
 /** One round of the link. Never throws: a network / Firebase problem is the round's message. `sendOnly`: only
  * what changed here goes out (he is in the middle of something - nothing is written into his screens); the other
  * members' changes come in on the next full round. */
@@ -521,6 +562,56 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     cursors[member.id] = cursor;
     seqDone += Math.min(cursor, theirSeq);
   }
+  // ☁️ The team's Firebase database: join it once the main phone moved the team, then read everyone's changes there.
+  let cloud = loadCloud(s);
+  if (!cloud.on && !isMainMember(config.memberId) && now.getTime() - (cloud.checkedAt ?? 0) >= TEAM_EVERY_MS) {
+    cloud = { ...cloud, checkedAt: now.getTime() };
+    const note = await readDocument(config, cloudNotePath(config), fetchFn);
+    if (note.ok && note.value?.iv) {
+      try {
+        const opened = JSON.parse(await openText({ iv: note.value.iv, data: note.value.data ?? "" }, config.key)) as { code?: string };
+        const uid = opened.code ? await myUid(config, fetchFn) : null;
+        if (opened.code && uid?.ok) {
+          const joined = await putDoc(config, `starnet/${config.spaceId}/members/${uid.value}`, {
+            member: { stringValue: config.memberId },
+            name: { stringValue: config.name },
+            code: { stringValue: opened.code },
+            at: { stringValue: at },
+          }, fetchFn);
+          if (joined.ok) cloud = { ...cloud, on: true, code: opened.code, cursor: EMPTY_CURSOR, lastMessage: "☁️ انضم إلى قاعدة Firebase" };
+          else cloud = { ...cloud, lastMessage: joined.message };
+        }
+      } catch {
+        // sealed with another key - not this team's
+      }
+    }
+    saveCloud(s, cloud);
+  }
+  if (cloud.on && !opts.sendOnly) {
+    const got = await readSince(config, config.spaceId, cloud.cursor, config.memberId, fetchFn);
+    if (got.ok) {
+      const have = new Set(remoteOps.map((o) => `${o.by}|${o.k}|${o.r}|${o.at}`));
+      for (const op of got.value.ops) {
+        if (have.has(`${op.by}|${op.k}|${op.r}|${op.at}`) || sameAsHere(op, flat)) continue;
+        remoteOps.push({ k: op.k, s: op.s, r: op.r, v: op.v, at: op.at, by: op.by });
+      }
+      cloud = { ...cloud, cursor: got.value.cursor, lastAt: at, lastMessage: got.value.more ? "⏳ يستلم من Firebase…" : "☁️ متزامن مع Firebase" };
+      if (got.value.more) behind = true;
+    } else {
+      cloud = { ...cloud, lastMessage: got.message };
+      // refused: this phone's Firebase identity changed (a new sign-in) - it joins again with the code it holds
+      const uid = cloud.code ? await myUid(config, fetchFn) : null;
+      if (uid?.ok && cloud.code) {
+        await putDoc(config, `starnet/${config.spaceId}/members/${uid.value}`, {
+          member: { stringValue: config.memberId },
+          name: { stringValue: config.name },
+          code: { stringValue: cloud.code },
+          at: { stringValue: at },
+        }, fetchFn);
+      }
+    }
+  }
+
   // Several members' changes: the later change of one record wins (each member's own order kept).
   remoteOps.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 
@@ -568,6 +659,30 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
     seq += 1;
     sentOps += batch.length;
   }
+  // ☁️ Ours to the team's Firebase database (what failed waits in its own outbox - the old link may have sent it).
+  if (cloud.on) {
+    const outbox = [...parse<SyncOp[]>(s.getSetting(CLOUD_OUTBOX), []), ...merged.outgoing.filter((o) => isCloudKey(o.k))];
+    if (outbox.length) {
+      const { commits, tooBig } = planCommits(config, config.spaceId, outbox, config.memberId);
+      const left: SyncOp[] = [];
+      let i = 0;
+      let failed: string | null = null;
+      for (const writes of commits) {
+        const n = writes.length;
+        if (!failed) {
+          const done = await commit(config, writes, fetchFn);
+          if (!done.ok) failed = done.message;
+        }
+        if (failed) left.push(...outbox.filter((o) => !tooBig.includes(o)).slice(i, i + n));
+        i += n;
+      }
+      s.setSetting(CLOUD_OUTBOX, left.length ? JSON.stringify(left) : null);
+      if (tooBig.length) cloud = { ...cloud, tooBig: [...new Set([...(cloud.tooBig ?? []), ...tooBig.map((o) => `${o.k}|${o.r}`)])].slice(-50) };
+      if (failed) cloud = { ...cloud, lastMessage: `☁️ ${failed}` };
+    }
+    saveCloud(s, cloud);
+  }
+
   // The head only when something moved (Firebase's free writes are counted per day). 🔗 New batches are announced on
   // EVERY round, a send-only one too (his Nov 20 2026 report «المسؤولون يعدّلون ولا يظهر عندي»): the others read only
   // up to the head's number and listen to the head - a change sent while he was busy, with nothing else moving after,
@@ -714,6 +829,87 @@ export function joinAsLaptop(s: LinkStorage, config: LinkConfig): void {
 export function startAsPhone(s: LinkStorage, config: LinkConfig): void {
   resetLink(s);
   saveLinkConfig(s, config);
+}
+
+/**
+ * ☁️ «انقل الفريق إلى Firebase» - the main phone, once (his Nov 25 2026 choice). Safe order: the space is his, the
+ * new rules are really published (the join code can't be read), the code, himself as a member, then EVERY business
+ * record goes up and the server counts them back - only an exact count announces it to the team (the admins join on
+ * their next round). The old link keeps running beside it until he decides to stop it. Can be run again: it continues.
+ */
+export async function moveTeamToCloud(
+  s: LinkStorage,
+  fetchFn: FetchFn = timedFetch,
+  progress: (text: string) => void = () => undefined,
+  now: Date = new Date(),
+): Promise<{ ok: true; sent: number; counted: number } | { ok: false; message: string }> {
+  const config = loadLinkConfig(s);
+  if (!config || !config.enabled) return { ok: false, message: "فعّل ربط الفريق أولًا" };
+  if (!isMainMember(config.memberId)) return { ok: false, message: "النقل من الهاتف الرئيسي فقط" };
+  const at = now.toISOString();
+  const space = `starnet/${config.spaceId}`;
+  progress("🔐 التحقق من Firebase…");
+  const uid = await myUid(config, fetchFn);
+  if (!uid.ok) return uid;
+  // 1. the space is his (created now, or already his from an earlier try)
+  await putDoc(config, space, { owner: { stringValue: uid.value }, at: { stringValue: at } }, fetchFn, true);
+  // 2. the new rules are published: a private document can be written by him but never read back
+  const probe = await putDoc(config, `${space}/private/probe`, { at: { stringValue: at } }, fetchFn);
+  if (!probe.ok) return { ok: false, message: `لم يُقبل - انشر القواعد الجديدة (${probe.message})` };
+  const readBack = await getDoc(config, `${space}/private/probe`, fetchFn);
+  if (readBack.ok) return { ok: false, message: "القواعد القديمة ما زالت منشورة - انسخ القواعد الجديدة والصقها في Firestore ← Rules ← Publish ثم أعد المحاولة" };
+  if (readBack.message !== "denied") return { ok: false, message: readBack.message };
+  // 3. the join code, and himself as the first member
+  let cloud = loadCloud(s);
+  const code = cloud.code ?? newJoinCode();
+  saveCloud(s, { ...cloud, code });
+  const join = await putDoc(config, `${space}/private/join`, { code: { stringValue: code } }, fetchFn);
+  if (!join.ok) return { ok: false, message: `هذا الهاتف ليس صاحب مساحة الفريق في Firebase (${join.message})` };
+  const me = await putDoc(config, `${space}/members/${uid.value}`, {
+    member: { stringValue: config.memberId },
+    name: { stringValue: config.name },
+    code: { stringValue: code },
+    at: { stringValue: at },
+  }, fetchFn);
+  if (!me.ok) return me;
+  // 4. every business record goes up
+  const flat = flattenAll(s.readAll());
+  const ops: SyncOp[] = [];
+  for (const [k, fk] of Object.entries(flat)) {
+    if (!isCloudKey(k)) continue;
+    for (const [r, v] of Object.entries(fk.records)) ops.push({ k, s: fk.shape, r, v, at });
+  }
+  const { commits, tooBig } = planCommits(config, config.spaceId, ops, config.memberId);
+  let sent = 0;
+  for (const [i, writes] of commits.entries()) {
+    progress(`☁️ رفع البيانات ${Math.floor((i / commits.length) * 100)}%`);
+    const done = await commit(config, writes, fetchFn);
+    if (!done.ok) return { ok: false, message: `توقف الرفع عند ${sent} سجل: ${done.message} - أعد المحاولة، يكمل` };
+    sent += writes.length;
+  }
+  // 5. the server counts them back
+  progress("🔢 الخادم يعدّ السجلات…");
+  const counted = await countRecords(config, config.spaceId, fetchFn);
+  if (!counted.ok) return counted;
+  const expected = ops.length - tooBig.length;
+  if (counted.value < expected) return { ok: false, message: `الخادم عدّ ${counted.value} من ${expected} سجل - أعد المحاولة` };
+  // 6. announce it to the team (sealed with the team's key) and switch this phone on
+  const sealed = await sealText(JSON.stringify({ code, at }), config.key);
+  const note = await writeDocument(config, cloudNotePath(config), { iv: sealed.iv, data: sealed.data }, fetchFn);
+  if (!note.ok) return note;
+  cloud = loadCloud(s);
+  saveCloud(s, {
+    ...cloud,
+    on: true,
+    code,
+    // from the start: his own records are skipped, nothing of an admin's is missed whatever this phone's clock says
+    cursor: EMPTY_CURSOR,
+    moved: { at, sent, counted: counted.value },
+    tooBig: tooBig.map((o) => `${o.k}|${o.r}`),
+    lastAt: at,
+    lastMessage: "☁️ الفريق على Firebase",
+  });
+  return { ok: true, sent, counted: counted.value };
 }
 
 /**

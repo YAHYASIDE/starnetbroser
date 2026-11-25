@@ -3948,3 +3948,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
   he stops outside the safe mode stays stopped («starnet.partsOff», phone-only) until he starts it; inside the safe
   mode the parts he started stay started. lib/safeMode.ts (`partRunsIn`, `setPartRunning`), components/SafeMode.tsx.
 
+## ☁️ Firebase as the main database (Nov 25 2026)
+
+- His «ألا يمكن أن تكون كل بيانات التطبيق محفوظة في مكان فيه إنترنت عالٍ… وعندما أريد تعديل شيء يأتي بسرعة»; offered a
+  fast «cloud copy» (1-2 days) or the full move (weeks) - he chose «لا دعنا نفعل فايربيس جيدًا منه».
+- His answers: data READABLE by the server with permissions (so later a server bot / the agent can read it with every
+  phone off) - not end-to-end encrypted; him + the admins first (reps stay on their current copies, later); sign-in by
+  the team code as today (anonymous Firebase sign-in + a member document created with the join code); Blaze with a
+  10$ budget (alerts at 50% / 100% - Google's budget alerts don't stop spending by themselves).
+- Built (phase 1): lib/cloudDb.ts - one Firestore document per business record `starnet/{space}/records/{id}`
+  {k,s,r,v,d,a,m,u(server time)}; members `starnet/{space}/members/{uid}`; join code `private/join` (never readable);
+  CLOUD_RULES (records/members only for members; everything else of the app unchanged). lib/deviceLink.ts:
+  `moveTeamToCloud` (main phone only: owner → the new rules really published (a private probe can't be read back) →
+  code → himself → every `starnet_` record up → the server counts them back → a sealed note for the team) and, in each
+  round, join (admins, once a minute, from the sealed note), read everything changed since the cursor (2-minute
+  overlap, own skipped, records equal to here skipped), send through an outbox. The shared settings (passwords, reps'
+  codes) never go to the readable database - they stay sealed in the old link.
+- The old encrypted link keeps running beside it (dual run) until he decides to stop it; the same merge rules apply
+  (main phone wins, others' deletions wait for him, pinned rates guarded).
+- Next phases (each with his approval): stop the old link once all admins are on cloud; reps; a server function on
+  Blaze (bots / the WhatsApp agent reading data 24/7); pictures to Cloud Storage.
+
