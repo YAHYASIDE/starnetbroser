@@ -14,6 +14,7 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   useEffect(() => {
     const load = () => setCloud(loadCloud(browserLinkStorage()));
     load();
@@ -56,6 +57,26 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
         </>
       ) : main ? (
         <>
+          <p className="settings-hint">
+            📌 مشروع Firebase الذي يتصل به هذا التطبيق: <bdi dir="ltr"><strong>{config.projectId}</strong></bdi>. القواعد يجب أن تُنشر في هذا المشروع بالذات.
+          </p>
+          <div className="agent-actions">
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                void navigator.clipboard
+                  ?.writeText(`https://console.firebase.google.com/project/${config.projectId}/firestore/rules`)
+                  .then(() => {
+                    setLinkCopied(true);
+                    window.setTimeout(() => setLinkCopied(false), 1500);
+                  })
+                  .catch(() => undefined);
+              }}
+            >
+              {linkCopied ? "✓ نُسخ" : "📋 انسخ رابط صفحة قواعد هذا المشروع"}
+            </button>
+          </div>
           <p className="settings-hint">كل بياناتك تصبح على خادم Google، وكل هاتف في الفريق يقرأ منه ويكتب فيه. لا يُحذف شيء من هاتفك، والربط الحالي يبقى يعمل بجانبه.</p>
           <ol className="settings-hint device-link-steps-list">
             <li>

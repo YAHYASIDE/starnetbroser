@@ -857,7 +857,7 @@ export async function moveTeamToCloud(
   const probe = await putDoc(config, `${space}/private/probe`, { at: { stringValue: at } }, fetchFn);
   if (!probe.ok) return { ok: false, message: `لم يُقبل - انشر القواعد الجديدة (${probe.message})` };
   const readBack = await getDoc(config, `${space}/private/probe`, fetchFn);
-  if (readBack.ok) return { ok: false, message: "القواعد القديمة ما زالت منشورة - انسخ القواعد الجديدة والصقها في Firestore ← Rules ← Publish ثم أعد المحاولة" };
+  if (readBack.ok) return { ok: false, message: `القواعد المنشورة في المشروع «${config.projectId}» ما زالت تسمح بقراءة ما يجب منعه. انشر القواعد الجديدة في هذا المشروع بالذات (Firestore ← Rules ← Publish)، وانتظر دقيقتين، ثم أعد المحاولة` };
   if (readBack.message !== "denied") return { ok: false, message: readBack.message };
   // 3. the join code, and himself as the first member
   let cloud = loadCloud(s);
