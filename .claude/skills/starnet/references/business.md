@@ -3936,3 +3936,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Same update (his «لا تضيع عملية إذا أغلق أحدهم التطبيق بسرعة»): the team link sends a waiting save at once when
   the app leaves the screen (DeviceLinkRunner, visibilitychange hidden). Background sync every ~15 min with the app
   closed (Android WorkManager) and the Firebase-as-main-DB study: next, study only before his approval.
+
+## 🛟 The safe mode only by his permission (Nov 25 2026)
+
+- His «اجعل الوضع الآمن عندما أفعّله لا يتوقف أبدًا إلا بإذن مني، وعندما أقفله أو أقفل بعض الميزات لا تفعل إلا بإذن مني
+  فهو يفعّل نفسه».
+- The boot script no longer turns the safe mode on (nor clears the parts he started): 3 opens in 3 minutes only set
+  «starnet.safeAsk» → a question «هل أشغّل الوضع الآمن؟ نعم / لا، شغّل كما كان»; the background parts WAIT for his answer.
+- On: stays on until his «✅ أنهِ الوضع الآمن» (nothing ends it by itself). Off: nothing starts it but his tap.
+- Each background part has ▶️ / ⏸️ (the safe-mode sheet AND الإعدادات ← الأمان ← «🛟 الوضع الآمن وأعمال الخلفية»): a part
+  he stops outside the safe mode stays stopped («starnet.partsOff», phone-only) until he starts it; inside the safe
+  mode the parts he started stay started. lib/safeMode.ts (`partRunsIn`, `setPartRunning`), components/SafeMode.tsx.
+

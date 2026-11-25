@@ -2,7 +2,16 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { PartySheet } from "./AccountsSection";
-import { allowInSafeMode, allowedInSafeMode, BACKGROUND_PARTS, partRuns, SAFE_MODE_EVENT, safeModeOn, setSafeMode } from "@/lib/safeMode";
+import {
+  BACKGROUND_PARTS,
+  dismissSafeAsk,
+  partRuns,
+  SAFE_MODE_EVENT,
+  safeAskPending,
+  safeModeOn,
+  setPartRunning,
+  setSafeMode,
+} from "@/lib/safeMode";
 
 function useSafeTick(): number {
   const [n, setN] = useState(0);
@@ -14,7 +23,7 @@ function useSafeTick(): number {
   return n;
 }
 
-/** 🛟 A background job that stays off in the safe mode until he starts it (lib/safeMode.ts). */
+/** 🛟 A background job that runs only as he left it (lib/safeMode.ts): stopped by him, or in the safe mode. */
 export function BackgroundPart({ part, children }: { part: string; children: ReactNode }) {
   useSafeTick();
   const [ready, setReady] = useState(false);
@@ -23,39 +32,74 @@ export function BackgroundPart({ part, children }: { part: string; children: Rea
   return <>{children}</>;
 }
 
-/** 🛟 The banner while the safe mode is on: what is stopped, start each part, or end it. */
+/** Each background part with its own ▶️ / ⏸️ - his tap only, it stays so. */
+function PartsList() {
+  useSafeTick();
+  return (
+    <ul className="safe-mode-list">
+      {BACKGROUND_PARTS.map((p) => {
+        const runs = partRuns(p.id);
+        return (
+          <li key={p.id} className="safe-mode-part">
+            <span>
+              {p.label}
+              <small className="settings-hint">{runs ? " ✓ يعمل" : " ⏸️ متوقف"}</small>
+            </span>
+            <button type="button" className="dialog-secondary" onClick={() => setPartRunning(p.id, !runs)}>
+              {runs ? "⏸️ أوقف" : "▶️ شغّل"}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** 🛟 The safe mode's question (3 quick opens), its banner while on, and its sheet. */
 export function SafeModeBanner() {
   useSafeTick();
-  const [on, setOn] = useState(false);
+  const [state, setState] = useState<"none" | "ask" | "on">("none");
   const [open, setOpen] = useState(false);
-  useEffect(() => setOn(safeModeOn()));
-  if (!on) return null;
-  const allowed = allowedInSafeMode();
+  useEffect(() => setState(safeModeOn() ? "on" : safeAskPending() ? "ask" : "none"));
+  useEffect(() => {
+    if (state === "ask") setOpen(true);
+  }, [state]);
+  if (state === "none") return null;
   return (
     <>
       <button type="button" className="safe-mode-banner" role="alert" onClick={() => setOpen(true)}>
-        🛟 وضع آمن - أعمال الخلفية متوقفة · اضغط
+        {state === "ask" ? "🛟 فُتح التطبيق 3 مرات بسرعة - هل أشغّل الوضع الآمن؟ اضغط" : "🛟 وضع آمن - أعمال الخلفية متوقفة · اضغط"}
       </button>
-      {open && (
+      {open && state === "ask" && (
+        <PartySheet title="🛟 الوضع الآمن؟" onClose={() => setOpen(false)}>
+          <p className="settings-hint">
+            فُتح التطبيق 3 مرات في 3 دقائق. إن كان يتجمّد، شغّل الوضع الآمن (تتوقف أعمال الخلفية حتى تنهيه أنت). إن كنت فقط تعيد فتحه، اختر «لا».
+            أعمال الخلفية تنتظر جوابك.
+          </p>
+          <div className="agent-actions">
+            <button type="button" className="dialog-primary" onClick={() => setSafeMode(true)}>
+              🛟 نعم، شغّل الوضع الآمن
+            </button>
+            <button
+              type="button"
+              className="dialog-secondary"
+              onClick={() => {
+                dismissSafeAsk();
+                setOpen(false);
+              }}
+            >
+              لا، شغّل كما كان
+            </button>
+          </div>
+        </PartySheet>
+      )}
+      {open && state === "on" && (
         <PartySheet title="🛟 الوضع الآمن" onClose={() => setOpen(false)}>
           <p className="settings-hint">
-            فُتح التطبيق 3 مرات في 3 دقائق، فشغّلته دون أي عمل في الخلفية لكي لا يتجمد. بياناتك كلها هنا وتعمل. شغّل الأجزاء واحدًا واحدًا: إن
-            تجمّد التطبيق بعد تشغيل جزء، فهو السبب - أخبرني باسمه.
+            يبقى الوضع الآمن مفعّلًا حتى تنهيه أنت - لا يتوقف ولا يتغيّر وحده. شغّل الأجزاء واحدًا واحدًا: إن تجمّد التطبيق بعد تشغيل جزء، فهو السبب -
+            أخبرني باسمه.
           </p>
-          <ul className="safe-mode-list">
-            {BACKGROUND_PARTS.map((p) => (
-              <li key={p.id} className="safe-mode-part">
-                <span>{p.label}</span>
-                {allowed.includes(p.id) ? (
-                  <span className="settings-hint">✓ يعمل</span>
-                ) : (
-                  <button type="button" className="dialog-secondary" onClick={() => allowInSafeMode(p.id)}>
-                    ▶️ شغّل
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+          <PartsList />
           <button
             type="button"
             className="dialog-primary"
@@ -65,10 +109,36 @@ export function SafeModeBanner() {
               window.location.reload();
             }}
           >
-            ✅ أنهِ الوضع الآمن (يعمل كل شيء)
+            ✅ أنهِ الوضع الآمن
           </button>
         </PartySheet>
       )}
     </>
+  );
+}
+
+/** ⚙️ Settings ← الأمان ← «الوضع الآمن وأعمال الخلفية»: turn it on / off, stop or start any part - only by his tap. */
+export function SafeModeSection() {
+  useSafeTick();
+  const on = safeModeOn();
+  return (
+    <section className="section">
+      <p className="settings-hint">
+        {on
+          ? "🛟 الوضع الآمن مفعّل: كل أعمال الخلفية متوقفة إلا ما شغّلته أنت. يبقى كذلك حتى تنهيه."
+          : "كل عمل في الخلفية يبقى كما تركته: ما توقفه يبقى متوقفًا حتى تشغّله أنت. لا يتغيّر شيء وحده."}
+      </p>
+      <PartsList />
+      <button
+        type="button"
+        className={on ? "dialog-primary" : "dialog-secondary"}
+        onClick={() => {
+          setSafeMode(!on);
+          if (on) window.location.reload();
+        }}
+      >
+        {on ? "✅ أنهِ الوضع الآمن" : "🛟 شغّل الوضع الآمن"}
+      </button>
+    </section>
   );
 }

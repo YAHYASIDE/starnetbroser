@@ -10,6 +10,10 @@ export const SAFE_MODE_KEY = "starnet.safeMode";
 export const BOOTS_KEY = "starnet.boots";
 /** The background parts he started again inside the safe mode. */
 export const SAFE_ALLOWED_KEY = "starnet.safeAllowed";
+/** 🛟 Set by the boot script after 3 quick opens: ASK him (his Nov 25 2026 «لا تفعل إلا بإذن مني»). */
+export const SAFE_ASK_KEY = "starnet.safeAsk";
+/** The parts he stopped himself (outside the safe mode) - they stay stopped until he starts them. */
+export const PARTS_OFF_KEY = "starnet.partsOff";
 export const SAFE_MODE_EVENT = "starnet:safe-mode";
 
 export const BOOTS_TO_SAFE = 3;
@@ -17,14 +21,18 @@ export const BOOTS_WINDOW_MS = 3 * 60_000;
 /** The automatic backups wait this long after the app opens. */
 export const BACKUP_AFTER_OPEN_MS = 2 * 60_000;
 
-/** The boots kept (newest last) and whether this one starts in the safe mode. Pure. */
+/** The boots kept (newest last) and whether this one should ASK about the safe mode. Pure. */
 export function nextBoots(previous: number[], now: number): { boots: number[]; safe: boolean } {
   const boots = [...previous.filter((t) => Number.isFinite(t) && now - t < BOOTS_WINDOW_MS && t <= now), now].slice(-BOOTS_TO_SAFE);
   return { boots, safe: boots.length >= BOOTS_TO_SAFE };
 }
 
-/** Runs first in the page as plain JS (no module) - the same rule as nextBoots. */
-export const SAFE_MODE_BOOT_SCRIPT = `try{var n=Date.now(),b=JSON.parse(localStorage.getItem("${BOOTS_KEY}")||"[]");if(!Array.isArray(b))b=[];b=b.filter(function(t){return typeof t==="number"&&n-t<${BOOTS_WINDOW_MS}&&t<=n});b.push(n);b=b.slice(-${BOOTS_TO_SAFE});localStorage.setItem("${BOOTS_KEY}",JSON.stringify(b));if(b.length>=${BOOTS_TO_SAFE}){localStorage.setItem("${SAFE_MODE_KEY}","1");localStorage.removeItem("${SAFE_ALLOWED_KEY}");}}catch(e){}`;
+/**
+ * Runs first in the page as plain JS (no module) - the same rule as nextBoots. It never turns the safe mode on or
+ * off and never touches the parts he started or stopped (his Nov 25 2026 «لا يتوقف أبدًا إلا بإذن مني… فهو يفعل
+ * نفسه»): 3 quick opens only ask (SAFE_ASK_KEY), and the background parts wait for his answer.
+ */
+export const SAFE_MODE_BOOT_SCRIPT = `try{var n=Date.now(),b=JSON.parse(localStorage.getItem("${BOOTS_KEY}")||"[]");if(!Array.isArray(b))b=[];b=b.filter(function(t){return typeof t==="number"&&n-t<${BOOTS_WINDOW_MS}&&t<=n});b.push(n);b=b.slice(-${BOOTS_TO_SAFE});localStorage.setItem("${BOOTS_KEY}",JSON.stringify(b));if(b.length>=${BOOTS_TO_SAFE}&&localStorage.getItem("${SAFE_MODE_KEY}")!=="1"){localStorage.setItem("${SAFE_ASK_KEY}","1");}}catch(e){}`;
 
 function read(key: string): string | null {
   try {
@@ -34,46 +42,85 @@ function read(key: string): string | null {
   }
 }
 
-export function safeModeOn(): boolean {
-  return read(SAFE_MODE_KEY) === "1";
-}
-
-export function setSafeMode(on: boolean): void {
+function readList(key: string): string[] {
   try {
-    if (on) window.localStorage.setItem(SAFE_MODE_KEY, "1");
-    else {
-      window.localStorage.removeItem(SAFE_MODE_KEY);
-      window.localStorage.removeItem(SAFE_ALLOWED_KEY);
-      window.localStorage.removeItem(BOOTS_KEY);
-    }
-  } catch {
-    // stays
-  }
-  window.dispatchEvent(new Event(SAFE_MODE_EVENT));
-}
-
-export function allowedInSafeMode(): string[] {
-  try {
-    const v = JSON.parse(read(SAFE_ALLOWED_KEY) ?? "[]") as unknown;
+    const v = JSON.parse(read(key) ?? "[]") as unknown;
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
   } catch {
     return [];
   }
 }
 
-export function allowInSafeMode(part: string): void {
+function write(key: string, value: string | null): void {
   try {
-    const now = allowedInSafeMode();
-    if (!now.includes(part)) window.localStorage.setItem(SAFE_ALLOWED_KEY, JSON.stringify([...now, part]));
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
   } catch {
     // stays
   }
-  window.dispatchEvent(new Event(SAFE_MODE_EVENT));
+}
+
+const changed = () => window.dispatchEvent(new Event(SAFE_MODE_EVENT));
+
+export function safeModeOn(): boolean {
+  return read(SAFE_MODE_KEY) === "1";
+}
+
+/** 3 quick opens: waiting for his «نعم / لا». */
+export function safeAskPending(): boolean {
+  return read(SAFE_ASK_KEY) === "1" && !safeModeOn();
+}
+
+/** Only from his own tap. Off: every part runs again except the ones he stopped himself. */
+export function setSafeMode(on: boolean): void {
+  write(SAFE_ASK_KEY, null);
+  write(BOOTS_KEY, null);
+  if (on) {
+    write(SAFE_MODE_KEY, "1");
+  } else {
+    write(SAFE_MODE_KEY, null);
+    write(SAFE_ALLOWED_KEY, null);
+  }
+  changed();
+}
+
+/** His answer «لا»: nothing changes, everything runs as he left it. */
+export function dismissSafeAsk(): void {
+  write(SAFE_ASK_KEY, null);
+  write(BOOTS_KEY, null);
+  changed();
+}
+
+export function allowedInSafeMode(): string[] {
+  return readList(SAFE_ALLOWED_KEY);
+}
+
+export function partsOff(): string[] {
+  return readList(PARTS_OFF_KEY);
+}
+
+/** Pure: does a part run, from the saved state. */
+export function partRunsIn(state: { safe: boolean; ask: boolean; allowed: string[]; off: string[] }, part: string): boolean {
+  if (state.ask) return false;
+  if (state.safe) return state.allowed.includes(part);
+  return !state.off.includes(part);
 }
 
 /** May this background part run now. */
 export function partRuns(part: string): boolean {
-  return !safeModeOn() || allowedInSafeMode().includes(part);
+  return partRunsIn({ safe: safeModeOn(), ask: safeAskPending(), allowed: allowedInSafeMode(), off: partsOff() }, part);
+}
+
+/** His tap on one part: start / stop it - and it stays so until his next tap (in or outside the safe mode). */
+export function setPartRunning(part: string, run: boolean): void {
+  if (safeModeOn()) {
+    const now = allowedInSafeMode().filter((p) => p !== part);
+    write(SAFE_ALLOWED_KEY, JSON.stringify(run ? [...now, part] : now));
+  } else {
+    const now = partsOff().filter((p) => p !== part);
+    write(PARTS_OFF_KEY, JSON.stringify(run ? now : [...now, part]));
+  }
+  changed();
 }
 
 /** The background parts, in his words, in the order to try them. */

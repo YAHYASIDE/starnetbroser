@@ -67,7 +67,7 @@ export type SettingsItemId =
   | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock" | "customer-messages"
   | "telegram" | "rep-bots" | "claude" | "whatsapp" | "customer-link" | "live-sync" | "activation-costs" | "instant-replies"
   | "device-link" | "call-server" | "backup-full" | "backup-daily" | "drive"
-  | "lock" | "update" | "rep-mode" | "storage" | "server";
+  | "lock" | "update" | "rep-mode" | "safe-mode" | "storage" | "server";
 
 export interface SettingsItem {
   id: SettingsItemId;
@@ -116,6 +116,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "lock", group: "security", icon: "🔒", title: "قفل التطبيق", summary: "رمز وبصمة عند فتح التطبيق", keywords: ["قفل", "رمز", "بصمة", "pin", "امان", "أمان"] },
   { id: "update", group: "security", icon: "⬆️", title: "تحديث التطبيق", summary: "الإصدار والتحقق من نسخة أحدث", keywords: ["تحديث", "اصدار", "إصدار", "نسخة جديدة", "apk"] },
   { id: "rep-mode", group: "security", icon: "📱", title: "وضع المندوب", summary: "تحويل هذا الهاتف لهاتف مندوب", keywords: ["مندوب", "وضع"] },
+  { id: "safe-mode", group: "security", icon: "🛟", title: "الوضع الآمن وأعمال الخلفية", summary: "أوقف أو شغّل أي عمل - يبقى كما تركته", keywords: ["آمن", "امن", "الوضع الآمن", "خلفية", "إيقاف", "تجمد", "بطء"] },
   { id: "storage", group: "security", icon: "💽", title: "مساحة التخزين", summary: "ما تأخذه بيانات التطبيق", keywords: ["تخزين", "مساحة", "ذاكرة"] },
   { id: "server", group: "security", icon: "🌐", title: "عنوان الخادم والحساب", summary: "وضع العرض أو بياناتك على الخادم", keywords: ["خادم", "سيرفر", "server", "api", "حساب"] },
 ];
