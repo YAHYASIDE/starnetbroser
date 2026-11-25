@@ -3981,3 +3981,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   whatsapp 8, reps 14, chat 20, telegram 26, receipts 32, browser 38) instead of all at the first second - each cuts /
   hashes all the data on its first round. If it still closes: the part he starts last in the safe mode is the cause.
 
+- Nov 26 (his «ثبّته ولم يعمل، اجعلني أدخل تلقائيًا بالوضع الآمن»): the staggered start did not stop the closing, so the
+  ENTRY into the safe mode is automatic again (his new word, it replaces «لا تفعل إلا بإذني» for entering ONLY):
+  two opens in a row that did not stay up 20 s (`markBootOk` in BigStorageGate, even on the lock screen) turn it on
+  (`BOOTS_TO_SAFE = 2`), clear the parts started inside it, and the sheet says «دخل وحده». Leaving it, and every
+  part he stops/starts, stays ONLY by his tap. In it: start the parts one by one, 30 s apart; the one after which it
+  closes is the cause.
+

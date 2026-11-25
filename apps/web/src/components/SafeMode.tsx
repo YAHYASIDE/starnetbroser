@@ -8,6 +8,7 @@ import {
   partRuns,
   SAFE_MODE_EVENT,
   safeAskPending,
+  safeEnteredByItself,
   safeModeOn,
   setPartRunning,
   setSafeMode,
@@ -71,6 +72,7 @@ export function SafeModeBanner() {
   const [state, setState] = useState<"none" | "ask" | "on">("none");
   const [open, setOpen] = useState(false);
   useEffect(() => setState(safeModeOn() ? "on" : safeAskPending() ? "ask" : "none"));
+
   useEffect(() => {
     if (state === "ask") setOpen(true);
   }, [state]);
@@ -106,8 +108,9 @@ export function SafeModeBanner() {
       {open && state === "on" && (
         <PartySheet title="🛟 الوضع الآمن" onClose={() => setOpen(false)}>
           <p className="settings-hint">
-            يبقى الوضع الآمن مفعّلًا حتى تنهيه أنت - لا يتوقف ولا يتغيّر وحده. شغّل الأجزاء واحدًا واحدًا: إن تجمّد التطبيق بعد تشغيل جزء، فهو السبب -
-            أخبرني باسمه.
+            {safeEnteredByItself() ? "دخل التطبيق الوضع الآمن وحده لأنه أُغلق مرتين متتاليتين فور فتحه. " : ""}
+            يبقى الوضع الآمن مفعّلًا حتى تنهيه أنت - لا يتوقف ولا يتغيّر وحده. شغّل الأجزاء واحدًا واحدًا (وانتظر نصف دقيقة بعد كل جزء): إن أُغلق التطبيق بعد تشغيل
+            جزء، فهو السبب - أخبرني باسمه.
           </p>
           <PartsList />
           <button

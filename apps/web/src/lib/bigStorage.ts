@@ -29,7 +29,7 @@ export const MIRROR_LIMIT = 2_500_000;
  * Read / written by the plain scripts that run before the app (app/layout.tsx: the theme, the Windows sidebar, the
  * safe mode's open counter) - they see only localStorage, so these stay there alone (tiny phone settings).
  */
-export const NATIVE_ONLY = ["starnet.theme", "starnet.deskSidebar", "starnet.boots", "starnet.safeMode", "starnet.safeAllowed", "starnet.safeAsk", "starnet.splashShown"];
+export const NATIVE_ONLY = ["starnet.theme", "starnet.deskSidebar", "starnet.boots", "starnet.safeMode", "starnet.safeAllowed", "starnet.safeAsk", "starnet.safeAuto", "starnet.splashShown"];
 
 export const isManaged = (key: string) => key.startsWith(MANAGED_PREFIX) && key !== DIRTY_KEY && key !== INFO_KEY && !NATIVE_ONLY.includes(key);
 

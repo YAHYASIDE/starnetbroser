@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { startBigStorage, type StartResult } from "@/lib/bigStorage";
+import { BOOT_OK_AFTER_MS, markBootOk } from "@/lib/safeMode";
 
 /**
  * 🗄️ Nothing of the app reads its data before the big storage (lib/bigStorage.ts) is loaded into memory - the first
@@ -11,6 +12,12 @@ import { startBigStorage, type StartResult } from "@/lib/bigStorage";
 export function BigStorageGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StartResult | null>(null);
   const [slow, setSlow] = useState(false);
+  // an open that stays up 20 seconds is a good one - even on the lock screen (lib/safeMode.ts: two bad opens in a row
+  // enter the safe mode by themselves)
+  useEffect(() => {
+    const t = window.setTimeout(markBootOk, BOOT_OK_AFTER_MS);
+    return () => window.clearTimeout(t);
+  }, []);
   useEffect(() => {
     let alive = true;
     const t = window.setTimeout(() => alive && setSlow(true), 6000);
