@@ -3988,3 +3988,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   part he stops/starts, stays ONLY by his tap. In it: start the parts one by one, 30 s apart; the one after which it
   closes is the cause.
 
+## ☁️ The team's Firebase project changes to «ستارنت» yahyanajim-92897 (Nov 26 2026)
+
+- Found by the app's «🔍 افحص اتصال Firebase»: the team link was on the project `starnet-link` (works: sign-in 200, read
+  404) which is NOT in any Google account he has (three projects: متجر الصدقات sadaqa-store-deea7, ستارنت
+  yahyanajim-92897, ساداجا بريسينج). We could not publish rules there (a 429 on the first try, and no access).
+- His decision: «اوك دعنا نعتمد yahyanajim» → the team uses yahyanajim-92897 (his own account; the combined rules are
+  ALREADY published there: /business (his 3 emails, from his old rules), /users, /starnet with the member rules).
+- The way (nothing is deleted by it): in the Firebase console enable Authentication ← Anonymous, copy the Web API key
+  (Project settings ← General); on the main phone «فك الربط» (data stays; link settings, the notes «سجّله فلان» and the
+  pending deletions are cleared - decide the pending ones first), «ربط الهاتف» with the new apiKey + projectId → a new
+  link code; every other member «فك الربط» then joins with the new code (its business data is REPLACED by the team's -
+  unsent changes there are lost, so they send first). Then «☁️ انقل الفريق إلى Firebase». The reps' own live sync is a
+  separate setting and is not touched; whether it also sits on starnet-link is still to check (before anyone touches it).
+- `resetLink` now also clears the ☁️ state (a new link = a new team space).
+

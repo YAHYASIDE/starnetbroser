@@ -251,7 +251,8 @@ export function rejectPendingDeletion(s: LinkStorage, id: string): void {
 
 /** Forget everything the link knew (unlink, or before a new pairing). */
 export function resetLink(s: LinkStorage): void {
-  for (const key of [CONFIG, STATE, BASE, CONFLICTS, TEAM, ORIGINS, LOG, PENDING]) s.setSetting(key, null);
+  // (the ☁️ Firebase state too: a new link is a new team space - the old cursor / outbox mean nothing there)
+  for (const key of [CONFIG, STATE, BASE, CONFLICTS, TEAM, ORIGINS, LOG, PENDING, CLOUD, CLOUD_OUTBOX]) s.setSetting(key, null);
 }
 
 /** The phone makes the link (his Firebase + a new space + a new key). */
