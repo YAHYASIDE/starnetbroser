@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT } from "@/components/DeviceLinkRunner";
-import { CLOUD_RULES } from "@/lib/cloudDb";
+import { CLOUD_RULES, diagnoseFirebase } from "@/lib/cloudDb";
 import { browserLinkStorage, isMainMember, loadCloud, moveTeamToCloud, type CloudState, type LinkConfig } from "@/lib/deviceLink";
 
 /**
@@ -15,6 +15,7 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [diag, setDiag] = useState<string[] | null>(null);
   useEffect(() => {
     const load = () => setCloud(loadCloud(browserLinkStorage()));
     load();
@@ -36,6 +37,13 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
     setCloud(loadCloud(browserLinkStorage()));
     setNote(r.ok ? { ok: true, text: `✅ رُفع ${r.sent} سجل وعدّها الخادم: ${r.counted}. المسؤولون ينضمون وحدهم خلال دقيقة.` } : { ok: false, text: r.message });
     if (r.ok) window.dispatchEvent(new Event(DEVICE_LINK_NOW_EVENT));
+  }
+
+  async function check() {
+    setBusy(true);
+    setDiag(["⏳ يفحص…"]);
+    setDiag(await diagnoseFirebase(config, config.spaceId));
+    setBusy(false);
   }
 
   return (
@@ -111,6 +119,20 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
         </>
       ) : (
         <p className="settings-hint">⏳ ينتظر أن ينقل الهاتف الرئيسي الفريق إلى Firebase - بعدها ينضم هذا الهاتف وحده.{cloud.lastMessage ? ` (${cloud.lastMessage})` : ""}</p>
+      )}
+      <div className="agent-actions">
+        <button type="button" className="dialog-secondary" disabled={busy} onClick={() => void check()}>
+          🔍 افحص اتصال Firebase
+        </button>
+      </div>
+      {diag && (
+        <ul className="settings-hint" dir="rtl">
+          {diag.map((l) => (
+            <li key={l}>
+              <bdi dir="ltr">{l}</bdi>
+            </li>
+          ))}
+        </ul>
       )}
       {note && <p className={note.ok ? "settings-hint" : "account-card-alert"}>{note.text}</p>}
     </div>

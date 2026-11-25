@@ -356,3 +356,48 @@ export async function countRecords(fb: Fb, space: string, fetchFn: FetchFn = tim
   const rows = JSON.parse(r.body) as { result?: { aggregateFields?: { n?: { integerValue?: string } } } }[];
   return { ok: true, value: Number(rows[0]?.result?.aggregateFields?.n?.integerValue ?? 0) };
 }
+
+/**
+ * 🔍 «افحص الاتصال»: what Google answers about this project, in plain lines (the sign-in, then a read of the space) - the
+ * status codes and Google's own short message, never the key or the token. Never throws.
+ */
+export async function diagnoseFirebase(fb: Fb, space: string, fetchFn: FetchFn = timedFetch): Promise<string[]> {
+  const lines: string[] = [`المشروع: ${fb.projectId}`];
+  const short = (body: string) => {
+    try {
+      const e = (JSON.parse(body) as { error?: { status?: string; message?: string } }).error;
+      return e ? `${e.status ?? ""} ${(e.message ?? "").replace(/AIza[0-9A-Za-z_-]+/g, "…").slice(0, 160)}`.trim() : "";
+    } catch {
+      return "";
+    }
+  };
+  let status = 0;
+  let body = "";
+  try {
+    const r = await fetchFn(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(fb.apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnSecureToken: true }),
+    });
+    status = r.status;
+    body = await r.text();
+  } catch {
+    lines.push("الدخول المجهول: لا اتصال بالإنترنت");
+    return lines;
+  }
+  lines.push(`الدخول المجهول (Authentication): ${status}${status === 200 ? " ✓" : ` - ${short(body)}`}`);
+  const token = await idToken(fb, fetchFn);
+  if (!token.ok) {
+    lines.push(`رمز الدخول: ${token.message}`);
+    return lines;
+  }
+  try {
+    const r = await fetchFn(documentUrl(fb, `starnet/${space}/tests/diag`), { headers: { Authorization: `Bearer ${token.value}` } });
+    const text = await r.text();
+    lines.push(`قراءة Firestore: ${r.status}${r.status === 200 || r.status === 404 ? " ✓" : ` - ${short(text)}`}`);
+  } catch {
+    lines.push("قراءة Firestore: لا اتصال");
+  }
+  return lines;
+}
+

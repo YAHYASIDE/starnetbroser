@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLOUD_RULES, COMMIT_WRITES, EMPTY_CURSOR, MAX_RECORD_CHARS, docOp, newJoinCode, opFields, planCommits, recordDocId, sinceQuery, takeNew, uidOf, type CloudDoc } from "./cloudDb";
+import { CLOUD_RULES, COMMIT_WRITES, diagnoseFirebase, EMPTY_CURSOR, MAX_RECORD_CHARS, docOp, newJoinCode, opFields, planCommits, recordDocId, sinceQuery, takeNew, uidOf, type CloudDoc } from "./cloudDb";
 import type { SyncOp } from "./deviceSync";
 
 const fb = { projectId: "p1" };
@@ -87,3 +87,18 @@ describe("☁️ cloudDb - the lock", () => {
     expect(uidOf("bad")).toBeNull();
   });
 });
+
+describe("🔍 diagnoseFirebase", () => {
+  it("says what Google answered, without the key", async () => {
+    const fetchFn = async (url: string) =>
+      url.includes("accounts:signUp")
+        ? new Response(JSON.stringify({ error: { status: "RESOURCE_EXHAUSTED", message: "Quota exceeded for key AIzaSyD-secret-key-123" } }), { status: 429 })
+        : new Response("{}", { status: 404 });
+    const lines = await diagnoseFirebase({ apiKey: "AIzaSyD-secret-key-123", projectId: "p1" }, "sp", fetchFn);
+    expect(lines[0]).toBe("المشروع: p1");
+    expect(lines[1]).toContain("429");
+    expect(lines[1]).toContain("RESOURCE_EXHAUSTED");
+    expect(lines.join(" ")).not.toContain("secret-key");
+  });
+});
+
