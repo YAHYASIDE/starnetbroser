@@ -3969,3 +3969,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Next phases (each with his approval): stop the old link once all admins are on cloud; reps; a server function on
   Blaze (bots / the WhatsApp agent reading data 24/7); pictures to Cloud Storage.
 
+- Nov 25 (his «التطبيق عندما أثبّته لا يدخل ويخرج… عندما ألغي الوضع الآمن»): it ran fine only in the safe mode - the
+  big storage wrote a full copy of a store to IndexedDB on EVERY save (each a separate transaction, all kept in memory
+  until done), and the team link saves big keys many times a minute → the phone ran out of memory. Now saves gather
+  (300 ms) and go in ONE transaction with only each key's last value, one write at a time (`writeMany`); flush on
+  leaving the screen. If it still exits: safe mode on, start the parts one by one, tell which one closes it.
+

@@ -31,6 +31,7 @@ class MemBackend implements KvBackend {
   before: Record<string, string> | null = null;
   moved: MigrationInfo | null = null;
   failPut = false;
+  writes = 0;
   corrupt = false;
   /** Writes wait until release() (to test a phone killed mid-save). */
   hold = false;
@@ -50,6 +51,15 @@ class MemBackend implements KvBackend {
     await this.gate();
     if (this.failPut) throw new Error("put");
     this.data.set(k, v);
+  }
+  async writeMany(changes: [string, string | null][]) {
+    this.writes += 1;
+    await this.gate();
+    if (this.failPut) throw new Error("put");
+    for (const [k, v] of changes) {
+      if (v === null) this.data.delete(k);
+      else this.data.set(k, v);
+    }
   }
   async del(k: string) {
     await this.gate();
@@ -244,3 +254,37 @@ describe("keys the pre-app scripts use", () => {
     expect(isManaged("starnet.deviceLinkBase")).toBe(true);
   });
 });
+
+describe("⚡ saves gathered (his Nov 25 2026 «يدخل ويخرج تلقائيًا»)", () => {
+  it("many saves of a big store = one IndexedDB write with the last value", async () => {
+    const native = phone();
+    const backend = new MemBackend();
+    const store = new BigStore(backend, native, limits);
+    await store.init();
+    const before = backend.writes;
+    for (let i = 0; i < 50; i++) store.set("starnet_clients_v1", big(3000 + i));
+    store.set("starnet_cash_entries_v1", "[9]");
+    await store.flush();
+    expect(backend.writes - before).toBe(1);
+    expect(backend.data.get("starnet_clients_v1")).toBe(big(3049));
+    expect(backend.data.get("starnet_cash_entries_v1")).toBe("[9]");
+    expect(native.get(DIRTY_KEY)).toBeNull();
+  });
+
+  it("a save made while a write is running goes in the next one", async () => {
+    const native = phone();
+    const backend = new MemBackend();
+    const store = new BigStore(backend, native, limits, 0);
+    await store.init();
+    backend.hold = true;
+    store.set("starnet_cash_entries_v1", "[1]");
+    await new Promise((r) => setTimeout(r, 5));
+    store.set("starnet_cash_entries_v1", "[2]");
+    backend.hold = false;
+    backend.release();
+    await store.flush();
+    expect(backend.data.get("starnet_cash_entries_v1")).toBe("[2]");
+    expect(native.get(DIRTY_KEY)).toBeNull();
+  });
+});
+

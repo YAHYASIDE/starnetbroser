@@ -37,6 +37,8 @@ export interface KvBackend {
   loadAll(): Promise<Map<string, string>>;
   put(key: string, value: string): Promise<void>;
   del(key: string): Promise<void>;
+  /** Several saves in ONE transaction (value null = removed). */
+  writeMany(changes: [string, string | null][]): Promise<void>;
   /** Replaces everything with `entries` (the first move). */
   replaceAll(entries: Map<string, string>): Promise<void>;
   /** Keeps one untouched copy of what localStorage held before the move. */
@@ -70,13 +72,20 @@ export class BigStore {
   private mem = new Map<string, string>();
   private keyList: string[] | null = null;
   private nativeChars = 0;
-  private pending = new Set<Promise<void>>();
-  private journal = new Map<string, { n: number; op: JournalOp }>();
+  /** ⚡ Saves waiting to go to IndexedDB - only the LAST value of each key (his Nov 25 2026 «يدخل ويخرج تلقائيًا»: a
+   * copy of a big store per save, many saves a second from the team link, ran the phone out of memory). */
+  private queued = new Map<string, string | null>();
+  private queuedOps = new Map<string, JournalOp>();
+  private journal = new Map<string, JournalOp>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private running: Promise<void> | null = null;
 
   constructor(
     private backend: KvBackend,
     private native: NativeStorage,
     private limits = { maxValue: MIRROR_MAX_VALUE, total: MIRROR_LIMIT },
+    /** How long saves gather before one IndexedDB write (ms). */
+    private delayMs = 300,
   ) {}
 
   async init(now = new Date()): Promise<StartResult> {
@@ -175,7 +184,7 @@ export class BigStore {
 
   private writeJournal(): void {
     try {
-      if (this.journal.size) this.native.set(DIRTY_KEY, JSON.stringify(Object.fromEntries([...this.journal].map(([k, j]) => [k, j.op]))));
+      if (this.journal.size) this.native.set(DIRTY_KEY, JSON.stringify(Object.fromEntries(this.journal)));
       else this.native.remove(DIRTY_KEY);
     } catch {
       // the journal is a safety net only
@@ -190,7 +199,7 @@ export class BigStore {
     if (!this.mem.has(key)) this.keyList = null;
     this.mem.set(key, value);
     const mirrored = this.mirror(key, value);
-    this.persist(key, mirrored ? "m" : "x", () => this.backend.put(key, value));
+    this.persist(key, mirrored ? "m" : "x", value);
   }
 
   remove(key: string): void {
@@ -198,7 +207,7 @@ export class BigStore {
     this.mem.delete(key);
     this.keyList = null;
     this.mirror(key, null);
-    this.persist(key, "d", () => this.backend.del(key));
+    this.persist(key, "d", null);
   }
 
   /** Every key: IndexedDB's and localStorage's own (settings outside "starnet"). */
@@ -230,7 +239,41 @@ export class BigStore {
 
   /** Waits for every write IndexedDB has not confirmed yet. */
   async flush(): Promise<void> {
-    while (this.pending.size) await Promise.all([...this.pending]);
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    // the write in progress, then one more for what waits (a failed one is not retried here - the next save retries)
+    if (this.running) await this.running;
+    if (this.queued.size) await this.writeQueued();
+  }
+
+  private writeQueued(): Promise<void> {
+    const changes = [...this.queued];
+    const ops = new Map(this.queuedOps);
+    this.queued.clear();
+    this.queuedOps.clear();
+    const run = this.backend
+      .writeMany(changes)
+      .then(() => {
+        // confirmed: off the journal, unless saved again meanwhile (still queued)
+        for (const [k] of changes) if (!this.queued.has(k)) this.journal.delete(k);
+        this.writeJournal();
+      })
+      .catch(() => {
+        // stays in the journal (the next start takes the localStorage copy when it fitted); tried again with the next save
+        for (const [k, v] of changes) {
+          if (!this.queued.has(k)) {
+            this.queued.set(k, v);
+            this.queuedOps.set(k, ops.get(k) ?? "x");
+          }
+        }
+      })
+      .finally(() => {
+        this.running = null;
+      });
+    this.running = run;
+    return run;
   }
 
   /** True when localStorage now holds this value too. */
@@ -253,25 +296,24 @@ export class BigStore {
     return false;
   }
 
-  private persist(key: string, op: JournalOp, write: () => Promise<void>): void {
-    const j = this.journal.get(key);
-    this.journal.set(key, { n: (j?.n ?? 0) + 1, op });
+  private persist(key: string, op: JournalOp, value: string | null): void {
+    this.journal.set(key, op);
     this.writeJournal();
-    const p: Promise<void> = write()
-      .then(() => {
-        const cur = this.journal.get(key);
-        if (!cur) return;
-        if (cur.n <= 1) this.journal.delete(key);
-        else this.journal.set(key, { ...cur, n: cur.n - 1 });
-        this.writeJournal();
-      })
-      .catch(() => {
-        // stays in the journal: the next start takes the localStorage copy (when it fitted)
-      })
-      .finally(() => {
-        this.pending.delete(p);
-      });
-    this.pending.add(p);
+    this.queued.set(key, value);
+    this.queuedOps.set(key, op);
+    if (!this.timer) this.schedule();
+  }
+
+  private schedule(): void {
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      if (this.running) {
+        // one write at a time: the next waits for this one
+        void this.running.then(() => this.queued.size && this.schedule());
+        return;
+      }
+      if (this.queued.size) void this.writeQueued();
+    }, this.delayMs);
   }
 }
 
@@ -331,6 +373,13 @@ export function indexedDbBackend(db: IDBDatabase): KvBackend {
         tx.onabort = () => reject(tx.error);
       }),
     put: (k, v) => write((s) => s.put(v, k)),
+    writeMany: (changes) =>
+      write((s) => {
+        for (const [k, v] of changes) {
+          if (v === null) s.delete(k);
+          else s.put(v, k);
+        }
+      }),
     del: (k) => write((s) => s.delete(k)),
     replaceAll: (entries) =>
       write((s) => {
