@@ -25,7 +25,13 @@ export const MIRROR_MAX_VALUE = 100_000;
 /** localStorage keeps copies only while it stays under this many characters (its budget is ~5 million). */
 export const MIRROR_LIMIT = 2_500_000;
 
-export const isManaged = (key: string) => key.startsWith(MANAGED_PREFIX) && key !== DIRTY_KEY && key !== INFO_KEY;
+/**
+ * Read / written by the plain scripts that run before the app (app/layout.tsx: the theme, the Windows sidebar, the
+ * safe mode's open counter) - they see only localStorage, so these stay there alone (tiny phone settings).
+ */
+export const NATIVE_ONLY = ["starnet.theme", "starnet.deskSidebar", "starnet.boots", "starnet.safeMode", "starnet.safeAllowed", "starnet.splashShown"];
+
+export const isManaged = (key: string) => key.startsWith(MANAGED_PREFIX) && key !== DIRTY_KEY && key !== INFO_KEY && !NATIVE_ONLY.includes(key);
 
 export interface KvBackend {
   loadAll(): Promise<Map<string, string>>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BigStore, DIRTY_KEY, INFO_KEY, type KvBackend, type MigrationInfo, type NativeStorage } from "./bigStorage";
+import { BigStore, DIRTY_KEY, INFO_KEY, isManaged, type KvBackend, type MigrationInfo, type NativeStorage } from "./bigStorage";
 
 class MemNative implements NativeStorage {
   data = new Map<string, string>();
@@ -77,6 +77,7 @@ function phone() {
   native.set("starnet_customer_ledger_v1", JSON.stringify([{ id: "a", amount: 100 }]));
   native.set("starnet_clients_v1", big(3000));
   native.set("starnet.theme", "dark");
+  native.set("starnet.lang", "ar");
   native.set("other_lib", "keep");
   return native;
 }
@@ -88,7 +89,7 @@ describe("BigStore - the first move", () => {
     const store = new BigStore(backend, native, limits);
     const r = await store.init(new Date("2026-11-25T10:00:00Z"));
     expect(r.kind).toBe("moved");
-    expect([...backend.data.keys()].sort()).toEqual(["starnet.theme", "starnet_clients_v1", "starnet_customer_ledger_v1"]);
+    expect([...backend.data.keys()].sort()).toEqual(["starnet.lang", "starnet_clients_v1", "starnet_customer_ledger_v1"]);
     expect(backend.before?.["starnet_clients_v1"]).toBe(big(3000));
     expect(backend.moved?.keys).toBe(3);
     expect(native.get(INFO_KEY)).not.toBeNull();
@@ -168,16 +169,16 @@ describe("BigStore - after the move", () => {
     const store = new BigStore(backend, native, limits);
     await store.init();
     backend.hold = true;
-    store.set("starnet.theme", "light");
+    store.set("starnet.lang", "light");
     store.remove("starnet_customer_ledger_v1");
-    expect(JSON.parse(native.get(DIRTY_KEY) ?? "{}")).toEqual({ "starnet.theme": "m", starnet_customer_ledger_v1: "d" });
+    expect(JSON.parse(native.get(DIRTY_KEY) ?? "{}")).toEqual({ "starnet.lang": "m", starnet_customer_ledger_v1: "d" });
     // killed: the held writes never land
     const next = new BigStore(backend, native, limits);
     backend.hold = false;
     await next.init();
-    expect(next.get("starnet.theme")).toBe("light");
+    expect(next.get("starnet.lang")).toBe("light");
     expect(next.get("starnet_customer_ledger_v1")).toBeNull();
-    expect(backend.data.get("starnet.theme")).toBe("light");
+    expect(backend.data.get("starnet.lang")).toBe("light");
     expect(native.get(DIRTY_KEY)).toBeNull();
   });
 
@@ -198,16 +199,16 @@ describe("BigStore - after the move", () => {
     const store = new BigStore(backend, native, limits);
     await store.init();
     backend.failPut = true;
-    store.set("starnet.theme", "light");
+    store.set("starnet.lang", "light");
     await store.flush();
-    expect(JSON.parse(native.get(DIRTY_KEY) ?? "{}")).toEqual({ "starnet.theme": "m" });
+    expect(JSON.parse(native.get(DIRTY_KEY) ?? "{}")).toEqual({ "starnet.lang": "m" });
   });
 
   it("lists IndexedDB's keys and localStorage's own ones (backup / team link iterate localStorage)", async () => {
     const { native, backend } = await moved();
     const store = new BigStore(backend, native, limits);
     await store.init();
-    expect(store.keys().sort()).toEqual(["other_lib", "starnet.bigStorage", "starnet.theme", "starnet_clients_v1", "starnet_customer_ledger_v1"]);
+    expect(store.keys().sort()).toEqual(["other_lib", "starnet.bigStorage", "starnet.lang", "starnet.theme", "starnet_clients_v1", "starnet_customer_ledger_v1"]);
     store.set("starnet_new_v1", "1");
     expect(store.keys()).toContain("starnet_new_v1");
     store.remove("starnet_new_v1");
@@ -231,5 +232,15 @@ describe("BigStore - after the move", () => {
     const keys = Array.from({ length: view.length }, (_, i) => view.key(i));
     expect(keys).not.toContain("starnet_clients_v1");
     expect(store.bigUsage()).toBeGreaterThan(3000);
+  });
+});
+
+describe("keys the pre-app scripts use", () => {
+  it("stay in localStorage only (the safe mode's counter, the theme)", () => {
+    expect(isManaged("starnet.safeMode")).toBe(false);
+    expect(isManaged("starnet.boots")).toBe(false);
+    expect(isManaged("starnet.theme")).toBe(false);
+    expect(isManaged("starnet_clients_v1")).toBe(true);
+    expect(isManaged("starnet.deviceLinkBase")).toBe(true);
   });
 });

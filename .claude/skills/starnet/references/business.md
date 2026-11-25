@@ -3925,6 +3925,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   IndexedDB won't open: «تعذّر فتح بيانات التطبيق - أعد المحاولة»; (5) a journal «starnet.bigDirty» per save until
   IndexedDB confirms (a phone killed mid-save takes the newer small copy next start).
 - Never delete the `before` copy or the marker; never write a starnet key around the wrapper.
+- Nov 25 (his phone moved fine: 4.2M chars, the small storage at 23%; but it opened in 🛟 safe mode - 3 opens in 3
+  minutes while installing/checking): the keys the plain pre-app scripts write (theme, desk sidebar, the safe mode's
+  boots / flag / allowed parts, splash) stay in localStorage ONLY (`NATIVE_ONLY`), so the safe mode's counter and its
+  «أنهِ الوضع الآمن» can't disagree with an IndexedDB copy.
 - Settings ← الأمان ← مساحة التخزين: «🗄️ بياناتك الآن في التخزين الكبير…»; the meter/banner now measure the small
   localStorage only (nativeStorageView).
 - Checked: 12 unit tests; Chromium with a FULL localStorage (5.2M chars, 44 keys) → all moved and a new 3M save
