@@ -20972,3 +20972,22 @@ html.chat-open .chat-attached, html.chat-open .chat-note { margin: 0; padding: 4
 .rep-audit { display: flex; flex-direction: column; gap: 8px; }
 .rep-audit-title { font-size: 0.95rem; margin: 10px 0 2px; color: var(--text); }
 .rep-audit-open { align-self: flex-start; margin: 4px 0; }
+
+/* 🗄️ BigStorageGate: the data couldn't be opened (lib/bigStorage.ts) */
+.bigstore-wait {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text);
+}
+.bigstore-wait p {
+  max-width: 340px;
+  margin: 0;
+  line-height: 1.7;
+  color: var(--text-muted);
+}

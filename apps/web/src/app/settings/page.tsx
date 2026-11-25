@@ -45,6 +45,7 @@ import {
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { lockAllRenewalDays, renewalDayOf } from "@/lib/renewalDayLock";
+import { bigStore, loadMigrationInfo, nativeStorageView } from "@/lib/bigStorage";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, countSessions, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData, sessionCountWords } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
@@ -2250,7 +2251,7 @@ function StorageUsageSection() {
   const [usage, setUsage] = useState<StorageUsage | null>(null);
   useEffect(() => {
     try {
-      setUsage(measureStorage(window.localStorage));
+      setUsage(measureStorage(nativeStorageView()));
     } catch {
       setUsage(null);
     }
@@ -2260,9 +2261,12 @@ function StorageUsageSection() {
   return (
     <section className="section">
       <h2 className="section-title">مساحة التخزين</h2>
+      <BigStorageLine />
       <p className="settings-hint">
-        كل بياناتك محفوظة داخل الهاتف في مساحة محدودة (حوالي {formatChars(STORAGE_BUDGET_CHARS)}). عند امتلائها لا يُحفظ أي
-        تغيير جديد.
+        {bigStore()
+          ? `الذاكرة الصغيرة (حوالي ${formatChars(STORAGE_BUDGET_CHARS)}) صارت للإعدادات ونسخ صغيرة فقط - امتلاؤها لم يعد يمنع الحفظ.`
+          : <>كل بياناتك محفوظة داخل الهاتف في مساحة محدودة (حوالي {formatChars(STORAGE_BUDGET_CHARS)}). عند امتلائها لا يُحفظ أي
+        تغيير جديد.</>}
       </p>
       <div className="storage-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
         <div
@@ -2282,8 +2286,22 @@ function StorageUsageSection() {
           </li>
         ))}
       </ul>
-      <StorageCleanup onDone={() => setUsage(measureStorage(window.localStorage))} />
+      <StorageCleanup onDone={() => setUsage(measureStorage(nativeStorageView()))} />
     </section>
+  );
+}
+
+/** 🗄️ Where the data lives now (lib/bigStorage.ts): the big storage, since when, how much. */
+function BigStorageLine() {
+  const store = bigStore();
+  const info = loadMigrationInfo();
+  if (!store) return <p className="settings-hint">🗄️ التخزين الكبير غير مفعّل على هذا الجهاز - البيانات في الذاكرة الصغيرة فقط.</p>;
+  return (
+    <p className="settings-hint">
+      🗄️ بياناتك الآن في التخزين الكبير (IndexedDB، مئات الميغابايت): {formatChars(store.bigUsage())}
+      {info?.movedAt ? ` - نُقلت ${new Date(info.movedAt).toLocaleDateString("ar")} مع نسخة كاملة لما قبل النقل` : ""}. المقياس أدناه
+      للذاكرة الصغيرة القديمة فقط.
+    </p>
   );
 }
 

@@ -206,11 +206,24 @@ export function DeviceLinkRunner() {
       // (what a round writes in also lands here - one extra quiet round, nothing to send)
       if (this === window.localStorage && isLinkedWrite(key, LINK_SHARED_SETTINGS) && !(LINK_EXCLUDED_KEYS as readonly string[]).includes(key)) {
         window.clearTimeout(sendTimer);
-        sendTimer = window.setTimeout(() => void tick(), SEND_AFTER_MS);
+        sendWaiting = true;
+        sendTimer = window.setTimeout(() => {
+          sendWaiting = false;
+          void tick();
+        }, SEND_AFTER_MS);
       }
     };
     const idleTimer = window.setInterval(() => waiting && isIdle() && void tick(), IDLE_CHECK_MS);
-    const onVisible = () => document.visibilityState === "visible" && void tick();
+    // 📤 the app leaves the screen (a quick close after a save): what waits to go out is sent now, not in 800 ms
+    let sendWaiting = false;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void tick();
+      else if (sendWaiting) {
+        sendWaiting = false;
+        window.clearTimeout(sendTimer);
+        void tick();
+      }
+    };
     const onNow = () => void tick(true);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener(DEVICE_LINK_NOW_EVENT, onNow);

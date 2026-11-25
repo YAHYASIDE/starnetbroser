@@ -35,6 +35,7 @@ import { RepAutoStatementRunner } from "@/components/RepAutoStatementRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
 import { LaunchSplash } from "@/components/LaunchSplash";
+import { BigStorageGate } from "@/components/BigStorageGate";
 import { BackgroundPart, SafeModeBanner } from "@/components/SafeMode";
 import { SAFE_MODE_BOOT_SCRIPT } from "@/lib/safeMode";
 
@@ -69,6 +70,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: SAFE_MODE_BOOT_SCRIPT }} />
         {/* 🌌 the opening screen - first in the page, dark from the very first frame */}
         <LaunchSplash />
+        {/* 🗄️ the data is loaded from IndexedDB (moved there once) before anything reads it - lib/bigStorage.ts */}
+        <BigStorageGate>
         {/* 🔐 nothing runs on a phone that wasn't activated with his code - not even the bridges below. */}
         <ActivationGate>
         <AppLockGate>
@@ -123,6 +126,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <DeleteCodeHost />
         <LatinDigitInputs />
         </ActivationGate>
+        </BigStorageGate>
       </body>
     </html>
   );

@@ -3908,4 +3908,27 @@ is never pressed while a field is empty - it refills and saves on the next try (
   devices, reps, settlements, allocations, adjustments, previous debts, card top-ups, currencies, the link's base /
   state / pending deletions) + its button in الإعدادات ← مساحة التخزين (top 10 keys named). Prevention: menu versions
   keep no pictures (5 max), agent events 800 max.
-- Waiting for him: the IndexedDB move (plan sent, phases), and his screenshot of «مساحة التخزين» (the biggest keys).
+- Nov 25: he called the IndexedDB move «الأهم الآن» → built (below).
+
+## 🗄️ «التخزين الكبير» - the data moved to IndexedDB (Nov 25 2026)
+
+- His «ما حالة نقل التخزين من localStorage إلى IndexedDB؟ هذا الأهم الآن لأن ذاكرة الهاتف امتلأت» (after «بخطة آمنة:
+  نسخة احتياطية قبلها، نقل كل مفاتيح starnet، تجربة على نسخة من بياناتي، ولا يضيع شيء… لا تحذف بيانات مالية»).
+- lib/bigStorage.ts + components/BigStorageGate.tsx: every key starting with "starnet" (business data AND phone
+  settings) lives in IndexedDB `starnet-data/kv`, loaded into memory before anything renders; Storage.prototype is
+  wrapped for window.localStorage only, so every store still calls localStorage.getItem/setItem unchanged (backup,
+  team link, cleanup all work as before). Installed before DeviceLinkRunner wraps setItem.
+- Order of safety: (1) an untouched copy of every starnet key in `starnet-data/before` (kept); (2) copy + read back,
+  only an exact match takes over (marker `moved` in IndexedDB + «starnet.bigStorage» in localStorage); a failure
+  before that changes nothing; (3) only then the big keys (≥ 100k chars) leave localStorage - small ones keep a
+  mirror copy while localStorage stays under 2.5M; (4) after the move the app NEVER opens on localStorage alone - if
+  IndexedDB won't open: «تعذّر فتح بيانات التطبيق - أعد المحاولة»; (5) a journal «starnet.bigDirty» per save until
+  IndexedDB confirms (a phone killed mid-save takes the newer small copy next start).
+- Never delete the `before` copy or the marker; never write a starnet key around the wrapper.
+- Settings ← الأمان ← مساحة التخزين: «🗄️ بياناتك الآن في التخزين الكبير…»; the meter/banner now measure the small
+  localStorage only (nativeStorageView).
+- Checked: 12 unit tests; Chromium with a FULL localStorage (5.2M chars, 44 keys) → all moved and a new 3M save
+  survived a reload.
+- Same update (his «لا تضيع عملية إذا أغلق أحدهم التطبيق بسرعة»): the team link sends a waiting save at once when
+  the app leaves the screen (DeviceLinkRunner, visibilitychange hidden). Background sync every ~15 min with the app
+  closed (Android WorkManager) and the Firebase-as-main-DB study: next, study only before his approval.

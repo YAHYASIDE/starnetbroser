@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { STORAGE_FULL_EVENT, installStorageGuard, measureStorage } from "@/lib/storageGuard";
+import { nativeStorageView } from "@/lib/bigStorage";
 
 // Installed at import time, before any page's first save can run.
 if (typeof window !== "undefined") installStorageGuard(window);
@@ -16,7 +17,7 @@ export function StorageFullBanner() {
 
   useEffect(() => {
     try {
-      if (measureStorage(window.localStorage).level === "full") setState("nearlyFull");
+      if (measureStorage(nativeStorageView()).level === "full") setState("nearlyFull");
     } catch {
       // Storage blocked entirely - nothing to measure.
     }
