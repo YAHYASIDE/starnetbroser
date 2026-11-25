@@ -205,6 +205,13 @@ export function takeNew(cursor: CloudCursor, docs: CloudDoc[], memberId: string,
 export const CLOUD_RULES = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // kept from the rules that were already published on his project (not used by this app - maybe by another)
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
     match /starnet/{space} {
       function isMember() {
         return request.auth != null && exists(/databases/$(database)/documents/starnet/$(space)/members/$(request.auth.uid));

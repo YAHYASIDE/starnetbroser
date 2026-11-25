@@ -76,6 +76,8 @@ describe("☁️ cloudDb - the lock", () => {
     expect(CLOUD_RULES).toContain("allow read, write: if isMember();");
     expect(CLOUD_RULES).not.toMatch(/match \/private\/\{doc\} \{[^}]*allow read/);
     expect(CLOUD_RULES).toContain("!(col in ['records', 'members', 'private'])");
+    // the rules already on his project stay
+    expect(CLOUD_RULES).toContain("match /users/{uid}");
   });
 
   it("a join code is 16 easy characters; the uid is read from the token", () => {
