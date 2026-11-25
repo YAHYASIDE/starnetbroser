@@ -3975,3 +3975,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (300 ms) and go in ONE transaction with only each key's last value, one write at a time (`writeMany`); flush on
   leaving the screen. If it still exits: safe mode on, start the parts one by one, tell which one closes it.
 
+- Nov 26 (his «عندما أنهيت الوضع الآمن خرج التطبيق ولا يدخل ويخرج»): the app closed itself again right after ending the
+  safe mode. Recovery: 3 quick opens → the question «هل أشغّل الوضع الآمن؟» (the parts wait for the answer) → «نعم».
+  Built: the background parts now start ONE AFTER THE OTHER (`START_AFTER_MS` in components/SafeMode.tsx: link 2 s,
+  whatsapp 8, reps 14, chat 20, telegram 26, receipts 32, browser 38) instead of all at the first second - each cuts /
+  hashes all the data on its first round. If it still closes: the part he starts last in the safe mode is the cause.
+

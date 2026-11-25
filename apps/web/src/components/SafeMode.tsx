@@ -23,11 +23,21 @@ function useSafeTick(): number {
   return n;
 }
 
+/**
+ * ⏱️ The background parts start one after the other, not all at the moment the app opens (his Nov 26 2026 «عندما أنهيت
+ * الوضع الآمن خرج التطبيق ولا يدخل»): each cuts / hashes all the data on its first round - together, at the first
+ * second, they were a memory spike on a phone with a lot of data.
+ */
+export const START_AFTER_MS: Record<string, number> = { link: 2000, whatsapp: 8000, reps: 14000, chat: 20000, telegram: 26000, receipts: 32000, browser: 38000 };
+
 /** 🛟 A background job that runs only as he left it (lib/safeMode.ts): stopped by him, or in the safe mode. */
 export function BackgroundPart({ part, children }: { part: string; children: ReactNode }) {
   useSafeTick();
   const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
+  useEffect(() => {
+    const t = window.setTimeout(() => setReady(true), START_AFTER_MS[part] ?? 0);
+    return () => window.clearTimeout(t);
+  }, [part]);
   if (!ready || !partRuns(part)) return null;
   return <>{children}</>;
 }
