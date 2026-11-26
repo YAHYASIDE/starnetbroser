@@ -15,7 +15,7 @@
  */
 
 import type { Shape, SyncOp } from "./deviceSync";
-import { documentUrl, explainFirebaseError, idToken, type FetchFn, type Result } from "./firestoreRest";
+import { documentUrl, explainFirebaseError, idToken, readDocument, type FetchFn, type Result } from "./firestoreRest";
 import type { LiveSyncConfig } from "./liveSyncConfig";
 import { timedFetch } from "./lowNet";
 
@@ -361,7 +361,7 @@ export async function countRecords(fb: Fb, space: string, fetchFn: FetchFn = tim
  * 🔍 «افحص الاتصال»: what Google answers about this project, in plain lines (the sign-in, then a read of the space) - the
  * status codes and Google's own short message, never the key or the token. Never throws.
  */
-export async function diagnoseFirebase(fb: Fb, space: string, fetchFn: FetchFn = timedFetch): Promise<string[]> {
+export async function diagnoseFirebase(fb: Fb, space: string, fetchFn: FetchFn = timedFetch, memberId?: string): Promise<string[]> {
   const lines: string[] = [`المشروع: ${fb.projectId}`];
   const short = (body: string) => {
     try {
@@ -397,6 +397,16 @@ export async function diagnoseFirebase(fb: Fb, space: string, fetchFn: FetchFn =
     lines.push(`قراءة Firestore: ${r.status}${r.status === 200 || r.status === 404 ? " ✓" : ` - ${short(text)}`}`);
   } catch {
     lines.push("قراءة Firestore: لا اتصال");
+    return lines;
+  }
+  // 📤 what this phone's link sent to the server: its head says how many batches were written
+  if (memberId) {
+    const head = await readDocument(fb, `starnet/${space}/link/${memberId}`, fetchFn);
+    if (!head.ok) lines.push(`ما أرسله هذا الهاتف: ${head.message}`);
+    else if (!head.value) lines.push("ما أرسله هذا الهاتف: لا شيء بعد على الخادم");
+    else lines.push(`ما أرسله هذا الهاتف: ${Number(head.value.seq ?? 0)} دفعة على الخادم${head.value.at ? ` (آخر إرسال ${head.value.at.slice(11, 19)})` : ""}`);
+    const team = await readDocument(fb, `starnet/${space}/team/members`, fetchFn);
+    lines.push(team.ok && team.value?.iv ? "قائمة الفريق على الخادم: ✓" : "قائمة الفريق على الخادم: لا شيء بعد");
   }
   return lines;
 }

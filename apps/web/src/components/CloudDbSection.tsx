@@ -42,7 +42,7 @@ export function CloudDbSection({ config }: { config: LinkConfig }) {
   async function check() {
     setBusy(true);
     setDiag(["⏳ يفحص…"]);
-    setDiag(await diagnoseFirebase(config, config.spaceId));
+    setDiag(await diagnoseFirebase(config, config.spaceId, undefined, config.memberId));
     setBusy(false);
   }
 

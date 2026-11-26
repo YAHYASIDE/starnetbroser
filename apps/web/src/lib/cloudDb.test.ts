@@ -100,5 +100,16 @@ describe("🔍 diagnoseFirebase", () => {
     expect(lines[1]).toContain("RESOURCE_EXHAUSTED");
     expect(lines.join(" ")).not.toContain("secret-key");
   });
-});
 
+  it("says how many batches this phone's head holds on the server", async () => {
+    const fetchFn = async (url: string) => {
+      if (url.includes("accounts:signUp")) return new Response(JSON.stringify({ idToken: "x.e30.y", refreshToken: "r", expiresIn: "3600" }), { status: 200 });
+      if (url.includes("/link/phone")) return new Response(JSON.stringify({ fields: { seq: { stringValue: "9" }, at: { stringValue: "2026-11-26T01:20:30.000Z" } } }), { status: 200 });
+      if (url.includes("/team/members")) return new Response(JSON.stringify({ fields: { iv: { stringValue: "a" }, data: { stringValue: "b" } } }), { status: 200 });
+      return new Response("{}", { status: 404 });
+    };
+    const lines = await diagnoseFirebase({ apiKey: "AIzaSyD-k-12345678901234567890123456", projectId: "p1" }, "sp", fetchFn, "phone");
+    expect(lines.join("\n")).toContain("9 دفعة");
+    expect(lines.join("\n")).toContain("قائمة الفريق على الخادم: ✓");
+  });
+});
