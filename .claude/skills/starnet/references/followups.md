@@ -84,3 +84,20 @@ into the working session) and whenever a task closes - short, the open lines onl
 11. 📊 «عدّاد الاستعمال» (Nov 17 2026, offered with the weak-internet mode; he said «نعم ابنه» - the weak mode went first):
    count on the phone which pages / sections / big buttons he opens for two weeks, then list what he never used, he
    chooses what hides in «المزيد» or goes. Plus remove the dead code found: TodayPanel, idle LiveSyncRunner.
+
+## 📌 Open for the next session (written Nov 26 2026, night)
+
+1. 🚀 **«لا بد أن يصبح التطبيق سريعًا جدًا»** (his words, top priority): the app closes itself when ALL background parts run
+   (bots + team link alone are fine; the cause is among whatsapp / reps / chat / receipts / browser, or their sum), and the
+   phone-side full backup closes it. Method: start the parts one by one 30 s apart in the safe mode, measure memory / first-round
+   time of each, fix the one that closes it; then profile the first-round cost (flattenAll / hashing of 4.4k records, the
+   team sessions export) and the startup (IndexedDB load, stagger). Goal: opens in seconds, never closes, backup works.
+2. 👥 The other members join the team on yahyanajim-92897 (YOUBE, the laptop, «المسؤول 2»): the new link code, one by one, never in
+   a group; check each in «الفحص» (counts must match) - then a change with the main phone off must reach them through Firebase.
+3. 🤝 The reps: check whether their own live sync (separate setting) sat on the old `starnet-link` project - if yes, it needs the
+   new project's link before the old one stops (never touch them before checking).
+4. 🔐 Old project `starnet-link`: its rules are probably the old open ones (nobody can open it; the app text says
+   starnet.om@gmail.com) - once everything is on yahyanajim-92897 the old link there is simply abandoned.
+5. Earlier, still unanswered: Telegram money bot (sequential numbers per type, colour/bot per type), the Cloud API agent
+   setup (number 47420288), the card question ("كل مندوب").
+
