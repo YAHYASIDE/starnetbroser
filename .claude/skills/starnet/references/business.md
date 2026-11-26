@@ -4003,3 +4003,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   separate setting and is not touched; whether it also sits on starnet-link is still to check (before anyone touches it).
 - `resetLink` now also clears the ☁️ state (a new link = a new team space).
 
+- Nov 26 2026 01:40 - DONE on the main phone («YAHYA 1»): linked to yahyanajim-92897 (anonymous sign-in on, the web API key of the
+  auto-created browser key), 13 batches sent over the link, «YAHYA 2» joined and the counts matched on every store
+  (devices 943, clients 234, device operations 818, reps 8, rep operations 186, cash 411, invoices 29, balances 343), then
+  «☁️ انقل الفريق إلى Firebase»: 4467 records uploaded and counted by the server (4467). Still to do: the other admins
+  (YOUBE, the laptop, «المسؤول 2») join with the new code (one by one, never in a group chat); then check a change
+  reaches the others through Firebase with the main phone off. The app closing itself when all background parts start,
+  and the phone-side full backup closing it, are still open (workstreams, development).
+
