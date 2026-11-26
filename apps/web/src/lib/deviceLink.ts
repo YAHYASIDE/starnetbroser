@@ -110,7 +110,7 @@ const LOG = "starnet.deviceLinkLog";
 const PENDING = "starnet.deviceLinkPendingDeletes";
 const CLOUD = "starnet.deviceLinkCloud";
 const CLOUD_OUTBOX = "starnet.deviceLinkCloudOutbox";
-const LOG_SIZE = 300;
+const LOG_SIZE = 3000;
 /** The team list is read again this often (Firebase's free reads are counted per day) - a member who just joined
  * is seen within a minute (his Nov 5 2026 «ليس بالسرعة المطلوبة»). */
 const TEAM_EVERY_MS = 60_000;
@@ -620,7 +620,10 @@ async function linkRound(s: LinkStorage, fetchFn: FetchFn, now: Date, opts: { se
   // member's deletions of things / money wait for him.
   const nameOf = (id: string) => team.members.find((m) => m.id === id)?.name ?? "عضو";
   const main = isMainMember(config.memberId);
-  const { apply: applyOps, held: newPending } = main ? holdDeletions(remoteOps, flat, nameOf) : { apply: remoteOps, held: [] };
+  // His Nov 26 2026 «عندما يحذفه يحذف من عندنا كلنا»: a deletion from another member is applied here at once (no waiting for
+  // approval any more) - it shows in the log «📜 سجل العمليات» and as a clear notification instead. (holdDeletions and the
+  // approval list stay for the ones that were waiting before.)
+  const { apply: applyOps, held: newPending } = { apply: remoteOps, held: [] as PendingDeletion[] };
   if (newPending.length > 0) {
     const known = new Set(loadPendingDeletions(s).map((p) => p.id));
     s.setSetting(PENDING, JSON.stringify([...loadPendingDeletions(s), ...newPending.filter((p) => !known.has(p.id))]));

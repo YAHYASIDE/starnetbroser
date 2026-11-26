@@ -4011,3 +4011,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   reaches the others through Firebase with the main phone off. The app closing itself when all background parts start,
   and the phone-side full backup closing it, are still open (workstreams, development).
 
+## 🗑️ Deletions apply everywhere at once + 📜 «سجل العمليات» (Nov 26 2026)
+
+- His «لا، اجعله عندما يحذفه يحذف من عندنا كلنا، ولكن يأتي أسعار به عمليات حذف عمليات إضافة عمليات إزالة D، كل العمليات،
+  ويكون فيها عناصر بحث يومي والبحث عن عملية وتنبيه واضح». This REPLACES his Nov 6 2026 rule «الحذف من المسؤول 2 ينتظر موافقتي»:
+  a deletion from any member is applied on every phone (YAHYA included) in the same round. The old approval list (and
+  `holdDeletions`) stays only for deletions that were already waiting; the mass-deletion guard (a phone deleting a big share
+  of a store) is NOT changed.
+- «D» = a device's «عليه» (debit) operation; the log says «🅳 D» and a deleted one «🗑️ حذف 🅳 D …».
+- lib/teamActivity.ts: every deletion of a device / customer / rep / money operation / D is notable (notification «🗑️ حذف من
+  الفريق (N) - <who>» with the deletions first); `filterLog` (day, kind add/edit/del, type D / money / devices / parties /
+  rates / alerts, words - Arabic digits and thousand separators ignored), `logSummary`. The log keeps 3000 entries (was 300).
+- components/TeamLog.tsx in الإعدادات ← النسخ ← ربط الأجهزة: «📜 سجل العمليات» with the day picker («اليوم» / «كل الأيام»),
+  kind and type chips, a words box, the day's summary «N عملية: … إضافة · … تعديل · … حذف», deletions in red, and «🗑️ N حذف اليوم»
+  on the title. It lists what ARRIVED from other members (his own actions are not repeated there) - say so if he wants his own too.
+

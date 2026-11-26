@@ -4,7 +4,7 @@ import { requestDataReload } from "@/lib/dataReload";
 
 import { useEffect, useState } from "react";
 import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT, TEAM_SESSIONS_PROGRESS_EVENT } from "@/components/DeviceLinkRunner";
-import { activityLine, COUNTED_STORES, type TeamActivity } from "@/lib/teamActivity";
+import { COUNTED_STORES, type TeamActivity } from "@/lib/teamActivity";
 import { MISSING_REASON_TEXT, sessionsNoteText, type MissingReason, type SessionRoundResult } from "@/lib/teamSessions";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
@@ -41,6 +41,7 @@ import {
 import { readDocument, writeDocument } from "@/lib/firestoreRest";
 import { loadLiveSyncConfig } from "@/lib/liveSyncConfig";
 import { CloudDbSection } from "@/components/CloudDbSection";
+import { TeamLog } from "@/components/TeamLog";
 
 const RULES = `rules_version = '2';
 service cloud.firestore {
@@ -299,7 +300,7 @@ export function DeviceLinkSection() {
           {team.length > 0 && (
             <p className="settings-hint device-link-team">
               👥 الفريق: {team.map((m) => `${m.name}${isMainMember(m.id) ? " ⭐" : ""}${m.id === config.memberId ? " (هذا)" : ""}`).join(" · ")}
-              {team.some((m) => isMainMember(m.id)) && <span className="device-link-main-note"> · ⭐ الرئيسي: نسخته تفوز في التعارض، والحذف من غيره ينتظر موافقته</span>}
+              {team.some((m) => isMainMember(m.id)) && <span className="device-link-main-note"> · ⭐ الرئيسي: نسخته تفوز في التعارض. والحذف من أي عضو يُنفَّذ عند الجميع، ويظهر في «📜 سجل العمليات» مع تنبيه</span>}
             </p>
           )}
           <CloudDbSection config={config} />
@@ -389,16 +390,7 @@ export function DeviceLinkSection() {
           {missing.length > 0 && !sessionsProgress && <MissingSessions missing={missing} />}
 
           {log.length > 0 && (
-            <details className="device-link-conflicts device-link-log">
-              <summary>📜 ماذا وصل من الفريق ({log.length})</summary>
-              <ul>
-                {log.slice(0, 80).map((a, i) => (
-                  <li key={i}>
-                    <b>{a.by}</b>: {activityLine(a)} · <bdi dir="ltr">{new Date(a.at).toLocaleString("en-GB")}</bdi>
-                  </li>
-                ))}
-              </ul>
-            </details>
+            <TeamLog log={log} />
           )}
 
           {(state?.held ?? []).map((h) => (

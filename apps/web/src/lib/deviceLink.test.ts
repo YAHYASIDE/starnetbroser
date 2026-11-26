@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { approvePendingDeletion, chunkOps, compareCounts, isLinkedKey, loadPendingDeletions, rejectPendingDeletion, joinAsLaptop, joinParts, splitOp, joinAsMember, linkCode, loadActivityLog, loadConflicts, loadLinkConfig, loadLinkState, loadOrigins, loadTeam, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
+import { activityNotification } from "./teamActivity";
+import { chunkOps, compareCounts, isLinkedKey, loadPendingDeletions, joinAsLaptop, joinParts, splitOp, joinAsMember, linkCode, loadActivityLog, loadConflicts, loadLinkConfig, loadLinkState, loadOrigins, loadTeam, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
 import type { FetchFn } from "./firestoreRest";
 
 /** Firestore + anonymous sign-in, in memory - only what firestoreRest.ts calls. */
@@ -259,7 +260,7 @@ describe("the phone ↔ laptop link", () => {
     return { firebase, phone, admin2 };
   }
 
-  it("🗑️ a deletion on «المسؤول 2» waits for YAHYA: ✓ deletes it here too", async () => {
+  it("🗑️ a deletion on «المسؤول 2» is applied on YAHYA at once (his Nov 26 2026) and shows in the log", async () => {
     const { firebase, phone, admin2 } = await pair();
     // «المسؤول 2» deletes a payment (and its cash entry goes with it) and adds a customer in the same round
     admin2.write("starnet_customer_ledger_v1", ledger({ a1: [] }));
@@ -267,49 +268,37 @@ describe("the phone ↔ laptop link", () => {
     admin2.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون" }, c2: { id: "c2", name: "جديد" } }));
     await runLinkRound(admin2, firebase);
     const r = await runLinkRound(phone, firebase);
-    expect(r.pending).toBe(1);
-    // the new customer came; the payment and its cash entry are still here
+    expect(r.pending ?? 0).toBe(0);
     expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c2.name).toBe("جديد");
-    expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!).a1).toHaveLength(1);
-    expect(JSON.parse(phone.data.get("starnet_cash_entries_v1")!)).toHaveLength(1);
-    const [p] = loadPendingDeletions(phone);
-    expect(p).toMatchObject({ byName: "المسؤول 2", labels: ["💵 عملية 100 أوقية"] });
-    expect(p!.ops).toHaveLength(2);
-    // the payment doesn't come back to «المسؤول 2» while it waits
-    await runLinkRound(phone, firebase);
-    await runLinkRound(admin2, firebase);
-    expect(JSON.parse(admin2.data.get("starnet_customer_ledger_v1") ?? "{}").a1 ?? []).toHaveLength(0);
-    expect(JSON.parse(admin2.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
-
-    expect(approvePendingDeletion(phone, p!.id).sort()).toEqual(["starnet_cash_entries_v1", "starnet_customer_ledger_v1"]);
     expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!).a1 ?? []).toHaveLength(0);
     expect(JSON.parse(phone.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
     expect(loadPendingDeletions(phone)).toHaveLength(0);
+    // the log says who deleted what, and the round's notification leads with it
+    const dels = loadActivityLog(phone).filter((a) => a.kind === "del");
+    expect(dels.map((a) => a.label).sort()).toEqual(["💵 الكاش 100", "💵 عملية 100 أوقية"].sort());
+    expect(dels.every((a) => a.by === "المسؤول 2" && a.notable)).toBe(true);
+    expect(activityNotification(r.incoming)).toContain("🗑️ حذف من الفريق (2)");
+    // and it reaches «المسؤول 2» side unchanged (nothing comes back)
     await runLinkRound(phone, firebase);
     await runLinkRound(admin2, firebase);
     expect(JSON.parse(admin2.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
   });
 
-  it("🗑️ ✗ «أبقِها»: nothing deleted here, and «المسؤول 2» gets it back - a device sent to the trash too", async () => {
+  it("🗑️ a device sent to the trash and a customer deleted on «المسؤول 2» reach YAHYA at once", async () => {
     const { firebase, phone, admin2 } = await pair();
     admin2.write("starnet_clients_v1", ledger({}));
     admin2.write("starnet_demo_accounts_v1", ledger([{ id: "a1", name: "DEMO 1", deletedAt: "2026-11-06" }, { id: "a2", name: "DEMO 2" }]));
     await runLinkRound(admin2, firebase);
     await runLinkRound(phone, firebase);
-    const [p] = loadPendingDeletions(phone);
-    expect(p!.labels.sort()).toEqual(["👤 زبون زبون", "📡 جهاز DEMO 1"].sort());
-    expect(JSON.parse(phone.data.get("starnet_demo_accounts_v1")!)[0].deletedAt).toBeUndefined();
-    rejectPendingDeletion(phone, p!.id);
-    expect((await runLinkRound(phone, firebase)).sent).toBe(2);
-    await runLinkRound(admin2, firebase);
-    expect(JSON.parse(admin2.data.get("starnet_clients_v1")!).c1.name).toBe("زبون");
-    expect(JSON.parse(admin2.data.get("starnet_demo_accounts_v1")!)[0].deletedAt).toBeUndefined();
-    // what YAHYA deletes himself is never held
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!)).toEqual({});
+    expect(JSON.parse(phone.data.get("starnet_demo_accounts_v1")!)[0].deletedAt).toBe("2026-11-06");
+    expect(loadPendingDeletions(phone)).toHaveLength(0);
+    // what YAHYA deletes goes the same way
+    phone.write("starnet_clients_v1", ledger({ c9: { id: "c9", name: "آخر" } }));
     phone.write("starnet_clients_v1", ledger({}));
     await runLinkRound(phone, firebase);
     await runLinkRound(admin2, firebase);
     expect(JSON.parse(admin2.data.get("starnet_clients_v1")!)).toEqual({});
-    expect(loadPendingDeletions(admin2)).toHaveLength(0);
   });
 
   it("🔢 the copy counts each store and checks it against YAHYA; the % while it comes in", async () => {

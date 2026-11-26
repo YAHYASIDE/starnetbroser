@@ -18,8 +18,10 @@ export interface TeamActivity {
   r: string;
   /** «📡 جهاز DEMO» / «💵 5,000 أوقية» / … */
   label: string;
-  /** A new device or a money operation - worth a notification. */
+  /** A new device or a money operation - worth a notification. His Nov 26 2026: every deletion too. */
   notable: boolean;
+  /** 🅳 A «عليه» (debit) operation of a device - the D (his Nov 26 2026 «إزالة D»). */
+  d?: boolean;
 }
 
 export interface Origin {
@@ -112,12 +114,16 @@ export function describeOp(op: Pick<SyncOp, "k" | "r" | "v" | "at">, before: str
     notable = op.k === "starnet_demo_accounts_v1" && kind === "add";
   } else if (MONEY[op.k]) {
     const amount = rec ? money(rec) : "";
-    label = `${MONEY[op.k]}${amount ? ` ${amount}` : ""}`;
-    notable = kind === "add";
+    // 🅳 a device's «عليه» operation is its D - said so in the log (his Nov 26 2026 «ازالة D»)
+    const isD = op.k === "starnet_customer_ledger_v1" && rec?.kind === "debit";
+    label = `${isD ? "🅳 D" : MONEY[op.k]}${amount ? ` ${amount}` : ""}`;
+    notable = kind === "add" || kind === "del";
+    return { at: op.at, by, kind, k: op.k, r: op.r, label, notable, ...(isD ? { d: true } : {}) };
   } else {
     return null; // settings-like stores: carried, not worth a line
   }
-  return { at: op.at, by, kind, k: op.k, r: op.r, label, notable };
+  // a deletion is never silent (his Nov 26 2026: «تنبيه واضح»)
+  return { at: op.at, by, kind, k: op.k, r: op.r, label, notable: notable || kind === "del" };
 }
 
 /** The marks after a round: added / changed by a member → his mark; deleted → gone. */
@@ -146,15 +152,86 @@ const VERB: Record<TeamActivity["kind"], string> = { add: "أضاف", edit: "ع�
 
 /** One line of the log / the notification. */
 export function activityLine(a: TeamActivity): string {
-  return `${VERB[a.kind]} ${a.label}`;
+  return a.kind === "del" ? `🗑️ حذف ${a.label}` : `${VERB[a.kind]} ${a.label}`;
 }
 
 /** The notification for a round: per member, its new devices and money operations (3 lines, then «و N أخرى»). */
 export function activityNotification(activity: TeamActivity[]): string | null {
-  const notable = activity.filter((a) => a.notable);
+  // deletions first, and the title says so
+  const notable = [...activity.filter((a) => a.notable)].sort((a, b) => Number(b.kind === "del") - Number(a.kind === "del"));
   if (notable.length === 0) return null;
   const by = [...new Set(notable.map((a) => a.by))].join(" و");
   const lines = notable.slice(0, 3).map(activityLine);
   if (notable.length > 3) lines.push(`و ${notable.length - 3} أخرى`);
-  return `🔗 ${by}\n${lines.join("\n")}`;
+  const dels = notable.filter((a) => a.kind === "del").length;
+  return `${dels ? `🗑️ حذف من الفريق (${dels}) - ` : "🔗 "}${by}\n${lines.join("\n")}`;
+}
+
+// ---- 📜 «سجل العمليات»: search by day, kind, type and words (his Nov 26 2026) ----
+
+export type LogCategory = "all" | "d" | "money" | "device" | "party" | "rate" | "alert";
+
+export const LOG_CATEGORIES: { id: LogCategory; label: string }[] = [
+  { id: "all", label: "الكل" },
+  { id: "d", label: "🅳 D" },
+  { id: "money", label: "💵 المال" },
+  { id: "device", label: "📡 الأجهزة" },
+  { id: "party", label: "👤 الزبائن والمندوبون" },
+  { id: "rate", label: "💱 الأسعار" },
+  { id: "alert", label: "🚩 التنبيهات" },
+];
+
+/** The kind of thing an entry is about. */
+export function logCategory(a: TeamActivity): Exclude<LogCategory, "all"> | "other" {
+  if (a.k === FLAGS_KEY) return "alert";
+  if (a.k === "starnet_currencies_v1") return "rate";
+  if (a.d) return "d";
+  if (MONEY[a.k]) return "money";
+  if (a.k === "starnet_demo_accounts_v1") return "device";
+  if (NAMED[a.k]) return "party";
+  return "other";
+}
+
+/** yyyy-mm-dd in the phone's own time (the day he means when he picks a day). */
+export function dayKey(at: string): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Text for matching: Arabic digits → Latin, thousand separators dropped, lower case. */
+export function normalizeQuery(text: string): string {
+  return text
+    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[,٬،]/g, "")
+    .replace(/[إأآ]/g, "ا")
+    .toLowerCase()
+    .trim();
+}
+
+export interface LogFilter {
+  /** yyyy-mm-dd, or empty = every day. */
+  day?: string;
+  kind?: TeamActivity["kind"] | "all";
+  cat?: LogCategory;
+  /** Words: the member, the name, an amount… */
+  q?: string;
+}
+
+export function filterLog(log: TeamActivity[], f: LogFilter): TeamActivity[] {
+  const q = normalizeQuery(f.q ?? "");
+  return log.filter((a) => {
+    if (f.day && dayKey(a.at) !== f.day) return false;
+    if (f.kind && f.kind !== "all" && a.kind !== f.kind) return false;
+    if (f.cat && f.cat !== "all" && logCategory(a) !== f.cat) return false;
+    if (q && !normalizeQuery(`${a.by} ${activityLine(a)}`).includes(q)) return false;
+    return true;
+  });
+}
+
+/** «12 عملية: 3 إضافة · 2 تعديل · 1 حذف». */
+export function logSummary(list: TeamActivity[]): string {
+  const n = (k: TeamActivity["kind"]) => list.filter((a) => a.kind === k).length;
+  return `${list.length} عملية: ${n("add")} إضافة · ${n("edit")} تعديل · ${n("del")} حذف`;
 }
