@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOOTS_WINDOW_MS, nextBoots, partRunsIn, SAFE_MODE_BOOT_SCRIPT } from "./safeMode";
+import { BOOTS_WINDOW_MS, isAlwaysOn, nextBoots, partRunsIn, SAFE_MODE_BOOT_SCRIPT } from "./safeMode";
 
 function phone(initial: Record<string, string> = {}) {
   const store = new Map<string, string>(Object.entries(initial));
@@ -46,11 +46,23 @@ describe("🛟 الوضع الآمن (his Nov 18 / 25 / 26 2026)", () => {
 
   it("a part runs only as he left it", () => {
     const base = { safe: false, ask: false, allowed: [] as string[], off: [] as string[] };
-    expect(partRunsIn(base, "link")).toBe(true);
-    expect(partRunsIn({ ...base, off: ["link"] }, "link")).toBe(false);
-    expect(partRunsIn({ ...base, off: ["link"] }, "chat")).toBe(true);
-    expect(partRunsIn({ ...base, safe: true }, "link")).toBe(false);
-    expect(partRunsIn({ ...base, safe: true, allowed: ["link"] }, "link")).toBe(true);
-    expect(partRunsIn({ ...base, ask: true }, "link")).toBe(false);
+    expect(partRunsIn(base, "chat")).toBe(true);
+    expect(partRunsIn({ ...base, off: ["chat"] }, "chat")).toBe(false);
+    expect(partRunsIn({ ...base, off: ["chat"] }, "reps")).toBe(true);
+    expect(partRunsIn({ ...base, safe: true }, "chat")).toBe(false);
+    expect(partRunsIn({ ...base, safe: true, allowed: ["chat"] }, "chat")).toBe(true);
+    expect(partRunsIn({ ...base, ask: true }, "chat")).toBe(false);
+  });
+
+  it("🔒 the bots and the team link always run - the safe mode, the question and a stopped list never touch them", () => {
+    const base = { safe: false, ask: false, allowed: [] as string[], off: [] as string[] };
+    for (const part of ["telegram", "link"]) {
+      expect(isAlwaysOn(part)).toBe(true);
+      expect(partRunsIn({ ...base, safe: true }, part)).toBe(true);
+      expect(partRunsIn({ ...base, ask: true }, part)).toBe(true);
+      expect(partRunsIn({ ...base, off: [part] }, part)).toBe(true);
+    }
+    expect(isAlwaysOn("chat")).toBe(false);
+    expect(partRunsIn({ ...base, safe: true }, "chat")).toBe(false);
   });
 });

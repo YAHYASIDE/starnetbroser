@@ -5,6 +5,7 @@ import { PartySheet } from "./AccountsSection";
 import {
   BACKGROUND_PARTS,
   dismissSafeAsk,
+  isAlwaysOn,
   partRuns,
   SAFE_MODE_EVENT,
   safeAskPending,
@@ -54,11 +55,15 @@ function PartsList() {
           <li key={p.id} className="safe-mode-part">
             <span>
               {p.label}
-              <small className="settings-hint">{runs ? " ✓ يعمل" : " ⏸️ متوقف"}</small>
+              <small className="settings-hint">{isAlwaysOn(p.id) ? " ✓ يعمل دائمًا" : runs ? " ✓ يعمل" : " ⏸️ متوقف"}</small>
             </span>
-            <button type="button" className="dialog-secondary" onClick={() => setPartRunning(p.id, !runs)}>
-              {runs ? "⏸️ أوقف" : "▶️ شغّل"}
-            </button>
+            {isAlwaysOn(p.id) ? (
+              <span className="settings-hint">🔒 دائمًا</span>
+            ) : (
+              <button type="button" className="dialog-secondary" onClick={() => setPartRunning(p.id, !runs)}>
+                {runs ? "⏸️ أوقف" : "▶️ شغّل"}
+              </button>
+            )}
           </li>
         );
       })}

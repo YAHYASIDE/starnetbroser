@@ -119,8 +119,18 @@ export function partsOff(): string[] {
   return readList(PARTS_OFF_KEY);
 }
 
+/**
+ * 🔒 These two always run - the safe mode, the question after quick opens and the stop button never touch them (his
+ * Nov 27 2026 «اجعل البوتات وربط الفريق يعملان دائمًا ولا يمكن إيقافهما»): the bots answer and the team link keeps every
+ * phone's data the same.
+ */
+export const ALWAYS_ON_PARTS = ["telegram", "link"] as const;
+
+export const isAlwaysOn = (part: string) => (ALWAYS_ON_PARTS as readonly string[]).includes(part);
+
 /** Pure: does a part run, from the saved state. */
 export function partRunsIn(state: { safe: boolean; ask: boolean; allowed: string[]; off: string[] }, part: string): boolean {
+  if (isAlwaysOn(part)) return true;
   if (state.ask) return false;
   if (state.safe) return state.allowed.includes(part);
   return !state.off.includes(part);
@@ -133,6 +143,7 @@ export function partRuns(part: string): boolean {
 
 /** His tap on one part: start / stop it - and it stays so until his next tap (in or outside the safe mode). */
 export function setPartRunning(part: string, run: boolean): void {
+  if (isAlwaysOn(part)) return;
   if (safeModeOn()) {
     const now = allowedInSafeMode().filter((p) => p !== part);
     write(SAFE_ALLOWED_KEY, JSON.stringify(run ? [...now, part] : now));
