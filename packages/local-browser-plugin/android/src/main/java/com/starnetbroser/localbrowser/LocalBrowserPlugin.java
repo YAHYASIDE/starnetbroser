@@ -188,6 +188,46 @@ public class LocalBrowserPlugin extends Plugin {
         }
     }
 
+    /** 💬 Which of WhatsApp / WhatsApp Business are installed (WhatsAppLink): [{id: "personal" | "business", installed}]. */
+    @PluginMethod
+    public void whatsappApps(PluginCall call) {
+        JSArray apps = new JSArray();
+        for (String id : new String[] {"personal", "business"}) {
+            boolean installed = false;
+            try {
+                getContext().getPackageManager().getPackageInfo(WhatsAppLink.packageFor(id), 0);
+                installed = true;
+            } catch (Exception ignored) {
+                // not installed (or not visible)
+            }
+            JSObject app = new JSObject();
+            app.put("id", id);
+            app.put("installed", installed);
+            apps.put(app);
+        }
+        JSObject ret = new JSObject();
+        ret.put("apps", apps);
+        call.resolve(ret);
+    }
+
+    /** 💬 Opens a wa.me / api.whatsapp.com link in the chosen WhatsApp - his choice, never Android's list. */
+    @PluginMethod
+    public void openWhatsAppLink(PluginCall call) {
+        String url = call.getString("url");
+        String pkg = WhatsAppLink.packageFor(call.getString("app"));
+        if (!WhatsAppLink.isAllowedUrl(url) || pkg == null || getActivity() == null) {
+            call.reject("bad link");
+            return;
+        }
+        try {
+            Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(pkg);
+            getActivity().startActivity(open);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("تعذّر فتح واتساب");
+        }
+    }
+
     /** 📌 Pins a page of the app to the phone's home screen (the launcher asks to confirm). */
     @PluginMethod
     public void pinShortcut(PluginCall call) {

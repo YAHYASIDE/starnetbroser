@@ -168,6 +168,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { ready: false };
   }
 
+  async whatsappApps(): Promise<{ apps: { id: "personal" | "business"; installed: boolean }[] }> {
+    return { apps: [] };
+  }
+
+  async openWhatsAppLink(_options: { url: string; app: "personal" | "business" }): Promise<void> {
+    throw this.unavailable("openWhatsAppLink is only available in the Android app");
+  }
+
   async shareImageToWhatsApp(_options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }> {
     throw this.unavailable("shareImageToWhatsApp is only available in the Android app");
   }

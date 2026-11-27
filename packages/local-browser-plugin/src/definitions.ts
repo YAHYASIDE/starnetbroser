@@ -671,6 +671,10 @@ export interface LocalBrowserPlugin {
   /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
    * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot.
    * `replyMarkup`: Telegram reply_markup JSON (buttons). */
+  /** 💬 Which of WhatsApp / WhatsApp Business are installed on this phone. */
+  whatsappApps(): Promise<{ apps: { id: "personal" | "business"; installed: boolean }[] }>;
+  /** 💬 Opens a wa.me link in the chosen WhatsApp (not Android's «فتح بواسطة» list). Rejects when it can't. */
+  openWhatsAppLink(options: { url: string; app: "personal" | "business" }): Promise<void>;
   /** 🖼️ A picture straight into one customer's WhatsApp chat (`direct`), else the share list. */
   shareImageToWhatsApp(options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }>;
     telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; /** Telegram HTML (<b>, <code>) - a reps' bot message only. */ html?: boolean }): Promise<{ queued: boolean }>;

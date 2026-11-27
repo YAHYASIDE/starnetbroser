@@ -36,6 +36,7 @@ import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
 import { LaunchSplash } from "@/components/LaunchSplash";
 import { BigStorageGate } from "@/components/BigStorageGate";
+import { WhatsAppAppPicker } from "@/components/WhatsAppAppPicker";
 import { BackgroundPart, SafeModeBanner } from "@/components/SafeMode";
 import { SAFE_MODE_BOOT_SCRIPT } from "@/lib/safeMode";
 
@@ -125,6 +126,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StorageFullBanner />
         <DeleteCodeHost />
         <LatinDigitInputs />
+        <WhatsAppAppPicker />
         </ActivationGate>
         </BigStorageGate>
       </body>

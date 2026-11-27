@@ -47,6 +47,7 @@ import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { lockAllRenewalDays, renewalDayOf } from "@/lib/renewalDayLock";
 import { bigStore, loadMigrationInfo, nativeStorageView } from "@/lib/bigStorage";
 import { SafeModeSection } from "@/components/SafeMode";
+import { WhatsAppAppSection } from "@/components/WhatsAppAppPicker";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, countSessions, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData, sessionCountWords } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
@@ -480,6 +481,7 @@ export default function SettingsPage() {
           <>
             <SettingsFold id="sessions"><SessionCheckSection /></SettingsFold>
             <SettingsFold id="renewal-lock"><RenewalLockAllSection /></SettingsFold>
+            <SettingsFold id="whatsapp-app"><WhatsAppAppSection /></SettingsFold>
             <SettingsFold id="customer-messages"><CustomerMessagesSection /></SettingsFold>
           </>
         )}

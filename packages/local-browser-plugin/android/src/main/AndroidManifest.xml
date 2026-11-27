@@ -39,6 +39,9 @@
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <!-- 💬 which WhatsApp apps are installed (Android 11+ package visibility): WhatsAppLink -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
     </queries>
 
     <application>

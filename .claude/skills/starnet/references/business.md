@@ -4033,3 +4033,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   whatever the stopped list says; the sheet and الإعدادات show «🔒 دائمًا» instead of the stop button; `setPartRunning`
   ignores them. The other parts (chat, whatsapp, reps, receipts, browser) stay as before (his tap only).
 
+## 💬 Which WhatsApp opens the customers' links (Nov 27 2026)
+
+- His «أريد أن تظهر لي حسابات واتساب الأعمال» (the screenshot: Android's «فتح بواسطة» with two identical «واتساب»). He has TWO
+  different apps installed - WhatsApp and WhatsApp Business - and chose «أختار من داخل التطبيق».
+- Built: every wa.me / api.whatsapp.com link of the app (an anchor tap or window.open - caught in one place, components/
+  WhatsAppAppPicker.tsx, mounted in the layout) asks him ONCE by name «💬 واتساب» / «💼 واتساب الأعمال (Business)» (with «تذكّر
+  اختياري»), then opens that app directly (native `openWhatsAppLink`, packages com.whatsapp / com.whatsapp.w4b only, only
+  wa.me / api.whatsapp.com links - WhatsAppLink.java + JUnit). One app installed → opens it at once; none → the system as
+  before. Change it in الإعدادات ← الأجهزة ← «أي واتساب أستعمل». Phone-only `starnet.whatsappApp`. The AndroidManifest
+  `<queries>` lists both packages (Android 11+ package visibility).
+- Not covered: the picture share (`shareImageToWhatsApp`, imageExport.ts) already tries WhatsApp then Business by itself;
+  the agent's reading of the Business account's notifications is separate (💬 واتساب بزنس in البوتات). A cloned (Dual Apps)
+  WhatsApp cannot be told apart by package - if he uses one, tell me.
+

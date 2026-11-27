@@ -64,7 +64,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "mail-domain" | "activation-password" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
-  | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock" | "customer-messages"
+  | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock" | "customer-messages" | "whatsapp-app"
   | "telegram" | "rep-bots" | "claude" | "whatsapp" | "customer-link" | "live-sync" | "activation-costs" | "instant-replies"
   | "device-link" | "call-server" | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "safe-mode" | "storage" | "server";
@@ -98,6 +98,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "auto-sync", group: "sync", icon: "🔄", title: "تحديث الأجهزة من Starlink", summary: "المزامنة التلقائية ووقتها، والحماية من خطأ 429", keywords: ["مزامنة", "تحديث", "ستارلينك", "starlink", "تلقائي", "429"] },
   { id: "background-sync", group: "sync", icon: "🌙", title: "المزامنة في الخلفية", summary: "«مزامنة الآن» دون فتح الصفحات", keywords: ["خلفية", "مزامنة", "الظهور فوق التطبيقات", "مزامنة الآن"] },
   { id: "renewal-lock", group: "devices", icon: "📌", title: "تثبيت يوم التجديد", summary: "يوم التجديد لا يتغيّر مع المزامنة", keywords: ["تثبيت", "يوم التجديد", "تاريخ", "تجديد", "مثبت"] },
+  { id: "whatsapp-app", group: "devices", icon: "💼", title: "أي واتساب أستعمل", summary: "واتساب أو واتساب الأعمال (Business) لروابط الزبائن", keywords: ["واتساب", "الأعمال", "business", "بزنس", "w4b", "حساب", "تطبيق", "فتح بواسطة"] },
   { id: "customer-messages", group: "devices", icon: "💬", title: "رسائل الزبون الجاهزة", summary: "نصوص حالة الجهاز والتفعيل والتوثيق - عدّلها", keywords: ["رسالة", "رسائل", "زبون", "واتساب", "جاهزة", "لقطة", "تفعيل", "توثيق", "نص"] },
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
