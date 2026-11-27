@@ -4,6 +4,7 @@ import { useKeptState } from "@/lib/dataReload";
 import { methodLabel } from "@/lib/payCurrency";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { ClientImport } from "@/components/ClientImport";
+import { ContactsExport } from "@/components/ContactsExport";
 import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { useRouter } from "next/navigation";
 import { PaymentPickerSheet } from "@/components/HomeFab";
@@ -361,6 +362,7 @@ export default function ClientsPage() {
       </div>
       {moreOpen && (
         <div className="clients-more-menu">
+          <ContactsExport clientStore={clientStore} devices={accounts} />
           <ClientImport
             clientStore={clientStore}
             adjustments={partyAdjustments}

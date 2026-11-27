@@ -4047,3 +4047,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the agent's reading of the Business account's notifications is separate (💬 واتساب بزنس in البوتات). A cloned (Dual Apps)
   WhatsApp cannot be told apart by package - if he uses one, tell me.
 
+## 📇 The customers as phone contacts (Nov 27 2026)
+
+- His screenshot of the WhatsApp Business chat list full of bare numbers: «كيف أثبّت كل هذه جهات الاتصال، وكيف أجعل الأجهزة
+  المتصلة يسجلون الأرقام» → «الأجهزة المرتبطة» (the devices linked to his WhatsApp Business). WhatsApp has no «save all»; the
+  linked devices show the names saved on the MAIN phone, so one import on the main phone is enough for them.
+- Built: «📇 احفظ الزبائن في جهات اتصالي» in الزبائن ← ⋮ (components/ContactsExport.tsx, lib/contactsExport.ts): one .vcf (vCard 3.0,
+  UTF-8) of the customers with a phone - optional mark before each name («ستارلينك -»), optional «who has a device only»;
+  customers added by number only (name = number), numbers missing and duplicates are left out and counted; 8 digits = a
+  Mauritanian local number (+222). Saved with `saveChatMedia(…, open)` (Downloads/STAR NET + Android's viewer → Contacts import).
+  No native change. Off Android it is a normal download.
+- Other phones with their own Google account import the same file (or share the account's contacts).
+
