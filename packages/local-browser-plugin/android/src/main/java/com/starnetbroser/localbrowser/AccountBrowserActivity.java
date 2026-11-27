@@ -1782,14 +1782,35 @@ public class AccountBrowserActivity extends AppCompatActivity {
             if (text != null) send.putExtra(Intent.EXTRA_TEXT, text);
             send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             if (toCustomer) {
-                String jid = WhatsAppShare.jid(customerPhone);
-                for (String pkg : WhatsAppShare.PACKAGES) {
-                    Intent direct = new Intent(send).setPackage(pkg);
-                    if (jid != null) direct.putExtra("jid", jid);
-                    if (direct.resolveActivity(getPackageManager()) == null) continue;
-                    startActivity(direct);
+                // 💬 his Nov 27 2026 choice (WhatsAppChoice): both installed and «ask» → he is asked by name, once per send
+                String choice = WhatsAppChoice.get(this);
+                if ("ask".equals(choice) && WhatsAppChoice.installed(this, "com.whatsapp") && WhatsAppChoice.installed(this, "com.whatsapp.w4b")) {
+                    new android.app.AlertDialog.Builder(this)
+                        .setTitle("💬 أي واتساب؟")
+                        .setItems(new String[] {"💬 واتساب", "💼 واتساب الأعمال (Business)"}, (d, which) -> sendShot(send, which == 0 ? "personal" : "business"))
+                        .setNegativeButton("إلغاء", null)
+                        .show();
                     return;
                 }
+                sendShot(send, choice);
+                return;
+            }
+            startActivity(Intent.createChooser(send, "أرسل الصورة"));
+        } catch (RuntimeException e) {
+            Toast.makeText(this, "تعذّر فتح واتساب", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** The shot's picture into the customer's chat in the app he chose (WhatsAppShare.packagesFor), else Android's list. */
+    private void sendShot(Intent send, String choice) {
+        try {
+            String jid = WhatsAppShare.jid(customerPhone);
+            for (String pkg : WhatsAppShare.packagesFor(choice)) {
+                Intent direct = new Intent(send).setPackage(pkg);
+                if (jid != null) direct.putExtra("jid", jid);
+                if (direct.resolveActivity(getPackageManager()) == null) continue;
+                startActivity(direct);
+                return;
             }
             startActivity(Intent.createChooser(send, "أرسل الصورة"));
         } catch (RuntimeException e) {

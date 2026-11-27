@@ -10,6 +10,8 @@ export type WhatsAppChoice = WhatsAppAppId | "ask";
 
 export const WHATSAPP_APP_KEY = "starnet.whatsappApp";
 export const WHATSAPP_PICK_EVENT = "starnet:whatsapp-pick";
+/** The sheet asks which app for a picture share and answers through `resolve` (null = he closed it). */
+export const WHATSAPP_ASK_EVENT = "starnet:whatsapp-ask";
 
 export const WHATSAPP_APP_LABELS: Record<WhatsAppAppId, string> = {
   personal: "💬 واتساب",
@@ -25,10 +27,13 @@ export function parseChoice(raw: string | null): WhatsAppChoice {
   return raw === "personal" || raw === "business" ? raw : "ask";
 }
 
-/** What to do with a link: open this app now, ask him, or leave it to the system (none installed). */
+/**
+ * What to do with a link / a picture: open this app now, ask him, or leave it to the system. With fewer than two apps there
+ * is nothing to choose: the system decides (a cloned WhatsApp - Dual Apps - is the same package under another user, only the
+ * system's list can show it).
+ */
 export function decideApp(installed: WhatsAppAppId[], choice: WhatsAppChoice): { do: "open"; app: WhatsAppAppId } | { do: "ask" } | { do: "system" } {
-  if (installed.length === 0) return { do: "system" };
-  if (installed.length === 1) return { do: "open", app: installed[0]! };
+  if (installed.length < 2) return { do: "system" };
   if (choice !== "ask" && installed.includes(choice)) return { do: "open", app: choice };
   return { do: "ask" };
 }
@@ -48,6 +53,35 @@ export function saveChoice(choice: WhatsAppChoice): void {
   } catch {
     // asked again next time
   }
+  void pushChoiceToNative(choice);
+}
+
+/** The native shares (the shot's «أرسل للزبون») read his choice from the phone itself. Best effort. */
+export async function pushChoiceToNative(choice: WhatsAppChoice = loadChoice()): Promise<void> {
+  try {
+    const { isRunningInAndroidApp } = await import("./localBrowser");
+    if (!isRunningInAndroidApp()) return;
+    const { LocalBrowser } = await import("@starnet/local-browser-plugin");
+    await LocalBrowser.setWhatsAppApp({ app: choice });
+  } catch {
+    // an older app without it
+  }
+}
+
+/**
+ * For a picture share: the app to send it in (`undefined` = no preference, the system / the native default; `null` = he closed the
+ * question). Asks by name when both apps are installed and he has not chosen (the choice is remembered when he ticks it).
+ */
+export async function pickAppForShare(): Promise<WhatsAppAppId | undefined | null> {
+  const apps = await installedWhatsAppApps();
+  const d = decideApp(apps, loadChoice());
+  if (d.do === "system") return undefined;
+  if (d.do === "open") return d.app;
+  return new Promise<WhatsAppAppId | null>((resolve) => {
+    window.dispatchEvent(new CustomEvent(WHATSAPP_ASK_EVENT, { detail: { apps, resolve } }));
+    // nobody listening (should not happen): do not hang the send
+    window.setTimeout(() => resolve(null), 120_000);
+  });
 }
 
 // ---- the native side ----

@@ -4094,3 +4094,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`starnet_shot_handle` → `takeShot`) opens the sheet; the phone's own screenshot does nothing special. (The old «What's new»
   entry of Nov 7 still mentions the phone's buttons - history.)
 
+- Nov 27 (his «ما زالت لا تظهر إلا الواتساب العاديين - هذه إرسال صورة الكشف», the «فتح بواسطة» list again): the PICTURE shares are not links.
+  `shareImageToWhatsApp` (the statement picture) and the shot's «أرسل للزبون» (AccountBrowserActivity.shareShot) tried `com.whatsapp`
+  first, so the explicit package never reached WhatsApp Business (the list then showed WhatsApp and its Dual-Apps clone). Fixed:
+  `WhatsAppShare.packagesFor(choice)` (JUnit) + his choice kept natively (`WhatsAppChoice`, pushed by the app: `setWhatsAppApp`);
+  the statement picture asks by name via the same sheet (`pickAppForShare`) when both apps are installed and sends with
+  `app`; the shot's native sheet asks with an AlertDialog. With fewer than two apps nothing is forced (`decideApp` → system): a
+  cloned WhatsApp is the same package under another user, only the system's list can show it.
+- Not covered: `exportPrintableImage` (a transfer receipt / a rep operation receipt) still goes to Android's share sheet.
+

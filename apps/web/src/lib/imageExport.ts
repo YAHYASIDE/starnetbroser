@@ -5,6 +5,7 @@ import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { normalizePhoneForWhatsApp } from "./whatsapp";
 import { Share } from "@capacitor/share";
 import { isRunningInAndroidApp } from "./localBrowser";
+import { pickAppForShare } from "./whatsappApp";
 import { buildPrintableHtml, loadBusinessProfile, type PrintableDocument } from "./pdfDocument";
 import type { PdfResult } from "./pdfExport";
 import { buildStatementHtml, IMAGE_STATEMENT_ROWS, sharpenForImage, StatementData } from "./statementDocument";
@@ -46,9 +47,13 @@ export async function exportStatementImage(data: StatementData, phone?: string):
       return { ok: true };
     }
     // 💬 his customer's own chat when his number is saved (WhatsAppShare.java), else the share list as before
-    if (phone && normalizePhoneForWhatsApp(phone)) {
+    // 💬 his Nov 27 2026 «لا تظهر إلا الواتساب العاديين»: both WhatsApp and WhatsApp Business installed → he is asked by name (once,
+    // or his saved choice) and the picture goes to THAT app - never only to the first one that answers
+    const app = await pickAppForShare();
+    if (app === null) return { ok: false, message: "أُلغي الإرسال" };
+    if ((phone && normalizePhoneForWhatsApp(phone)) || app) {
       try {
-        await LocalBrowser.shareImageToWhatsApp({ base64: dataUrl.split(",")[1] ?? "", fileName, phone });
+        await LocalBrowser.shareImageToWhatsApp({ base64: dataUrl.split(",")[1] ?? "", fileName, ...(phone ? { phone } : {}), ...(app ? { app } : {}) });
         return { ok: true };
       } catch {
         // an older app without it, or WhatsApp refused: the share list below

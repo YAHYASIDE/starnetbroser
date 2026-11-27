@@ -19,10 +19,10 @@ describe("💬 which WhatsApp (his Nov 27 2026)", () => {
     expect(parseChoice(null)).toBe("ask");
   });
 
-  it("one app = opens it; two = his saved choice, else asks; none = the system", () => {
+  it("two apps = his saved choice, else asks; fewer than two = the system decides (a clone is only in its list)", () => {
     expect(decideApp([], "ask")).toEqual({ do: "system" });
-    expect(decideApp(["business"], "ask")).toEqual({ do: "open", app: "business" });
-    expect(decideApp(["personal"], "business")).toEqual({ do: "open", app: "personal" });
+    expect(decideApp(["business"], "ask")).toEqual({ do: "system" });
+    expect(decideApp(["personal"], "business")).toEqual({ do: "system" });
     expect(decideApp(["personal", "business"], "ask")).toEqual({ do: "ask" });
     expect(decideApp(["personal", "business"], "business")).toEqual({ do: "open", app: "business" });
     expect(decideApp(["personal", "business"], "personal")).toEqual({ do: "open", app: "personal" });

@@ -170,12 +170,27 @@ public class LocalBrowserPlugin extends Plugin {
             if (text != null && !text.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, text);
             send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             String jid = WhatsAppShare.jid(call.getString("phone"));
+            // 💬 the app he chose for this send (asked by the app), else his saved choice, else the old order
+            String asked = call.getString("app");
+            String choice = asked != null && !asked.isEmpty() ? WhatsAppChoice.normalize(asked) : WhatsAppChoice.get(getContext());
+            String[] packages = WhatsAppShare.packagesFor(choice);
             if (jid != null) {
-                for (String pkg : WhatsAppShare.PACKAGES) {
+                for (String pkg : packages) {
                     Intent direct = new Intent(send).setPackage(pkg).putExtra("jid", jid);
                     if (direct.resolveActivity(getContext().getPackageManager()) == null) continue;
                     getActivity().startActivity(direct);
                     ret.put("direct", true);
+                    call.resolve(ret);
+                    return;
+                }
+            }
+            // no usable number but he chose an app: that app's own contact list, not Android's list of everything
+            if (!"ask".equals(choice)) {
+                for (String pkg : packages) {
+                    Intent only = new Intent(send).setPackage(pkg);
+                    if (only.resolveActivity(getContext().getPackageManager()) == null) continue;
+                    getActivity().startActivity(only);
+                    ret.put("direct", false);
                     call.resolve(ret);
                     return;
                 }
@@ -186,6 +201,13 @@ public class LocalBrowserPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("تعذّر فتح واتساب");
         }
+    }
+
+    /** 💬 His choice of WhatsApp, kept here for the shares the phone makes by itself (the shot's «أرسل للزبون»). */
+    @PluginMethod
+    public void setWhatsAppApp(PluginCall call) {
+        WhatsAppChoice.set(getContext(), call.getString("app"));
+        call.resolve();
     }
 
     /** 💬 Which of WhatsApp / WhatsApp Business are installed (WhatsAppLink): [{id: "personal" | "business", installed}]. */

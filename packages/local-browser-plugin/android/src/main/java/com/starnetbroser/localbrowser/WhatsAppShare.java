@@ -11,6 +11,17 @@ final class WhatsAppShare {
 
     static final String[] PACKAGES = {"com.whatsapp", "com.whatsapp.w4b"};
 
+    /**
+     * The packages to try, in order, for his choice (his Nov 27 2026 «لا تظهر إلا الواتساب العاديين»: both natives tried
+     * «واتساب» first and never reached «واتساب الأعمال»): "business" → only Business, "personal" → only WhatsApp, anything else
+     * («ask» / nothing saved) → the old order.
+     */
+    static String[] packagesFor(String choice) {
+        if ("business".equals(choice)) return new String[] {"com.whatsapp.w4b"};
+        if ("personal".equals(choice)) return new String[] {"com.whatsapp"};
+        return PACKAGES;
+    }
+
     /** "+222 27 58 08 36" / "0022227580836" → "22227580836@s.whatsapp.net"; null when it isn't a usable number. */
     static String jid(String phone) {
         if (phone == null) return null;

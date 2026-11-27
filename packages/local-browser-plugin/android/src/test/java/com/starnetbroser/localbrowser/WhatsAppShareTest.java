@@ -24,4 +24,16 @@ public class WhatsAppShareTest {
         assertEquals("statement.._.._x.png", WhatsAppShare.fileName("../../x"));
         assertTrue(WhatsAppShare.fileName(null).endsWith(".png"));
     }
+
+    @Test
+    public void theChosenAppDecidesWhichPackagesAreTried() {
+        assertEquals(1, WhatsAppShare.packagesFor("business").length);
+        assertEquals("com.whatsapp.w4b", WhatsAppShare.packagesFor("business")[0]);
+        assertEquals("com.whatsapp", WhatsAppShare.packagesFor("personal")[0]);
+        // «ask» / nothing / anything else: both, the old order
+        assertEquals(2, WhatsAppShare.packagesFor("ask").length);
+        assertEquals("com.whatsapp", WhatsAppShare.packagesFor(null)[0]);
+        assertEquals("com.whatsapp", WhatsAppShare.packagesFor("com.evil")[0]);
+    }
 }
+

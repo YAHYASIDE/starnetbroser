@@ -8,8 +8,10 @@ import {
   isWhatsAppLink,
   loadChoice,
   openInWhatsApp,
+  pushChoiceToNative,
   saveChoice,
   WHATSAPP_APP_LABELS,
+  WHATSAPP_ASK_EVENT,
   WHATSAPP_PICK_EVENT,
   type WhatsAppAppId,
 } from "@/lib/whatsappApp";
@@ -22,7 +24,7 @@ const original = typeof window !== "undefined" ? window.open.bind(window) : null
  * place (a tap on a wa.me anchor, window.open): no screen had to change. Off the Android app nothing changes.
  */
 export function WhatsAppAppPicker() {
-  const [pending, setPending] = useState<{ url: string; apps: WhatsAppAppId[] } | null>(null);
+  const [pending, setPending] = useState<{ url?: string; apps: WhatsAppAppId[]; resolve?: (app: WhatsAppAppId | null) => void } | null>(null);
   const [remember, setRemember] = useState(true);
 
   useEffect(() => {
@@ -48,6 +50,14 @@ export function WhatsAppAppPicker() {
       void handle(a.href);
     };
     const onPick = (e: Event) => void handle((e as CustomEvent<string>).detail);
+    // a picture share asks which app too (lib/whatsappApp.ts pickAppForShare)
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<{ apps: WhatsAppAppId[]; resolve: (app: WhatsAppAppId | null) => void }>).detail;
+      setPending({ apps: d.apps, resolve: d.resolve });
+    };
+    window.addEventListener(WHATSAPP_ASK_EVENT, onAsk);
+    // the native shares read his choice from the phone itself: tell it once at the start
+    void pushChoiceToNative();
     document.addEventListener("click", onClick, true);
     window.addEventListener(WHATSAPP_PICK_EVENT, onPick);
     const patched: typeof window.open = (url, target, features) => {
@@ -61,19 +71,25 @@ export function WhatsAppAppPicker() {
     return () => {
       document.removeEventListener("click", onClick, true);
       window.removeEventListener(WHATSAPP_PICK_EVENT, onPick);
+      window.removeEventListener(WHATSAPP_ASK_EVENT, onAsk);
       if (original) window.open = original;
     };
   }, []);
 
   if (!pending) return null;
   const choose = async (app: WhatsAppAppId) => {
-    const { url } = pending;
+    const { url, resolve } = pending;
     if (remember) saveChoice(app);
     setPending(null);
-    if (!(await openInWhatsApp(url, app)) && original) original(url, "_blank", "noopener,noreferrer");
+    if (resolve) return resolve(app);
+    if (url && !(await openInWhatsApp(url, app)) && original) original(url, "_blank", "noopener,noreferrer");
+  };
+  const close = () => {
+    pending.resolve?.(null);
+    setPending(null);
   };
   return (
-    <PartySheet title="💬 افتح في أي واتساب؟" onClose={() => setPending(null)}>
+    <PartySheet title="💬 افتح في أي واتساب؟" onClose={close}>
       <p className="settings-hint">عندك واتساب وواتساب الأعمال. اختر أيهما يفتح هذا الرابط.</p>
       <div className="agent-actions">
         {pending.apps.map((app) => (
@@ -109,7 +125,7 @@ export function WhatsAppAppSection() {
           : installed.length === 0
             ? "لم أجد واتساب ولا واتساب الأعمال في هذا الهاتف (أو هذا ليس تطبيق الأندرويد)."
             : installed.length === 1
-              ? `عندك ${WHATSAPP_APP_LABELS[installed[0]!]} فقط، فتُفتح الروابط فيه مباشرة.`
+              ? `عندك ${WHATSAPP_APP_LABELS[installed[0]!]} فقط، فلا شيء تختاره (وإن كان عندك نسخة مكررة من واتساب فيظهر اختيارها في نافذة أندرويد كالمعتاد).`
               : "عندك واتساب وواتساب الأعمال. اختر الذي تفتح به روابط الزبائن:"}
       </p>
       {installed && installed.length > 1 && (

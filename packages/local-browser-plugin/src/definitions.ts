@@ -673,10 +673,12 @@ export interface LocalBrowserPlugin {
    * `replyMarkup`: Telegram reply_markup JSON (buttons). */
   /** 💬 Which of WhatsApp / WhatsApp Business are installed on this phone. */
   whatsappApps(): Promise<{ apps: { id: "personal" | "business"; installed: boolean }[] }>;
+  /** 💬 His choice of WhatsApp ("personal" | "business" | "ask"), kept natively for the shares the phone makes by itself. */
+  setWhatsAppApp(options: { app: "personal" | "business" | "ask" }): Promise<void>;
   /** 💬 Opens a wa.me link in the chosen WhatsApp (not Android's «فتح بواسطة» list). Rejects when it can't. */
   openWhatsAppLink(options: { url: string; app: "personal" | "business" }): Promise<void>;
   /** 🖼️ A picture straight into one customer's WhatsApp chat (`direct`), else the share list. */
-  shareImageToWhatsApp(options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }>;
+  shareImageToWhatsApp(options: { base64: string; fileName?: string; phone?: string; text?: string; /** 💬 This send only: the app he chose. */ app?: "personal" | "business" }): Promise<{ direct: boolean }>;
     telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; /** Telegram HTML (<b>, <code>) - a reps' bot message only. */ html?: boolean }): Promise<{ queued: boolean }>;
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
   telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
