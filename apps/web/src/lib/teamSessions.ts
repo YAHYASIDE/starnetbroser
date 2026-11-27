@@ -139,6 +139,9 @@ export interface SessionDeps {
   now?: number;
   /** 📊 «نقل الجلسات 45%» - sessions fetched of those to take. */
   onProgress?: (done: number, total: number) => void;
+  /** ⚡ A short round about a few devices only (`accountIds` = those): nothing of the others' is dropped, the totals are not
+   * the phone's (his Nov 27 2026 «الجلسات تأتي بعد وقت طويل»). */
+  partial?: boolean;
 }
 
 /** Why a device is still signed out here after a round (his Nov 6 2026 ask: the names, and why). */
@@ -191,7 +194,8 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
   const { config } = d;
   try {
     const local = await d.exportSessions(d.accountIds);
-    const cleaned = cleanSent(parse<SentSessions>(d.getSetting(SENT), {}), local);
+    // a partial round sees a few devices only: never drop what was sent for the others
+    const cleaned = d.partial ? { sent: parse<SentSessions>(d.getSetting(SENT), {}), dropped: 0 } : cleanSent(parse<SentSessions>(d.getSetting(SENT), {}), local);
     const sent = cleaned.sent;
     const taken = parse<TakenSessions>(d.getSetting(TAKEN), {});
 
@@ -290,3 +294,40 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
     return { ok: false, sent: 0, taken: 0, message: e instanceof Error ? e.message : "تعذّر نقل الجلسات" };
   }
 }
+
+/** How long a device he opened stays «recent» for the fast send. */
+export const FAST_RECENT_MS = 30 * 60_000;
+
+/**
+ * ⚡ His Nov 27 2026 «الأجهزة بيني وبين المشرفين لا تأتيهم الجلسات إلا بعد وقت طويل - لا فائدة من جهاز بلا جلسته»: the full round reads
+ * EVERY device's cookies (943 of them) and runs every 30 minutes, so a session waited for the sender's round, then for the
+ * receiver's. This round looks at a few devices only: `touched` (the ones he just opened - a new sign-in goes out at once) and
+ * the ones the other members offer newer than what this phone took (cheap: only their index documents are read first). Nothing
+ * to do = no work at all.
+ */
+export async function runFastSessionRound(d: SessionDeps, touched: string[]): Promise<SessionRoundResult> {
+  const fetchFn = d.fetchFn ?? fetch;
+  const { config } = d;
+  try {
+    const wanted = new Set(d.accountIds);
+    const ids = new Set(touched.filter((id) => wanted.has(id)));
+    const taken = parse<TakenSessions>(d.getSetting(TAKEN), {});
+    const indexes: { member: string; index: Record<string, number> }[] = [];
+    for (const m of d.team) {
+      if (m.id === config.memberId) continue;
+      const doc = await readDocument(config, indexPath(config, m.id), fetchFn);
+      if (!doc.ok || !doc.value?.iv) continue;
+      try {
+        indexes.push({ member: m.id, index: JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, number> });
+      } catch {
+        // sealed with an older key - skipped
+      }
+    }
+    for (const [id, n] of Object.entries(newestSessions(indexes))) if (wanted.has(id) && n.at > (taken[id] ?? 0)) ids.add(id);
+    if (ids.size === 0) return { ok: true, sent: 0, taken: 0, message: "✓" };
+    return await runSessionRound({ ...d, accountIds: [...ids], partial: true }, false);
+  } catch (e) {
+    return { ok: false, sent: 0, taken: 0, message: e instanceof Error ? e.message : "تعذّر نقل الجلسات" };
+  }
+}
+

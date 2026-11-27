@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FetchFn } from "./firestoreRest";
 import type { LinkConfig, TeamMember } from "./deviceLink";
-import { cleanSent, isSignedInSession, runSessionRound, sessionsNoteText, sessionFingerprint, sessionsToSend, sessionsToTake, ticketFingerprint } from "./teamSessions";
+import { cleanSent, isSignedInSession, runFastSessionRound, runSessionRound, sessionsNoteText, sessionFingerprint, sessionsToSend, sessionsToTake, ticketFingerprint } from "./teamSessions";
 
 // Fake data only - no real cookie.
 const IN = (v: string) => ({ "https://starlink.com": `_ga=x; Starlink.Com.Access.V1=chunks-2; Starlink.Com.Access.V1C1=${v}` });
@@ -145,4 +145,47 @@ describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
     const again = await runSessionRound(admin.deps(firebase, 3000));
     expect(again.missing).toEqual([{ id: "d1", reason: "stale" }]);
   });
+
+  it("⚡ the fast round: a device he just opened goes out at once, only it is read, and the others' sent list stays", async () => {
+    const fb = fakeFirebase();
+    const phone = member("phone", { d1: IN("1"), d2: IN("2") });
+    // the full round sent both
+    await runSessionRound(phone.deps(fb, 1_000));
+    // a new sign-in on d1 only
+    phone.jar.d1 = IN("9");
+    const read: string[][] = [];
+    const deps = phone.deps(fb, 2_000);
+    const exportSessions = deps.exportSessions;
+    deps.exportSessions = async (ids: string[]) => {
+      read.push(ids);
+      return exportSessions(ids);
+    };
+    const r = await runFastSessionRound(deps, ["d1"]);
+    expect(r).toMatchObject({ ok: true, sent: 1 });
+    expect(read).toEqual([["d1"]]);
+    // «المسؤول 2» gets it by a fast round of its own (it only looks at what the index offers newer)
+    const m1 = member("m1", {});
+    const took = await runFastSessionRound(m1.deps(fb, 3_000), []);
+    expect(took.taken).toBe(2);
+    expect(m1.jar.d1).toEqual(IN("9"));
+    // the phone's sent list still knows d2 (a partial round never drops the others)
+    const again = await runSessionRound(phone.deps(fb, 4_000));
+    expect(again.sent).toBe(0);
+  });
+
+  it("⚡ nothing to send and nothing newer offered = no work (no cookie read)", async () => {
+    const fb = fakeFirebase();
+    const phone = member("phone", { d1: IN("1") });
+    await runSessionRound(phone.deps(fb, 1_000));
+    let reads = 0;
+    const deps = phone.deps(fb, 2_000);
+    deps.exportSessions = async () => {
+      reads += 1;
+      return {};
+    };
+    const r = await runFastSessionRound(deps, []);
+    expect(r).toMatchObject({ ok: true, sent: 0, taken: 0 });
+    expect(reads).toBe(0);
+  });
 });
+

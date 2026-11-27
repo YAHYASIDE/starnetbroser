@@ -4071,3 +4071,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Open: the automatic copy on a rate change stays off while «المندوبون» is stopped (it is not always-on - only the bots and the
   team link are). Decide with him after the speed work whether it joins the always-on parts.
 
+## ⚡ The devices' sessions reach the team fast (Nov 27 2026)
+
+- His «الأجهزة بيني وبين المشرفين لا تأتيهم الجلسات إلا بعد وقت طويل، أريد الجهاز لا يثبت عند أي شخص بدون جلسته، فهذا لا فائدة منه». Why: the
+  sessions round (lib/teamSessions.ts `runSessionRound`) reads EVERY device's cookies (943) and runs every 30 minutes, so a session
+  waited for the sender's round and then for the receiver's; the receiver already listened live (linkPulse `sessionIndex`) but
+  ran the same heavy full round.
+- Built: `runFastSessionRound` - a short round about (a) the devices he opened in the last 30 min (`recentDevices`, `FAST_RECENT_MS`) →
+  a new sign-in goes out at once, and (b) the devices the other members' index offers NEWER than this phone took (only their index
+  documents are read first; nothing to do = no cookie read at all). Triggers (DeviceLinkRunner): back to the app from a device's
+  browser (+3 s), and the live pulse of another member's sessionIndex (+1.5 s). The full round stays every 30 min and for
+  «📥 خذ جلسات الفريق». `partial` rounds never drop the others from the sent list.
+- NOT done (asked him): hiding a device from a member until its session arrives (the device record and its operations travel by
+  the data link; hiding them risks the balances) - instead a badge «⏳ تصل جلسته» is the proposal.
+

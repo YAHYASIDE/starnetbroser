@@ -10,7 +10,8 @@ import { isLinkedWrite, startLinkPulse, startSessionPulse } from "@/lib/linkPuls
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
-import { runSessionRound, SESSION_ROUND_MS } from "@/lib/teamSessions";
+import { FAST_RECENT_MS, runFastSessionRound, runSessionRound, SESSION_ROUND_MS } from "@/lib/teamSessions";
+import { loadRecentLog } from "@/lib/recentDevices";
 import { notifyPhone } from "@/lib/appEvents";
 import { activityNotification } from "@/lib/teamActivity";
 
@@ -159,13 +160,59 @@ export function DeviceLinkRunner() {
         sessionsBusy = false;
       }
     };
+    // ⚡ his Nov 27 2026 «الأجهزة لا تأتيهم الجلسات إلا بعد وقت طويل»: a short round about the devices he just opened and the ones
+    // another member offers newer - not every device's cookies (lib/teamSessions.ts runFastSessionRound). The full round
+    // above stays as the 30-minute safety net and for «📥 خذ جلسات الفريق».
+    let fastBusy = false;
+    let fastAgain = false;
+    const fastSessions = async () => {
+      if (fastBusy || sessionsBusy) {
+        fastAgain = true;
+        return;
+      }
+      const storage = browserLinkStorage();
+      const config = loadLinkConfig(storage);
+      if (!config?.enabled) return;
+      const team = loadTeam(storage);
+      if (team.length < 2) return;
+      fastBusy = true;
+      try {
+        const accounts = loadDemoAccounts(demoAccounts).filter((a) => !a.deletedAt);
+        const log = loadRecentLog();
+        const touched = accounts.filter((a) => log[a.id] && Date.now() - new Date(log[a.id]!).getTime() < FAST_RECENT_MS).map((a) => a.id);
+        const result = await runFastSessionRound(
+          {
+            config,
+            team,
+            accountIds: accounts.map((a) => a.id),
+            exportSessions: (ids) => exportAccountSessions(ids),
+            importSessions: (s) => importAccountSessions(s),
+            getSetting: (k) => storage.getSetting(k),
+            setSetting: (k, v) => storage.setSetting(k, v),
+          },
+          touched,
+        );
+        if (result.taken > 0) window.dispatchEvent(new Event(DEVICE_LINK_EVENT));
+      } finally {
+        fastBusy = false;
+        if (fastAgain) {
+          fastAgain = false;
+          window.setTimeout(() => void fastSessions(), 15_000);
+        }
+      }
+    };
     const firstSessions = window.setTimeout(() => void sessions(), 30_000);
     const sessionsTimer = window.setInterval(() => void sessions(), SESSION_ROUND_MS);
     const onSessionsNow = () => void sessions(true);
     window.addEventListener(TEAM_SESSIONS_NOW_EVENT, onSessionsNow);
     // ⚡ his Nov 8 2026 report (a device YOUBE signed into stayed signed out here): a member's new sessions come in at
     // once (live), and mine go out when he comes back to the app from a device's browser (where he signs in)
-    const sessionsSoon = () => Date.now() - lastSessions > SESSIONS_AGAIN_MS && void sessions();
+    // back from a device's browser (where he signed in): its new session goes out within seconds (the fast round); the full
+    // round only when it has not run for a while
+    const sessionsSoon = () => {
+      window.setTimeout(() => void fastSessions(), 3000);
+      if (Date.now() - lastSessions > SESSIONS_AGAIN_MS * 90) void sessions();
+    };
     let stopSessionPulse: (() => void) | null = null;
     let sessionPulseTimer = 0;
     const startSessionsLive = () => {
@@ -173,7 +220,7 @@ export function DeviceLinkRunner() {
       if (stopSessionPulse || !config?.enabled) return;
       stopSessionPulse = startSessionPulse(config, () => {
         window.clearTimeout(sessionPulseTimer);
-        sessionPulseTimer = window.setTimeout(() => void sessions(), 1500);
+        sessionPulseTimer = window.setTimeout(() => void fastSessions(), 1500);
       });
     };
     startSessionsLive();
