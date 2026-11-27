@@ -867,16 +867,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        // 📸 a screenshot taken here (the phone's own buttons) opens the same buttons as the 📸 tab
-        if (Build.VERSION.SDK_INT >= 34 && shotCallback == null) {
-            Activity.ScreenCaptureCallback callback = () -> runOnUiThread(this::takeShot);
-            try {
-                registerScreenCaptureCallback(getMainExecutor(), callback);
-                shotCallback = callback;
-            } catch (RuntimeException e) {
-                // not allowed on this phone - the 📸 tab still works
-            }
-        }
+        // 📸 His Nov 27 2026 «اجعل هذه اللقطة التي تظهر الخيارات لا تظهر إلا إن استخدمت لقطة الكاميرا الداخلية»: the phone's own
+        // screenshot (its buttons) no longer opens the buttons sheet - only the 📸 tab does (starnet_shot_handle → takeShot). The
+        // Android 14 ScreenCaptureCallback that opened it from the phone's buttons is not registered any more.
     }
 
     @Override

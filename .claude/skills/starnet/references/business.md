@@ -4085,3 +4085,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - NOT done (asked him): hiding a device from a member until its session arrives (the device record and its operations travel by
   the data link; hiding them risks the balances) - instead a badge «⏳ تصل جلسته» is the proposal.
 
+## 📸 The shot's buttons only from the internal camera (Nov 27 2026)
+
+- His «اجعل هذه اللقطة التي تظهر الخيارات لا تظهر إلا إن استخدمت لقطة الكاميرا الداخلية» (the sheet «📸 <device>» with «✅ تم التوثيق -
+  أرسل للزبون», «📨 حالة الجهاز», «⚡ رسالة تفعيل», «📎 احفظ في سجل الجهاز», «🚩 تنبيه للمسؤول مع الصورة», «📤 مشاركة»).
+- It used to open two ways: the 📸 tab on the device browser's right edge, AND the phone's own screenshot (its buttons; Android 14+
+  `ScreenCaptureCallback` in AccountBrowserActivity.onStart). The second is no longer registered: only the 📸 tab
+  (`starnet_shot_handle` → `takeShot`) opens the sheet; the phone's own screenshot does nothing special. (The old «What's new»
+  entry of Nov 7 still mentions the phone's buttons - history.)
+
