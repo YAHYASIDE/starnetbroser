@@ -4026,3 +4026,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   kind and type chips, a words box, the day's summary «N عملية: … إضافة · … تعديل · … حذف», deletions in red, and «🗑️ N حذف اليوم»
   on the title. It lists what ARRIVED from other members (his own actions are not repeated there) - say so if he wants his own too.
 
+## 🔒 The bots and the team link always run (Nov 27 2026)
+
+- His «اجعل بوت التطبيق (تيليغرام) وربط الفريق يعملان دائمًا ولا يمكن إيقافهما» (from the safe-mode sheet): `ALWAYS_ON_PARTS =
+  [telegram, link]` in lib/safeMode.ts - they run in the safe mode, while the «هل أشغّل الوضع الآمن؟» question waits, and
+  whatever the stopped list says; the sheet and الإعدادات show «🔒 دائمًا» instead of the stop button; `setPartRunning`
+  ignores them. The other parts (chat, whatsapp, reps, receipts, browser) stay as before (his tap only).
+
