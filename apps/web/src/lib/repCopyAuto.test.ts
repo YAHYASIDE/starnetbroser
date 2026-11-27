@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { AUTO_COPY_QUIET_MS, AUTO_COPY_RETRY_MS, autoCopyKey, decideAutoCopy } from "./repCopyAuto";
+import { AUTO_COPY_QUIET_MS, AUTO_COPY_RETRY_MS, autoCopyKey, decideAutoCopy, ratesLines, repSendSummary } from "./repCopyAuto";
 
 const MIN = 60_000;
 
@@ -46,3 +46,24 @@ describe("📤 نسخة المندوب تلقائيًا - 10 minutes after the l
     expect(autoCopyKey(accounts, "r1", {}, after, before)).toBeNull();
   });
 });
+
+describe("💱📤 أرسل العملات لكل المندوبين الآن (his Nov 27 2026)", () => {
+  const cur = (code: string, rate: number, extra: object = {}) => ({ code, name: code, symbol: code, rateFromUsd: rate, updatedAt: "", enabled: true, ...extra });
+
+  it("the rates he reads before sending: enabled ones, sorted, the pin shown", () => {
+    const store = { USD: cur("USD", 1), EUR: cur("EUR", 0.92345678, { pinnedAt: "2026-11-20" }), OLD: cur("OLD", 5, { enabled: false }), MRU: cur("MRU", 40) };
+    expect(ratesLines(store as never)).toEqual(["EUR = 0.923457 📌", "MRU = 40", "USD = 1"]);
+  });
+
+  it("the summary counts who got it, who is not linked and who failed", () => {
+    expect(
+      repSendSummary([
+        { repId: "a", name: "أ", status: "sent", note: "3 جهاز" },
+        { repId: "b", name: "ب", status: "skipped", note: "غير مربوط" },
+        { repId: "c", name: "ج", status: "sent", note: "" },
+        { repId: "d", name: "د", status: "failed", note: "x" },
+      ]),
+    ).toBe("✓ 2 أُرسل · ⏭️ 1 غير مربوط · ✗ 1 فشل");
+  });
+});
+

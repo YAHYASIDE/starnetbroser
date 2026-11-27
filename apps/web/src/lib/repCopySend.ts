@@ -9,7 +9,7 @@ import { buildRepCopy, buildRepCopyFile, copySnapshot, markRepCopySent, markRepC
 import { ensureRepDeviceCode, repPhoneKey } from "./repDeviceTransfer";
 import { readStores, repStoreSlice } from "./repWorkspace";
 import { rejectedVersions } from "./repChanges";
-import { markSentRates, ratesFingerprint } from "./repCopyAuto";
+import { markSentRates, ratesFingerprint, type RepSendRow } from "./repCopyAuto";
 import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
@@ -95,3 +95,28 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     return { ok: false, message: "تعذّر تجهيز النسخة" };
   }
 }
+
+/**
+ * 💱📤 «أرسل العملات لكل المندوبين الآن» (his Nov 27 2026 «خذ نسخة الآن من YAHYA 1 وأرسل لكل المندوبين العملات صالحة»): every
+ * rep's copy - with the main phone's rates as they are now - goes out through the reps bot, one after the other. Only to a rep
+ * linked to the bot whose phone is linked (never the share sheet, nothing leaves otherwise); each result is returned.
+ */
+export async function sendRatesToAllReps(reps: Representative[], accounts: StarlinkAccountSummary[], progress: (text: string) => void = () => undefined): Promise<RepSendRow[]> {
+  const chats = loadRepChats();
+  const rows: RepSendRow[] = [];
+  for (const [i, rep] of reps.entries()) {
+    if (!chats[rep.id]) {
+      rows.push({ repId: rep.id, name: rep.name, status: "skipped", note: "غير مربوط بالبوت" });
+      continue;
+    }
+    if (!repPhoneKey(rep.id)) {
+      rows.push({ repId: rep.id, name: rep.name, status: "skipped", note: "هاتفه غير مربوط (🔗 ربط هاتفي)" });
+      continue;
+    }
+    progress(`📤 ${rep.name} (${i + 1}/${reps.length})…`);
+    const sent = await sendRepCopy(rep, accounts);
+    rows.push(sent.ok ? { repId: rep.id, name: rep.name, status: "sent", note: `${sent.devices} جهاز` } : { repId: rep.id, name: rep.name, status: "failed", note: sent.message });
+  }
+  return rows;
+}
+

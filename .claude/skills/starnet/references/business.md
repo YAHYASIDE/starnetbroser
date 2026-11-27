@@ -4059,3 +4059,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   No native change. Off Android it is a normal download.
 - Other phones with their own Google account import the same file (or share the account's contacts).
 
+## 💱📤 «أرسل العملات لكل المندوبين الآن» (Nov 27 2026)
+
+- His «أريد أن تكون العملات عند المندوبين صالحة، خذ نسخة حالًا من جهاز YAHYA 1 وأرسلها لكل المندوبين». Why they were stale: the rates
+  reach a rep only inside HIS COPY (`sendRepCopy`, through the reps bot; auto-sent 30 s after a rate / pin change by
+  RepCopyAutoRunner) - and that runner is part «المندوبون», STOPPED in the safe mode.
+- Built: the button «💱 أرسل العملات لكل المندوبين الآن» at the top of المندوبون (components/SendRatesToReps.tsx): shows the rates this
+  phone holds now (enabled ones, 📌 for pinned: `ratesLines`), then `sendRatesToAllReps` sends every rep his copy (with those rates)
+  one after the other, only through the bot to a rep whose phone is linked (never the share sheet); the result per rep
+  (`repSendSummary`: ✓ sent / ⏭️ not linked / ✗ failed). Works in the safe mode (a direct tap).
+- Open: the automatic copy on a rate change stays off while «المندوبون» is stopped (it is not always-on - only the bots and the
+  team link are). Decide with him after the speed work whether it joins the always-on parts.
+

@@ -106,3 +106,28 @@ export function saveAutoCopyStates(states: Record<string, AutoCopyState>): void 
     // the next tick starts the wait again
   }
 }
+
+// ---- 📤 «أرسل العملات لكل المندوبين الآن» (his Nov 27 2026) ----
+
+/** One line per enabled currency: «EUR = 0.92 📌» - what the main phone's copy carries now (read before sending). */
+export function ratesLines(store: CurrencyStore): string[] {
+  return Object.values(store)
+    .filter((c) => c && c.enabled !== false && Number.isFinite(c.rateFromUsd))
+    .sort((a, b) => a.code.localeCompare(b.code))
+    .map((c) => `${c.code} = ${Number(c.rateFromUsd.toPrecision(6))}${c.pinnedAt ? " 📌" : ""}`);
+}
+
+export interface RepSendRow {
+  repId: string;
+  name: string;
+  /** "sent" went by the bot; "skipped" has no bot link or no linked phone (nothing leaves); "failed" the send failed. */
+  status: "sent" | "skipped" | "failed";
+  note: string;
+}
+
+/** The result as words: «✓ 3 أُرسل · ⏭️ 1 غير مربوط · ✗ 0 فشل». */
+export function repSendSummary(rows: RepSendRow[]): string {
+  const n = (s: RepSendRow["status"]) => rows.filter((r) => r.status === s).length;
+  return `✓ ${n("sent")} أُرسل · ⏭️ ${n("skipped")} غير مربوط · ✗ ${n("failed")} فشل`;
+}
+

@@ -28,6 +28,7 @@ import { loadProfitReset } from "@/lib/profitReset";
 import { applyRepReset, inRepVersion, pickRepReset, repResetPoints, repVersions, seedRepResetHistory, undoRepReset, type RepVersion } from "@/lib/repResets";
 import { applyRepRatePlans, stampRepRates, withBaseRates, type RepRatePlan } from "@/lib/repRates";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
+import { SendRatesToReps } from "@/components/SendRatesToReps";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { routeSavedBotLoans } from "@/lib/repHandover";
@@ -508,6 +509,12 @@ export default function RepresentativesPage() {
           {refreshing ? "⏳" : "🔄 تحديث"}
         </button>
       </div>
+
+      {!repView && (
+        <div className="agent-actions">
+          <SendRatesToReps reps={representatives} accounts={accounts} />
+        </div>
+      )}
 
       {!repView && <RepInboxSection />}
 
