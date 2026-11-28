@@ -245,3 +245,15 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Background sync (invisible overlay WebView) when enabled; otherwise the visible auto-sync.
 - Faulty and limited-access devices sync only by command.
 - A new device's renewal date is empty («لم يُقرأ بعد») until its first sync - never a placeholder.
+
+## Marketing and the reps' contest
+
+- Ads, statuses and posts are drawn as HTML and rendered to PNG (free, Arabic text exact); Higgsfield
+  AI images cost credits (0.25 per image, his balance was 0) - always tell him the price first.
+  Finished ads and channel captions: `marketing/` (on the `claude/marketing-ads-content-aupjxg` branch).
+  His public numbers only; reps' names and phones never go in git (certificates stay off the repo).
+- **«مسابقة أفضل 5 مندوبين»** - season 1 winners: 1 ALHOUSEYN, 2 ALHAFID, 3 LOBNA TRARZE,
+  4 AHMEDOU (prize 10 «شحنات SIS»), 5 YOUBE. Contest images are Arabic + French.
+- **Season 2 (his choices):** winner = **most subscription renewals**; **current reps only**;
+  prizes = SIS recharges. Proposed and awaiting his confirmation: 1–31 December 2026, prizes
+  30/20/15/10/5, results on 1 January 2027.
