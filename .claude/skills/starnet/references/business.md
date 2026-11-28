@@ -252,6 +252,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   AI images cost credits (0.25 per image, his balance was 0) - always tell him the price first.
   Finished ads and channel captions: `marketing/` (on the `claude/marketing-ads-content-aupjxg` branch).
   His public numbers only; reps' names and phones never go in git (certificates stay off the repo).
+- **Brand (from his logo and WhatsApp Business cover):** navy `#002657` (main), green `#088744`
+  («NET», buttons, ✓), light blue `#1559c7` (details), background `#E1E9F6`, gold `#FFD54A` only for
+  price/offers/contests. Every ad carries his round logo and **both numbers 22227268 · 74646158**
+  (his WhatsApp Business profile is in Mali), email starnet.om@outlook.com. Card: `marketing/brand-colors.png`.
 - **«مسابقة أفضل 5 مندوبين»** - season 1 winners: 1 ALHOUSEYN, 2 ALHAFID, 3 LOBNA TRARZE,
   4 AHMEDOU (prize 10 «شحنات SIS»), 5 YOUBE. Contest images are Arabic + French.
 - **Season 2 (his choices):** winner = **most subscription renewals**; **current reps only**;
